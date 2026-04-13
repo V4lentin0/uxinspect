@@ -4,12 +4,14 @@ import { PNG } from 'pngjs';
 import pixelmatch from 'pixelmatch';
 import type { Page } from 'playwright';
 import type { VisualResult } from './types.js';
+import type { BaselineStore } from './store.js';
 
 export interface VisualOptions {
   baselineDir: string;
   outputDir: string;
   threshold?: number;
   failRatio?: number;
+  store?: BaselineStore;
 }
 
 export async function checkVisual(
@@ -27,10 +29,19 @@ export async function checkVisual(
   await fs.mkdir(opts.baselineDir, { recursive: true });
 
   await page.screenshot({ path: currentPath, fullPage: true });
+  const currentBytes = await fs.readFile(currentPath);
+  const storeKey = `${name}-${viewport}.png`;
 
-  const baselineExists = await fileExists(baselinePath);
-  if (!baselineExists) {
-    await fs.copyFile(currentPath, baselinePath);
+  let baselineBytes: Buffer | null = null;
+  if (opts.store) {
+    baselineBytes = await opts.store.read(storeKey).catch(() => null);
+  }
+  if (!baselineBytes && (await fileExists(baselinePath))) {
+    baselineBytes = await fs.readFile(baselinePath);
+  }
+  if (!baselineBytes) {
+    await fs.writeFile(baselinePath, currentBytes);
+    if (opts.store) await opts.store.write(storeKey, currentBytes).catch(() => {});
     return {
       page: page.url(),
       viewport,
@@ -41,9 +52,10 @@ export async function checkVisual(
       passed: true,
     };
   }
+  await fs.writeFile(baselinePath, baselineBytes);
 
-  const baseline = PNG.sync.read(await fs.readFile(baselinePath));
-  const current = PNG.sync.read(await fs.readFile(currentPath));
+  const baseline = PNG.sync.read(baselineBytes);
+  const current = PNG.sync.read(currentBytes);
   const { width, height } = baseline;
 
   if (current.width !== width || current.height !== height) {

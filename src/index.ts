@@ -5,6 +5,7 @@ import { checkVisual } from './visual.js';
 import { explore } from './explore.js';
 import { AIHelper } from './ai.js';
 import { writeReport } from './report.js';
+import { r2StoreFromEnv } from './store.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -27,6 +28,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const checks = config.checks ?? { a11y: true, perf: false, visual: true, explore: false };
   const outputDir = config.output?.dir ?? './uxinspect-report';
   const baselineDir = config.output?.baselineDir ?? './uxinspect-baselines';
+  const store = r2StoreFromEnv();
   const flows = config.flows ?? [{ name: 'load', steps: [{ goto: config.url }] }];
 
   const driver = new Driver();
@@ -51,7 +53,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const flowResult = await runFlow(page, flow.name, flow.steps, ai);
         const a11y = checks.a11y ? await checkA11y(page).catch((e) => emptyA11y(page.url(), e)) : undefined;
         const visual = checks.visual
-          ? await checkVisual(page, flow.name, vp.name, { baselineDir, outputDir }).catch((e) => emptyVisual(page.url(), vp.name, e))
+          ? await checkVisual(page, flow.name, vp.name, { baselineDir, outputDir, store: store ?? undefined }).catch((e) => emptyVisual(page.url(), vp.name, e))
           : undefined;
         if (!config.parallel) await page.close();
         return { flow: flowResult, a11y, visual };
