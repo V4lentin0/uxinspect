@@ -1,0 +1,56 @@
+{
+  "name": "uxinspect",
+  "version": "0.1.0",
+  "description": "All-in-one UI/UX testing — browser automation, AI-powered exploration, accessibility audit, performance scores, visual diff. Tests like a real human.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "uxinspect": "dist/cli.js"
+  },
+  "files": ["dist", "bin", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/cli.js",
+    "example": "tsx examples/basic.ts",
+    "test": "node --test dist/**/*.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "ui-testing",
+    "ux-testing",
+    "e2e",
+    "browser-automation",
+    "accessibility",
+    "wcag",
+    "performance",
+    "visual-regression",
+    "ai-testing",
+    "human-testing"
+  ],
+  "license": "MIT",
+  "author": "uxinspect",
+  "homepage": "https://uxinspect.com",
+  "repository": "github:uxinspect/uxinspect",
+  "dependencies": {
+    "@axe-core/playwright": "^4.10.0",
+    "@browserbasehq/stagehand": "^2.0.0",
+    "lighthouse": "^12.0.0",
+    "pixelmatch": "^7.1.0",
+    "playwright": "^1.48.0",
+    "pngjs": "^7.0.0",
+    "yargs": "^17.7.2",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pngjs": "^6.0.5",
+    "@types/yargs": "^17.0.33",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
