@@ -1,0 +1,7 @@
+name = "uxinspect-dashboard"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+
+[[r2_buckets]]
+binding = "REPORTS"
+bucket_name = "uxinspect-reports"

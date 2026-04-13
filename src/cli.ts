@@ -29,6 +29,14 @@ const argv = await yargs(hideBin(process.argv))
         type: 'string',
         default: 'html,json',
         describe: 'Comma list: html,json,junit,sarif',
+      })
+      .option('publish', {
+        type: 'string',
+        describe: 'Publish report to dashboard URL (e.g. https://uxinspect-dashboard.example.com)',
+      })
+      .option('publish-token', {
+        type: 'string',
+        describe: 'Bearer token for dashboard upload (or env UXINSPECT_PUBLISH_TOKEN)',
       }),
   )
   .command('report <dir>', 'Serve a generated report on localhost', (y) =>
@@ -72,6 +80,30 @@ if (cmd === 'run') {
   const status = result.passed ? 'PASS' : 'FAIL';
   console.log(`\n${status} — ${(result.durationMs / 1000).toFixed(1)}s`);
   console.log(`Report: ${path.resolve(config.output?.dir ?? './uxinspect-report', 'report.html')}`);
+
+  const publishUrl = (argv as any).publish as string | undefined;
+  if (publishUrl) {
+    const token = ((argv as any)['publish-token'] as string | undefined) ?? process.env.UXINSPECT_PUBLISH_TOKEN;
+    try {
+      const res = await fetch(`${publishUrl.replace(/\/$/, '')}/upload`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(result),
+      });
+      if (res.ok) {
+        const { url: reportUrl } = (await res.json()) as { url: string };
+        console.log(`Published: ${publishUrl.replace(/\/$/, '')}${reportUrl}`);
+      } else {
+        console.error(`Publish failed: ${res.status} ${res.statusText}`);
+      }
+    } catch (e) {
+      console.error(`Publish error: ${(e as Error).message}`);
+    }
+  }
+
   process.exit(result.passed ? 0 : 1);
 }
 
