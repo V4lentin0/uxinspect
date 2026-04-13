@@ -38,10 +38,17 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
 
   try {
     for (const vp of viewports) {
-      await driver.launch({ viewport: { width: vp.width, height: vp.height } });
-      const page = await driver.newPage();
       const ai = new AIHelper({ apiKey: config.ai?.apiKey, model: config.ai?.model });
-      if (config.ai?.enabled) await ai.init(page);
+      let page: Page;
+      if (config.ai?.enabled) {
+        const aiPage = await ai.init();
+        if (!aiPage) throw new Error('AI enabled but no API key provided');
+        page = aiPage;
+        await page.setViewportSize({ width: vp.width, height: vp.height });
+      } else {
+        await driver.launch({ viewport: { width: vp.width, height: vp.height } });
+        page = await driver.newPage();
+      }
 
       for (const flow of flows) {
         const flowResult = await runFlow(page, flow.name, flow.steps, ai);
@@ -72,6 +79,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         exploreResult = await explore(page, opts);
       }
 
+      await ai.close();
       await driver.close();
     }
   } finally {

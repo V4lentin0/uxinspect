@@ -5,11 +5,14 @@ export interface ExploreOptions {
   maxClicks?: number;
   maxPages?: number;
   sameOrigin?: boolean;
+  submitForms?: boolean;
 }
 
 export async function explore(page: Page, opts: ExploreOptions = {}): Promise<ExploreResult> {
   const maxClicks = opts.maxClicks ?? 50;
+  const maxPages = opts.maxPages ?? 20;
   const sameOrigin = opts.sameOrigin ?? true;
+  const submitForms = opts.submitForms ?? true;
   const startOrigin = new URL(page.url()).origin;
 
   const consoleErrors: string[] = [];
@@ -18,6 +21,7 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
   let buttonsClicked = 0;
   let formsSubmitted = 0;
   const pagesVisited = new Set<string>([page.url()]);
+  const tried = new Set<string>();
 
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text());
@@ -27,29 +31,32 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
     if (res.status() >= 400) networkErrors.push(`${res.status()} ${res.url()}`);
   });
 
+  if (submitForms) {
+    formsSubmitted += await fillAndSubmitForms(page, errors);
+  }
+
   for (let i = 0; i < maxClicks; i++) {
-    const clickable = await page
-      .locator('button:visible, a:visible, [role="button"]:visible')
-      .all()
-      .catch(() => []);
-    if (clickable.length === 0) break;
-    const target = clickable[i % clickable.length];
+    if (pagesVisited.size >= maxPages) break;
+    const target = await pickNextClickable(page, tried);
     if (!target) break;
+    tried.add(target.key);
     try {
       const before = page.url();
-      await target.click({ timeout: 2000, trial: false });
+      await target.locator.click({ timeout: 5000, noWaitAfter: true });
       buttonsClicked++;
+      await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
       await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
       const after = page.url();
       if (after !== before) {
         if (sameOrigin && new URL(after).origin !== startOrigin) {
-          await page.goBack().catch(() => {});
+          await page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => {});
         } else {
           pagesVisited.add(after);
+          if (submitForms) formsSubmitted += await fillAndSubmitForms(page, errors);
         }
       }
-    } catch (e) {
-      // expected — many clicks fail (overlays, hidden, etc.)
+    } catch {
+      // click failed — skip
     }
   }
 
@@ -61,4 +68,70 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
     consoleErrors,
     networkErrors,
   };
+}
+
+async function pickNextClickable(
+  page: Page,
+  tried: Set<string>,
+): Promise<{ locator: import('playwright').Locator; key: string } | null> {
+  const candidates = await page
+    .locator('button:visible, a:visible, [role="button"]:visible')
+    .all()
+    .catch(() => []);
+  for (const loc of candidates) {
+    const key = await loc
+      .evaluate((el) => {
+        const tag = el.tagName.toLowerCase();
+        const id = el.id ? `#${el.id}` : '';
+        const cls = el.className && typeof el.className === 'string' ? `.${el.className.slice(0, 40)}` : '';
+        const txt = (el.textContent ?? '').trim().slice(0, 40);
+        const href = (el as HTMLAnchorElement).href ?? '';
+        return `${tag}${id}${cls}|${txt}|${href}`;
+      })
+      .catch(() => '');
+    if (!key || tried.has(key)) continue;
+    return { locator: loc, key };
+  }
+  return null;
+}
+
+async function fillAndSubmitForms(page: Page, errors: string[]): Promise<number> {
+  const forms = await page.locator('form:visible').all().catch(() => []);
+  let submitted = 0;
+  for (const form of forms) {
+    try {
+      const inputs = await form.locator('input:visible:not([type="hidden"]), textarea:visible, select:visible').all();
+      for (const input of inputs) {
+        const type = (await input.getAttribute('type').catch(() => null)) ?? 'text';
+        if (type === 'submit' || type === 'button' || type === 'reset' || type === 'file') continue;
+        if (type === 'checkbox' || type === 'radio') {
+          await input.check({ timeout: 1000 }).catch(() => {});
+          continue;
+        }
+        if (type === 'email') {
+          await input.fill('test@uxinspect.dev', { timeout: 1000 }).catch(() => {});
+        } else if (type === 'number' || type === 'tel') {
+          await input.fill('1234567890', { timeout: 1000 }).catch(() => {});
+        } else if (type === 'url') {
+          await input.fill('https://uxinspect.com', { timeout: 1000 }).catch(() => {});
+        } else {
+          await input.fill('uxinspect', { timeout: 1000 }).catch(() => {});
+        }
+      }
+      const submitBtn = form
+        .locator('button:not([type="button"]):not([type="reset"]), input[type="submit"], input[type="image"]')
+        .first();
+      if (await submitBtn.count().catch(() => 0)) {
+        const before = page.url();
+        await submitBtn.click({ timeout: 5000, noWaitAfter: true }).catch(() => {});
+        submitted++;
+        await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
+        await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
+        if (page.url() !== before) await page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => {});
+      }
+    } catch (e) {
+      errors.push(`form submit: ${(e as Error).message}`);
+    }
+  }
+  return submitted;
 }
