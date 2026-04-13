@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>uxinspect — UI/UX testing that acts like a real human</title>
+<meta name="description" content="One CLI for accessibility, performance, visual diff and AI exploration. MIT, no API keys, runs anywhere Node 20 runs.">
+<link rel="preconnect" href="https://rsms.me/">
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2310B981'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Inter,sans-serif' font-size='18' font-weight='700' fill='white'%3Eu%3C/text%3E%3C/svg%3E">
+<style>
+  :root { --bg:#FAFAFA; --card:#FFFFFF; --border:#E5E7EB; --text:#1D1D1F; --muted:#6B7280;
+          --green:#10B981; --green-light:#6EE7B7; --green-bg:#ECFDF5;
+          --blue:#3B82F6; --blue-bg:#EFF6FF; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace; font-size: 13px; }
+  .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+
+  header { padding: 20px 0; border-bottom: 1px solid var(--border); background: white; }
+  .nav { display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-weight: 700; font-size: 18px; display: flex; align-items: center; gap: 8px; color: var(--text); }
+  .logo-mark { width: 28px; height: 28px; background: var(--green); border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 16px; }
+  .nav-links { display: flex; gap: 24px; font-size: 14px; }
+  .nav-links a { color: var(--muted); }
+  .nav-links a:hover { color: var(--text); text-decoration: none; }
+
+  .hero { padding: 80px 0 64px; text-align: center; }
+  .badge-pill { display: inline-block; background: var(--green-bg); color: var(--green); border: 1px solid var(--green-light); padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-bottom: 24px; }
+  h1 { font-size: 48px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; margin-bottom: 16px; }
+  h1 .accent { color: var(--green); }
+  .lede { font-size: 18px; color: var(--muted); max-width: 640px; margin: 0 auto 32px; }
+  .cta { display: inline-flex; gap: 12px; align-items: center; }
+  .btn { display: inline-block; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 14px; border: 1px solid transparent; cursor: pointer; }
+  .btn-primary { background: var(--green); color: white; }
+  .btn-primary:hover { background: #059669; text-decoration: none; }
+  .btn-secondary { background: white; border-color: var(--border); color: var(--text); }
+  .btn-secondary:hover { background: var(--green-bg); border-color: var(--green-light); text-decoration: none; }
+
+  .install { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin: 32px auto 0; max-width: 480px; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+  .install code { color: var(--text); }
+  .copy-btn { font-size: 12px; color: var(--muted); background: none; border: 1px solid var(--border); padding: 4px 10px; border-radius: 4px; }
+
+  section { padding: 64px 0; }
+  section.alt { background: white; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; }
+  .section-sub { color: var(--muted); margin-bottom: 32px; }
+
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .feature { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  section.alt .feature { background: var(--bg); }
+  .feature-icon { width: 32px; height: 32px; border-radius: 6px; background: var(--green-bg); color: var(--green); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; margin-bottom: 12px; }
+  .feature h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .feature p { font-size: 13px; color: var(--muted); }
+
+  pre.codeblock { background: #0B1320; color: #E5E7EB; padding: 20px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.6; }
+  pre.codeblock .c-key { color: var(--green-light); }
+  pre.codeblock .c-str { color: #FCD34D; }
+  pre.codeblock .c-com { color: #6B7280; }
+
+  .checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 24px; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .check::before { content: ''; width: 16px; height: 16px; border-radius: 50%; background: var(--green-bg); border: 2px solid var(--green); flex-shrink: 0; }
+
+  footer { padding: 40px 0; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+  .footer-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+  .footer-links { display: flex; gap: 20px; }
+
+  @media (max-width: 600px) {
+    h1 { font-size: 36px; }
+    .hero { padding: 48px 0 40px; }
+    section { padding: 48px 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container nav">
+    <a href="/" class="logo"><span class="logo-mark">u</span> uxinspect</a>
+    <nav class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="#example">Example</a>
+      <a href="https://github.com/V4lentin0/uxinspect">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <span class="badge-pill">v0.1.0 · MIT · Node 20+</span>
+    <h1>UI/UX testing that acts <span class="accent">like a real human</span></h1>
+    <p class="lede">One CLI for accessibility, performance, visual diff, and AI exploration. No API keys. No SaaS lock-in. Runs anywhere Node runs.</p>
+    <div class="cta">
+      <a href="#install" class="btn btn-primary">Install</a>
+      <a href="https://github.com/V4lentin0/uxinspect" class="btn btn-secondary">View on GitHub</a>
+    </div>
+    <div class="install" id="install">
+      <code>$ npm install -g uxinspect &amp;&amp; uxinspect run --url https://yourapp.com</code>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="container">
+    <h2>Everything in one tool</h2>
+    <p class="section-sub">Stop stitching five testing tools together. uxinspect bundles every check that matters.</p>
+    <div class="features">
+      <div class="feature"><div class="feature-icon">A</div><h3>Accessibility</h3><p>Full WCAG audit on every page with severity-graded violations.</p></div>
+      <div class="feature"><div class="feature-icon">P</div><h3>Performance</h3><p>Core Web Vitals + four-category scoring on real pages.</p></div>
+      <div class="feature"><div class="feature-icon">V</div><h3>Visual diff</h3><p>Pixel-perfect baselines per viewport with diff images on regression.</p></div>
+      <div class="feature"><div class="feature-icon">F</div><h3>Flow runner</h3><p>Scripted user journeys: click, fill, submit, navigate.</p></div>
+      <div class="feature"><div class="feature-icon">E</div><h3>Auto-explore</h3><p>Crawl every button and form on the site without writing scripts.</p></div>
+      <div class="feature"><div class="feature-icon">AI</div><h3>Keyless AI</h3><p>Natural-language steps resolved via role/text/label — no API key needed.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="example">
+  <div class="container">
+    <h2>One config. One report. Done.</h2>
+    <p class="section-sub">Drop a config file, run the CLI, get HTML + JSON + JUnit + SARIF reports.</p>
+    <pre class="codeblock"><span class="c-com">// uxinspect.config.mjs</span>
+<span class="c-key">export default</span> {
+  url: <span class="c-str">'https://yourapp.com'</span>,
+  viewports: [
+    { name: <span class="c-str">'mobile'</span>, width: 375, height: 667 },
+    { name: <span class="c-str">'desktop'</span>, width: 1280, height: 800 },
+  ],
+  flows: [
+    {
+      name: <span class="c-str">'signup'</span>,
+      steps: [
+        { goto: <span class="c-str">'https://yourapp.com'</span> },
+        { ai: <span class="c-str">'click Get Started'</span> },
+        { fill: { selector: <span class="c-str">'#email'</span>, text: <span class="c-str">'me@example.com'</span> } },
+        { ai: <span class="c-str">'click Continue'</span> },
+      ],
+    },
+  ],
+  checks: { a11y: <span class="c-key">true</span>, perf: <span class="c-key">true</span>, visual: <span class="c-key">true</span>, explore: <span class="c-key">false</span> },
+  ai: { enabled: <span class="c-key">true</span> },
+  reporters: [<span class="c-str">'html'</span>, <span class="c-str">'json'</span>, <span class="c-str">'junit'</span>, <span class="c-str">'sarif'</span>],
+};</pre>
+    <div class="checks">
+      <div class="check">Multi-viewport snapshots</div>
+      <div class="check">Parallel flow execution</div>
+      <div class="check">Auth via storageState</div>
+      <div class="check">Local report viewer</div>
+      <div class="check">CI-ready (JUnit + SARIF)</div>
+      <div class="check">Zero API keys</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <h2>Why uxinspect</h2>
+    <p class="section-sub">Every other tool stops at one slice of the problem. uxinspect tests the whole thing.</p>
+    <div class="features">
+      <div class="feature"><h3>One install, six checks</h3><p>One npm install replaces five separate tools and the glue between them.</p></div>
+      <div class="feature"><h3>No external services</h3><p>Runs locally, in CI, or anywhere Node runs. No SaaS account required.</p></div>
+      <div class="feature"><h3>Real browser, real users</h3><p>Headless Chromium driving real user flows, not mocked HTTP requests.</p></div>
+      <div class="feature"><h3>MIT licensed</h3><p>Use it commercially, fork it, ship it. No restrictions.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container footer-row">
+    <div>© 2026 uxinspect · MIT</div>
+    <div class="footer-links">
+      <a href="https://github.com/V4lentin0/uxinspect">GitHub</a>
+      <a href="https://github.com/V4lentin0/uxinspect/issues">Issues</a>
+      <a href="https://www.npmjs.com/package/uxinspect">npm</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
