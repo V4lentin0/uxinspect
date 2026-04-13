@@ -3,7 +3,6 @@ import type { Page, Locator } from 'playwright';
 export interface AIHelperOptions {
   model?: string;
   headless?: boolean;
-  apiKey?: string;
 }
 
 type Verb = 'click' | 'type' | 'fill' | 'check' | 'uncheck' | 'select' | 'hover' | 'press';
