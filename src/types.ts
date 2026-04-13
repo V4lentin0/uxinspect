@@ -42,7 +42,6 @@ export interface OutputConfig {
 
 export interface AIConfig {
   enabled?: boolean;
-  apiKey?: string;
   model?: string;
 }
 

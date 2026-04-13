@@ -20,7 +20,7 @@ const argv = await yargs(hideBin(process.argv))
       .option('explore', { type: 'boolean', default: false, describe: 'Auto-explore by clicking everything' })
       .option('out', { type: 'string', default: './uxinspect-report', describe: 'Output directory' })
       .option('baselines', { type: 'string', default: './uxinspect-baselines', describe: 'Visual baseline directory' })
-      .option('ai-key', { type: 'string', describe: 'API key for AI helpers (optional)' }),
+      .option('ai', { type: 'boolean', default: false, describe: 'Enable keyless AI flow steps' }),
   )
   .demandCommand(1)
   .strict()
@@ -40,7 +40,7 @@ if (cmd === 'run') {
           explore: (argv as any).explore,
         },
         output: { dir: (argv as any).out, baselineDir: (argv as any).baselines },
-        ai: (argv as any)['ai-key'] ? { enabled: true, apiKey: (argv as any)['ai-key'] } : undefined,
+        ai: (argv as any).ai ? { enabled: true } : undefined,
       };
 
   console.log(`Inspecting ${config.url}...`);
