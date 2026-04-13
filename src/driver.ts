@@ -6,6 +6,7 @@ export interface DriverOptions {
   viewport?: { width: number; height: number };
   userAgent?: string;
   cdpPort?: number;
+  storageState?: string;
 }
 
 async function freePort(): Promise<number> {
@@ -34,7 +35,13 @@ export class Driver {
     this.context = await this.browser.newContext({
       viewport: opts.viewport ?? { width: 1280, height: 800 },
       userAgent: opts.userAgent,
+      storageState: opts.storageState,
     });
+  }
+
+  async saveStorageState(path: string): Promise<void> {
+    if (!this.context) throw new Error('Driver not launched');
+    await this.context.storageState({ path });
   }
 
   get cdpPort(): number | undefined {

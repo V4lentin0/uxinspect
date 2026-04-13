@@ -2,13 +2,91 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { InspectResult } from './types.js';
 
-export async function writeReport(result: InspectResult, outDir: string): Promise<string> {
+export async function writeReport(
+  result: InspectResult,
+  outDir: string,
+  reporters: ('html' | 'json' | 'junit' | 'sarif')[] = ['html', 'json'],
+): Promise<string> {
   await fs.mkdir(outDir, { recursive: true });
-  const jsonPath = path.join(outDir, 'report.json');
   const htmlPath = path.join(outDir, 'report.html');
-  await fs.writeFile(jsonPath, JSON.stringify(result, null, 2));
-  await fs.writeFile(htmlPath, renderHTML(result));
+  if (reporters.includes('json')) {
+    await fs.writeFile(path.join(outDir, 'report.json'), JSON.stringify(result, null, 2));
+  }
+  if (reporters.includes('html')) {
+    await fs.writeFile(htmlPath, renderHTML(result));
+  }
+  if (reporters.includes('junit')) {
+    await fs.writeFile(path.join(outDir, 'junit.xml'), renderJUnit(result));
+  }
+  if (reporters.includes('sarif')) {
+    await fs.writeFile(path.join(outDir, 'sarif.json'), JSON.stringify(renderSARIF(result), null, 2));
+  }
   return htmlPath;
+}
+
+function renderJUnit(r: InspectResult): string {
+  const tests = r.flows.length;
+  const failures = r.flows.filter((f) => !f.passed).length;
+  const time = (r.durationMs / 1000).toFixed(3);
+  const cases = r.flows
+    .map((f) => {
+      const t = (f.steps.reduce((a, s) => a + s.durationMs, 0) / 1000).toFixed(3);
+      const fail = f.passed
+        ? ''
+        : `<failure message="${escAttr(f.error ?? 'flow failed')}">${escXml(f.error ?? '')}</failure>`;
+      return `    <testcase name="${escAttr(f.name)}" time="${t}">${fail}</testcase>`;
+    })
+    .join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="uxinspect" tests="${tests}" failures="${failures}" time="${time}">
+  <testsuite name="${escAttr(r.url)}" tests="${tests}" failures="${failures}" time="${time}">
+${cases}
+  </testsuite>
+</testsuites>`;
+}
+
+function renderSARIF(r: InspectResult): unknown {
+  const a11y = (r.a11y ?? []).flatMap((p) =>
+    p.violations.map((v) => ({
+      ruleId: v.id,
+      level:
+        v.impact === 'critical' || v.impact === 'serious' ? 'error' : v.impact === 'moderate' ? 'warning' : 'note',
+      message: { text: v.help },
+      locations: [
+        {
+          physicalLocation: {
+            artifactLocation: { uri: p.page },
+            region: { snippet: { text: v.nodes[0]?.html?.slice(0, 200) ?? '' } },
+          },
+        },
+      ],
+    })),
+  );
+  const flowFails = r.flows
+    .filter((f) => !f.passed)
+    .map((f) => ({
+      ruleId: 'flow-failure',
+      level: 'error',
+      message: { text: f.error ?? `flow ${f.name} failed` },
+      locations: [{ physicalLocation: { artifactLocation: { uri: r.url } } }],
+    }));
+  return {
+    version: '2.1.0',
+    $schema: 'https://json.schemastore.org/sarif-2.1.0.json',
+    runs: [
+      {
+        tool: { driver: { name: 'uxinspect', version: '0.1.0', informationUri: 'https://uxinspect.com' } },
+        results: [...a11y, ...flowFails],
+      },
+    ],
+  };
+}
+
+function escAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function escXml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function renderHTML(r: InspectResult): string {

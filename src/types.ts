@@ -5,6 +5,10 @@ export interface InspectConfig {
   checks?: ChecksConfig;
   output?: OutputConfig;
   ai?: AIConfig;
+  headed?: boolean;
+  parallel?: boolean;
+  storageState?: string;
+  reporters?: ('html' | 'json' | 'junit' | 'sarif')[];
 }
 
 export interface Flow {

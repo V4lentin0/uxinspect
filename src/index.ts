@@ -38,23 +38,31 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
 
   try {
     for (const vp of viewports) {
-      await driver.launch({ viewport: { width: vp.width, height: vp.height } });
-      const page = await driver.newPage();
+      await driver.launch({
+        viewport: { width: vp.width, height: vp.height },
+        headless: !config.headed,
+        storageState: config.storageState,
+      });
       const ai = new AIHelper({ model: config.ai?.model });
-      if (config.ai?.enabled) await ai.init(page);
 
-      for (const flow of flows) {
+      const runOne = async (flow: { name: string; steps: Step[] }): Promise<{ flow: FlowResult; a11y?: A11yResult; visual?: VisualResult }> => {
+        const page = await driver.newPage();
+        if (config.ai?.enabled) await ai.init(page);
         const flowResult = await runFlow(page, flow.name, flow.steps, ai);
-        flowResults.push(flowResult);
+        const a11y = checks.a11y ? await checkA11y(page).catch((e) => emptyA11y(page.url(), e)) : undefined;
+        const visual = checks.visual
+          ? await checkVisual(page, flow.name, vp.name, { baselineDir, outputDir }).catch((e) => emptyVisual(page.url(), vp.name, e))
+          : undefined;
+        if (!config.parallel) await page.close();
+        return { flow: flowResult, a11y, visual };
+      };
 
-        if (checks.a11y) a11yResults.push(await checkA11y(page).catch((e) => emptyA11y(page.url(), e)));
-        if (checks.visual) {
-          visualResults.push(
-            await checkVisual(page, flow.name, vp.name, { baselineDir, outputDir }).catch((e) =>
-              emptyVisual(page.url(), vp.name, e),
-            ),
-          );
-        }
+      const results = config.parallel ? await Promise.all(flows.map(runOne)) : [];
+      if (!config.parallel) for (const flow of flows) results.push(await runOne(flow));
+      for (const r of results) {
+        flowResults.push(r.flow);
+        if (r.a11y) a11yResults.push(r.a11y);
+        if (r.visual) visualResults.push(r.visual);
       }
 
       if (checks.perf) {
@@ -68,8 +76,10 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
 
       if (checks.explore) {
         const opts = typeof checks.explore === 'object' ? checks.explore : {};
-        await page.goto(config.url);
-        exploreResult = await explore(page, opts);
+        const ePage = await driver.newPage();
+        await ePage.goto(config.url);
+        exploreResult = await explore(ePage, opts);
+        await ePage.close();
       }
 
       await ai.close();
@@ -98,7 +108,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     passed,
   };
 
-  await writeReport(result, outputDir);
+  await writeReport(result, outputDir, config.reporters);
   return result;
 }
 
