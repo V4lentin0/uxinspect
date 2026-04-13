@@ -56,7 +56,9 @@ export default {
     },
   ],
   checks: { a11y: true, visual: true, perf: true, explore: true },
-  ai: { enabled: true, apiKey: process.env.AI_KEY },
+  parallel: true,
+  reporters: ['html', 'json', 'junit', 'sarif'],
+  ai: { enabled: true },
 } satisfies InspectConfig;
 ```
 
@@ -89,7 +91,48 @@ if (!result.passed) process.exit(1);
 | `--explore` | `false` | Auto-click every interactive element |
 | `--out` | `./uxinspect-report` | Report directory |
 | `--baselines` | `./uxinspect-baselines` | Visual baseline directory |
-| `--ai-key` | — | API key to enable AI helpers |
+| `--ai` | `false` | Enable keyless AI flow steps |
+| `--headed` | `false` | Run with visible browser |
+| `--parallel` | `false` | Run flows in parallel |
+| `--storage-state` | — | Path to auth storageState JSON |
+| `--reporters` | `html,json` | Comma list: `html`, `json`, `junit`, `sarif` |
+| `--publish` | — | Dashboard URL to upload report (e.g. `https://dash.example.com`) |
+| `--publish-token` | — | Bearer token for dashboard upload |
+
+## AI without keys
+
+`{ ai: 'click the login button' }` resolves natural language to Playwright locators (role → label → placeholder → title → text → CSS). Survives most UI redesigns. Zero API keys required.
+
+## Cloud dashboard (optional)
+
+Self-host a dashboard worker with R2 storage. Push reports from CI:
+
+```bash
+uxinspect run --url https://example.com \
+  --publish https://uxinspect-dashboard.example.workers.dev \
+  --publish-token $TOKEN
+```
+
+See `dashboard/` for the worker source and `wrangler.toml`.
+
+## R2 visual baselines (optional)
+
+Set env vars to share baselines across machines/CI:
+
+```bash
+export UXINSPECT_R2_ACCOUNT_ID=...
+export UXINSPECT_R2_BUCKET=uxinspect-baselines
+export UXINSPECT_R2_ACCESS_KEY_ID=...
+export UXINSPECT_R2_SECRET_ACCESS_KEY=...
+```
+
+Local files still mirror; R2 is the source of truth.
+
+## Serve a saved report
+
+```bash
+uxinspect report ./uxinspect-report --port 4173
+```
 
 ## How it compares
 

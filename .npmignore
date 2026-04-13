@@ -1,0 +1,14 @@
+dist/**/*.test.js
+dist/**/*.test.d.ts
+dist/**/*.test.js.map
+dist/**/*.test.d.ts.map
+src
+examples
+dashboard
+site
+.github
+test-results
+uxinspect-report
+uxinspect-baselines
+*.log
+.DS_Store
