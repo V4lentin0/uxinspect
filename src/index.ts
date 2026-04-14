@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { Driver, networkPresets } from './driver.js';
-import { checkA11y } from './a11y.js';
+import { checkA11y, annotateA11y } from './a11y.js';
 import { checkPerf } from './perf.js';
 import { checkVisual } from './visual.js';
 import { explore } from './explore.js';
@@ -71,7 +71,10 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         recordHar: config.har ? path.join(outputDir, 'trace.har') : undefined,
         trace: config.trace ? path.join(outputDir, 'trace.zip') : undefined,
       });
-      const ai = new AIHelper({ model: config.ai?.model });
+      const ai = new AIHelper({
+        model: config.ai?.model,
+        cachePath: path.join(outputDir, 'ai-cache.json'),
+      });
 
       const runOne = async (flow: { name: string; steps: Step[] }): Promise<{
         flow: FlowResult;
@@ -85,6 +88,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (config.ai?.enabled) await ai.init(page);
         const flowResult = await runFlow(page, flow.name, flow.steps, ai);
         const a11y = checks.a11y ? await checkA11y(page).catch((e) => emptyA11y(page.url(), e)) : undefined;
+        if (a11y && a11y.violations.length > 0) {
+          await annotateA11y(page, a11y, path.join(outputDir, 'a11y', `${flow.name}-${vp.name}.png`)).catch(() => {});
+        }
         const visual = checks.visual
           ? await checkVisual(page, flow.name, vp.name, { baselineDir, outputDir, store: store ?? undefined }).catch((e) => emptyVisual(page.url(), vp.name, e))
           : undefined;

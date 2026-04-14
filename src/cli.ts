@@ -122,6 +122,11 @@ const argv = await yargs(hideBin(process.argv))
       .positional('dir', { type: 'string', demandOption: true, describe: 'Report directory (with current/ subdir)' })
       .option('baselines', { type: 'string', default: './uxinspect-baselines' }),
   )
+  .command('watch', 'Re-run inspection on file changes', (y) =>
+    y
+      .option('config', { type: 'string', demandOption: true })
+      .option('path', { type: 'string', default: '.', describe: 'Directory to watch' }),
+  )
   .demandCommand(1)
   .strict()
   .help()
@@ -134,6 +139,7 @@ if (cmd === 'report') await reportCmd();
 if (cmd === 'init') await initCmd();
 if (cmd === 'record') await recordCmd();
 if (cmd === 'accept') await acceptCmd();
+if (cmd === 'watch') await watchCmd();
 
 async function runCmd(): Promise<void> {
   const reporters = String((argv as any).reporters)
@@ -290,6 +296,47 @@ async function recordCmd(): Promise<void> {
   const child = spawn('npx', ['playwright', 'codegen', url], { stdio: 'inherit' });
   await new Promise<void>((resolve) => child.on('exit', () => resolve()));
   console.log('\nPaste the recorded steps into your uxinspect.config.ts flows array.');
+}
+
+async function watchCmd(): Promise<void> {
+  const configPath = (argv as any).config as string;
+  const watchPath = path.resolve((argv as any).path as string);
+  let running = false;
+  let queued = false;
+
+  const run = async () => {
+    if (running) {
+      queued = true;
+      return;
+    }
+    running = true;
+    try {
+      const config = await loadConfig(configPath);
+      console.log(`[${new Date().toLocaleTimeString()}] running…`);
+      const result = await inspect(config);
+      const status = result.passed ? 'PASS' : 'FAIL';
+      console.log(`[${new Date().toLocaleTimeString()}] ${status} — ${(result.durationMs / 1000).toFixed(1)}s`);
+    } catch (e) {
+      console.error(`error: ${(e as Error).message}`);
+    }
+    running = false;
+    if (queued) {
+      queued = false;
+      run();
+    }
+  };
+
+  console.log(`Watching ${watchPath}. Editing any file triggers a re-run.`);
+  await run();
+  const { watch } = await import('node:fs');
+  let debounce: NodeJS.Timeout | null = null;
+  watch(watchPath, { recursive: true }, (_ev, file) => {
+    if (!file) return;
+    const s = String(file);
+    if (s.includes('node_modules') || s.includes('uxinspect-report') || s.includes('uxinspect-baselines') || s.startsWith('.')) return;
+    if (debounce) clearTimeout(debounce);
+    debounce = setTimeout(() => run(), 300);
+  });
 }
 
 async function acceptCmd(): Promise<void> {

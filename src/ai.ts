@@ -1,9 +1,14 @@
 import type { Page, Locator } from 'playwright';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 
 export interface AIHelperOptions {
   model?: string;
   headless?: boolean;
+  cachePath?: string;
 }
+
+type LocatorCache = Record<string, { strategy: string; value: string; verb: string }>;
 
 type Verb = 'click' | 'type' | 'fill' | 'check' | 'uncheck' | 'select' | 'hover' | 'press';
 
@@ -16,6 +21,8 @@ interface ParsedInstruction {
 export class AIHelper {
   private _page: Page | null = null;
   private opts: AIHelperOptions;
+  private cache: LocatorCache = {};
+  private cacheLoaded = false;
 
   constructor(opts: AIHelperOptions = {}) {
     this.opts = opts;
@@ -23,6 +30,7 @@ export class AIHelper {
 
   async init(page?: Page): Promise<Page | null> {
     this._page = page ?? null;
+    await this.loadCache();
     return this._page;
   }
 
@@ -34,7 +42,16 @@ export class AIHelper {
     if (!this._page) return false;
     const parsed = parseInstruction(instruction);
     if (!parsed) return false;
-    const loc = await resolveLocator(this._page, parsed.target, parsed.verb);
+    const cached = this.cache[instruction];
+    let loc: Locator | null = null;
+    if (cached) {
+      loc = locatorFromCache(this._page, cached);
+      if (loc && !(await loc.count().catch(() => 0))) loc = null;
+    }
+    if (!loc) {
+      loc = await resolveLocator(this._page, parsed.target, parsed.verb);
+      if (loc) await this.rememberLocator(instruction, loc, parsed.verb);
+    }
     if (!loc) return false;
     try {
       switch (parsed.verb) {
@@ -95,11 +112,73 @@ export class AIHelper {
 
   async close(): Promise<void> {
     this._page = null;
+    await this.saveCache();
   }
 
   isAvailable(): boolean {
     return this._page !== null;
   }
+
+  private async loadCache(): Promise<void> {
+    if (this.cacheLoaded || !this.opts.cachePath) return;
+    try {
+      this.cache = JSON.parse(await fs.readFile(this.opts.cachePath, 'utf8'));
+    } catch {
+      this.cache = {};
+    }
+    this.cacheLoaded = true;
+  }
+
+  private async saveCache(): Promise<void> {
+    if (!this.opts.cachePath) return;
+    await fs.mkdir(path.dirname(this.opts.cachePath), { recursive: true });
+    await fs.writeFile(this.opts.cachePath, JSON.stringify(this.cache, null, 2));
+  }
+
+  private async rememberLocator(instruction: string, loc: Locator, verb: string): Promise<void> {
+    try {
+      const hint = await loc.evaluate(
+        (el: Element) => ({
+          role: (el as HTMLElement).getAttribute('role') ?? '',
+          name: (el as HTMLElement).getAttribute('aria-label') ?? (el.textContent ?? '').trim().slice(0, 60),
+          id: (el as HTMLElement).id,
+          dataTestId: (el as HTMLElement).getAttribute('data-testid') ?? '',
+          tag: el.tagName.toLowerCase(),
+        }),
+      );
+      let strategy = 'text';
+      let value = hint.name;
+      if (hint.dataTestId) {
+        strategy = 'testid';
+        value = hint.dataTestId;
+      } else if (hint.id) {
+        strategy = 'css';
+        value = `#${hint.id}`;
+      } else if (hint.role && hint.name) {
+        strategy = 'role';
+        value = `${hint.role}|${hint.name}`;
+      }
+      this.cache[instruction] = { strategy, value, verb };
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function locatorFromCache(page: Page, c: { strategy: string; value: string }): Locator | null {
+  try {
+    if (c.strategy === 'testid') return page.getByTestId(c.value).first();
+    if (c.strategy === 'css') return page.locator(c.value).first();
+    if (c.strategy === 'role') {
+      const [role, ...rest] = c.value.split('|');
+      const name = rest.join('|');
+      return page.getByRole(role as any, { name: new RegExp(escapeRegExp(name), 'i') }).first();
+    }
+    if (c.strategy === 'text') return page.getByText(c.value, { exact: false }).first();
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 const VERB_MAP: Record<string, Verb> = {
