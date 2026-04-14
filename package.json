@@ -27,7 +27,7 @@
     "dev": "tsc --watch",
     "start": "node dist/cli.js",
     "example": "tsx examples/basic.ts",
-    "test": "node --test dist/**/*.test.js",
+    "test": "node --test \"dist/**/*.test.js\"",
     "prepublishOnly": "npm run build && find dist -name '*.test.*' -delete"
   },
   "keywords": [
