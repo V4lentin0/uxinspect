@@ -151,6 +151,15 @@ export interface ChecksConfig {
   headlessDetect?: boolean;
   animations?: boolean;
   eventListeners?: boolean;
+  darkMode?: boolean | { screenshotDir?: string; sampleSelectors?: string[] };
+  tables?: boolean;
+  svgs?: boolean;
+  media?: boolean;
+  readingLevel?: boolean | { maxGrade?: number; mainSelector?: string };
+  deadImages?: boolean;
+  pagination?: boolean | { scrollProbes?: number };
+  print?: boolean | { screenshotPath?: string };
+  canonical?: boolean | { followChain?: boolean };
 }
 
 export interface OutputConfig {
@@ -223,6 +232,15 @@ export interface InspectResult {
   headlessDetect?: import('./headless-detect.js').HeadlessDetectResult[];
   animations?: import('./animation-audit.js').AnimationAuditResult[];
   eventListeners?: import('./event-listener-audit.js').EventListenerAuditResult[];
+  darkMode?: import('./dark-mode-audit.js').DarkModeResult[];
+  tables?: import('./table-audit.js').TableAuditResult[];
+  svgs?: import('./svg-audit.js').SvgAuditResult[];
+  media?: import('./media-audit.js').MediaAuditResult[];
+  readingLevel?: import('./reading-level.js').ReadingLevelResult[];
+  deadImages?: import('./dead-images.js').DeadImageResult[];
+  pagination?: import('./pagination-audit.js').PaginationResult[];
+  print?: import('./print-audit.js').PrintAuditResult[];
+  canonical?: import('./canonical-audit.js').CanonicalAuditResult[];
   passed: boolean;
 }
 

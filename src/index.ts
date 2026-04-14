@@ -57,6 +57,15 @@ import { auditPrerender } from './prerender-audit.js';
 import { auditHeadlessDetect } from './headless-detect.js';
 import { auditAnimations } from './animation-audit.js';
 import { auditEventListeners } from './event-listener-audit.js';
+import { auditDarkMode } from './dark-mode-audit.js';
+import { auditTables } from './table-audit.js';
+import { auditSvgs } from './svg-audit.js';
+import { auditMedia } from './media-audit.js';
+import { auditReadingLevel } from './reading-level.js';
+import { detectDeadImages } from './dead-images.js';
+import { auditPagination } from './pagination-audit.js';
+import { auditPrint } from './print-audit.js';
+import { auditCanonical } from './canonical-audit.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -104,6 +113,15 @@ import type { PrerenderAuditResult } from './prerender-audit.js';
 import type { HeadlessDetectResult } from './headless-detect.js';
 import type { AnimationAuditResult } from './animation-audit.js';
 import type { EventListenerAuditResult } from './event-listener-audit.js';
+import type { DarkModeResult } from './dark-mode-audit.js';
+import type { TableAuditResult } from './table-audit.js';
+import type { SvgAuditResult } from './svg-audit.js';
+import type { MediaAuditResult } from './media-audit.js';
+import type { ReadingLevelResult } from './reading-level.js';
+import type { DeadImageResult } from './dead-images.js';
+import type { PaginationResult } from './pagination-audit.js';
+import type { PrintAuditResult } from './print-audit.js';
+import type { CanonicalAuditResult } from './canonical-audit.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -168,6 +186,23 @@ export { runOpenApiContract } from './contract-openapi.js';
 export { compareInspect } from './ab-compare.js';
 export { runWatchMode } from './watch-mode.js';
 export { postWebhookReport } from './webhook-reporter.js';
+export { auditDarkMode } from './dark-mode-audit.js';
+export { auditTables } from './table-audit.js';
+export { auditSvgs } from './svg-audit.js';
+export { auditMedia } from './media-audit.js';
+export { auditReadingLevel } from './reading-level.js';
+export { detectDeadImages } from './dead-images.js';
+export { auditPagination } from './pagination-audit.js';
+export { auditPrint } from './print-audit.js';
+export { auditCanonical } from './canonical-audit.js';
+export { compareSsim, ssimFromBuffers } from './visual-ssim.js';
+export { resolveMaskRegions, takeMaskedScreenshot, applyMaskToPng, screenshotWithPlaywrightMask } from './visual-mask.js';
+export { setCpuThrottling, clearCpuThrottling, applyCpuPreset, measureUnderThrottle } from './cpu-throttle.js';
+export { listStories, captureStorybook } from './storybook.js';
+export { triageFailure, triageBatch, TRIAGE_RULES } from './ai-triage.js';
+export { generateFlow, scanInteractions, flowToSnippet } from './ai-codegen.js';
+export { loadDriftDb, saveDriftDb, recordRun, shouldAutoApprove, detectRegression } from './baseline-drift.js';
+export { generateAutoFixes, autoFixesToMarkdown } from './autofix.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
@@ -222,6 +257,15 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const headlessDetectResults: HeadlessDetectResult[] = [];
   const animationsResults: AnimationAuditResult[] = [];
   const eventListenersResults: EventListenerAuditResult[] = [];
+  const darkModeResults: DarkModeResult[] = [];
+  const tablesResults: TableAuditResult[] = [];
+  const svgsResults: SvgAuditResult[] = [];
+  const mediaResults: MediaAuditResult[] = [];
+  const readingLevelResults: ReadingLevelResult[] = [];
+  const deadImagesResults: DeadImageResult[] = [];
+  const paginationResults: PaginationResult[] = [];
+  const printResults: PrintAuditResult[] = [];
+  const canonicalResults: CanonicalAuditResult[] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
 
@@ -291,6 +335,15 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         headlessDetect?: HeadlessDetectResult;
         animations?: AnimationAuditResult;
         eventListeners?: EventListenerAuditResult;
+        darkMode?: DarkModeResult;
+        tables?: TableAuditResult;
+        svgs?: SvgAuditResult;
+        media?: MediaAuditResult;
+        readingLevel?: ReadingLevelResult;
+        deadImages?: DeadImageResult;
+        pagination?: PaginationResult;
+        print?: PrintAuditResult;
+        canonical?: CanonicalAuditResult;
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
@@ -363,6 +416,25 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const headlessR = checks.headlessDetect ? await auditHeadlessDetect(page).catch(() => undefined) : undefined;
         const animationsR = checks.animations ? await auditAnimations(page).catch(() => undefined) : undefined;
         const eventListenersR = checks.eventListeners ? await auditEventListeners(page).catch(() => undefined) : undefined;
+        const darkModeR = checks.darkMode
+          ? await auditDarkMode(page, typeof checks.darkMode === 'object' ? checks.darkMode : {}).catch(() => undefined)
+          : undefined;
+        const tablesR = checks.tables ? await auditTables(page).catch(() => undefined) : undefined;
+        const svgsR = checks.svgs ? await auditSvgs(page).catch(() => undefined) : undefined;
+        const mediaR = checks.media ? await auditMedia(page).catch(() => undefined) : undefined;
+        const readingLevelR = checks.readingLevel
+          ? await auditReadingLevel(page, typeof checks.readingLevel === 'object' ? checks.readingLevel : {}).catch(() => undefined)
+          : undefined;
+        const deadImagesR = checks.deadImages ? await detectDeadImages(page).catch(() => undefined) : undefined;
+        const paginationR = checks.pagination
+          ? await auditPagination(page, typeof checks.pagination === 'object' ? checks.pagination : {}).catch(() => undefined)
+          : undefined;
+        const printR = checks.print
+          ? await auditPrint(page, typeof checks.print === 'object' ? checks.print : {}).catch(() => undefined)
+          : undefined;
+        const canonicalR = checks.canonical
+          ? await auditCanonical(page, typeof checks.canonical === 'object' ? checks.canonical : {}).catch(() => undefined)
+          : undefined;
         const consoleR = console ? console.result() : undefined;
         if (console) console.detach();
         if (!config.parallel) await page.close();
@@ -384,6 +456,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           protocols: protocolsR, fontLoading: fontLoadR,
           prerenderAudit: prerenderR, headlessDetect: headlessR,
           animations: animationsR, eventListeners: eventListenersR,
+          darkMode: darkModeR, tables: tablesR, svgs: svgsR, media: mediaR,
+          readingLevel: readingLevelR, deadImages: deadImagesR,
+          pagination: paginationR, print: printR, canonical: canonicalR,
         };
       };
 
@@ -432,6 +507,15 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.headlessDetect) headlessDetectResults.push(r.headlessDetect);
         if (r.animations) animationsResults.push(r.animations);
         if (r.eventListeners) eventListenersResults.push(r.eventListeners);
+        if (r.darkMode) darkModeResults.push(r.darkMode);
+        if (r.tables) tablesResults.push(r.tables);
+        if (r.svgs) svgsResults.push(r.svgs);
+        if (r.media) mediaResults.push(r.media);
+        if (r.readingLevel) readingLevelResults.push(r.readingLevel);
+        if (r.deadImages) deadImagesResults.push(r.deadImages);
+        if (r.pagination) paginationResults.push(r.pagination);
+        if (r.print) printResults.push(r.print);
+        if (r.canonical) canonicalResults.push(r.canonical);
       }
 
       if (checks.perf) {
@@ -545,6 +629,15 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     headlessDetectResults.every((r) => (r as any).passed !== false) &&
     animationsResults.every((r) => (r as any).passed !== false) &&
     eventListenersResults.every((r) => (r as any).passed !== false) &&
+    darkModeResults.every((r) => (r as any).passed !== false) &&
+    tablesResults.every((r) => (r as any).passed !== false) &&
+    svgsResults.every((r) => (r as any).passed !== false) &&
+    mediaResults.every((r) => (r as any).passed !== false) &&
+    readingLevelResults.every((r) => (r as any).passed !== false) &&
+    deadImagesResults.every((r) => (r as any).passed !== false) &&
+    paginationResults.every((r) => (r as any).passed !== false) &&
+    printResults.every((r) => (r as any).passed !== false) &&
+    canonicalResults.every((r) => (r as any).passed !== false) &&
     (compressionResult === undefined || (compressionResult as any).passed !== false) &&
     (robotsAuditResult === undefined || (robotsAuditResult as any).passed !== false);
 
@@ -605,6 +698,15 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     headlessDetect: checks.headlessDetect ? headlessDetectResults : undefined,
     animations: checks.animations ? animationsResults : undefined,
     eventListeners: checks.eventListeners ? eventListenersResults : undefined,
+    darkMode: checks.darkMode ? darkModeResults : undefined,
+    tables: checks.tables ? tablesResults : undefined,
+    svgs: checks.svgs ? svgsResults : undefined,
+    media: checks.media ? mediaResults : undefined,
+    readingLevel: checks.readingLevel ? readingLevelResults : undefined,
+    deadImages: checks.deadImages ? deadImagesResults : undefined,
+    pagination: checks.pagination ? paginationResults : undefined,
+    print: checks.print ? printResults : undefined,
+    canonical: checks.canonical ? canonicalResults : undefined,
     passed: baselinePassed,
   };
 
