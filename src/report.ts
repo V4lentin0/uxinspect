@@ -476,8 +476,33 @@ function renderHTML(r: InspectResult): string {
   ${(r as any).webfonts?.length ? `<h2>Webfonts</h2>${(r as any).webfonts.map(renderWebfonts).join('')}` : ''}
   ${(r as any).motionPrefs?.length ? `<h2>Motion preferences</h2>${(r as any).motionPrefs.map(renderMotionPrefs).join('')}` : ''}
   ${r.explore ? `<h2>Exploration</h2>${renderExplore(r.explore)}` : ''}
+  ${renderUnknownSections(r)}
 </body>
 </html>`;
+}
+
+const KNOWN_RESULT_KEYS = new Set([
+  'url', 'startedAt', 'finishedAt', 'durationMs', 'flows', 'budget',
+  'a11y', 'perf', 'visual', 'seo', 'links', 'pwa', 'security', 'retire',
+  'deadClicks', 'touchTargets', 'keyboard', 'longTasks', 'clsTimeline', 'forms',
+  'structuredData', 'passiveSecurity', 'consoleErrors', 'sitemap', 'redirects',
+  'exposedPaths', 'tls', 'crawl', 'contentQuality', 'resourceHints', 'mixedContent',
+  'compression', 'cacheHeaders', 'cookieBanner', 'thirdParty', 'bundleSize',
+  'openGraph', 'robotsAudit', 'imageAudit', 'webfonts', 'motionPrefs', 'explore',
+  'apiFlows', 'passed',
+]);
+
+function renderUnknownSections(r: any): string {
+  const out: string[] = [];
+  for (const key of Object.keys(r)) {
+    if (KNOWN_RESULT_KEYS.has(key)) continue;
+    const val = r[key];
+    if (val === undefined || val === null) continue;
+    if (Array.isArray(val) && val.length === 0) continue;
+    const title = escape(key.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()));
+    out.push(`<h2>${title}</h2><div class="section"><pre>${escape(JSON.stringify(val, null, 2))}</pre></div>`);
+  }
+  return out.join('');
 }
 
 function renderFlow(f: { name: string; passed: boolean; steps: any[]; error?: string }): string {
