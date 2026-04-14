@@ -124,6 +124,18 @@ export interface ChecksConfig {
   tls?: boolean;
   crawl?: boolean | { maxDepth?: number; maxPages?: number; sameOriginOnly?: boolean };
   contentQuality?: boolean | { minWords?: number; dupThreshold?: number };
+  resourceHints?: boolean;
+  mixedContent?: boolean;
+  compression?: boolean;
+  cacheHeaders?: boolean;
+  cookieBanner?: boolean;
+  thirdParty?: boolean;
+  bundleSize?: boolean;
+  openGraph?: boolean;
+  robotsAudit?: boolean;
+  imageAudit?: boolean;
+  webfonts?: boolean;
+  motionPrefs?: boolean;
 }
 
 export interface OutputConfig {
@@ -169,6 +181,18 @@ export interface InspectResult {
   tls?: import('./tls.js').TLSAuditResult;
   crawl?: import('./crawl.js').CrawlResult;
   contentQuality?: import('./content-quality.js').ContentQualityResult;
+  resourceHints?: import('./resource-hints.js').ResourceHintsResult[];
+  mixedContent?: import('./mixed-content.js').MixedContentResult[];
+  compression?: import('./compression.js').CompressionAuditResult;
+  cacheHeaders?: import('./cache-headers.js').CacheHeadersResult[];
+  cookieBanner?: import('./cookie-banner.js').CookieBannerResult[];
+  thirdParty?: import('./third-party.js').ThirdPartyResult[];
+  bundleSize?: import('./bundle-size.js').BundleSizeResult[];
+  openGraph?: import('./open-graph.js').OpenGraphResult[];
+  robotsAudit?: import('./robots-audit.js').RobotsAuditResult;
+  imageAudit?: import('./image-audit.js').ImageAuditResult[];
+  webfonts?: import('./webfonts.js').WebfontsResult[];
+  motionPrefs?: import('./motion-prefs.js').MotionPrefsResult[];
   passed: boolean;
 }
 

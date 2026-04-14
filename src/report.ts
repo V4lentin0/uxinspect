@@ -138,6 +138,29 @@ function renderHTML(r: InspectResult): string {
   .visual-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
   ul { margin: 8px 0; padding-left: 20px; font-size: 13px; }
   code { background: #F3F4F6; padding: 1px 6px; border-radius: 3px; font-size: 12px; }
+  details { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; }
+  details[open] { padding-bottom: 16px; }
+  summary { cursor: pointer; font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 12px; list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+  summary::before { content: '\\25B8'; display: inline-block; transition: transform 0.15s ease; color: var(--muted); font-size: 10px; margin-right: 6px; }
+  details[open] > summary::before { transform: rotate(90deg); }
+  .summary-meta { display: flex; align-items: center; gap: 8px; font-weight: 400; color: var(--muted); font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; background: #F9FAFB; }
+  tbody tr:last-child td { border-bottom: none; }
+  .pill-warn { background: #FFFBEB; color: #92400E; }
+  .pill-error { background: #FEF2F2; color: #991B1B; }
+  .pill-info { background: var(--blue-bg); color: var(--blue); }
+  .pill-high { background: #FEF2F2; color: #991B1B; }
+  .pill-medium { background: #FFFBEB; color: #92400E; }
+  .pill-low { background: var(--blue-bg); color: var(--blue); }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; font-size: 13px; margin-top: 8px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; color: var(--text); word-break: break-word; }
+  .empty { color: var(--muted); font-style: italic; font-size: 13px; }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+  .trunc { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: middle; }
 </style>
 </head>
 <body>
@@ -161,6 +184,34 @@ function renderHTML(r: InspectResult): string {
   ${r.links?.length ? `<h2>Broken links</h2>${r.links.map(renderLinks).join('')}` : ''}
   ${r.pwa?.length ? `<h2>PWA</h2>${r.pwa.map(renderPwa).join('')}` : ''}
   ${r.security ? `<h2>Security headers</h2>${renderSecurity(r.security)}` : ''}
+  ${r.retire?.length ? `<h2>Vulnerable libraries</h2>${r.retire.map(renderRetire).join('')}` : ''}
+  ${r.deadClicks?.length ? `<h2>Dead clicks</h2>${r.deadClicks.map(renderDeadClicks).join('')}` : ''}
+  ${r.touchTargets?.length ? `<h2>Touch targets</h2>${r.touchTargets.map(renderTouchTargets).join('')}` : ''}
+  ${r.keyboard?.length ? `<h2>Keyboard</h2>${r.keyboard.map(renderKeyboard).join('')}` : ''}
+  ${r.longTasks?.length ? `<h2>Long tasks & INP</h2>${r.longTasks.map(renderLongTasks).join('')}` : ''}
+  ${r.clsTimeline?.length ? `<h2>Layout shifts</h2>${r.clsTimeline.map(renderClsTimeline).join('')}` : ''}
+  ${r.forms?.length ? `<h2>Forms</h2>${r.forms.map(renderForms).join('')}` : ''}
+  ${r.structuredData?.length ? `<h2>Structured data</h2>${r.structuredData.map(renderStructuredData).join('')}` : ''}
+  ${r.passiveSecurity?.length ? `<h2>Passive security</h2>${r.passiveSecurity.map(renderPassiveSecurity).join('')}` : ''}
+  ${r.consoleErrors?.length ? `<h2>Console errors</h2>${r.consoleErrors.map(renderConsoleErrors).join('')}` : ''}
+  ${r.sitemap ? `<h2>Sitemap</h2>${renderSitemap(r.sitemap)}` : ''}
+  ${r.redirects ? `<h2>Redirects</h2>${renderRedirects(r.redirects)}` : ''}
+  ${r.exposedPaths ? `<h2>Exposed paths</h2>${renderExposedPaths(r.exposedPaths)}` : ''}
+  ${r.tls ? `<h2>TLS</h2>${renderTls(r.tls)}` : ''}
+  ${r.crawl ? `<h2>Crawl</h2>${renderCrawl(r.crawl)}` : ''}
+  ${r.contentQuality ? `<h2>Content quality</h2>${renderContentQuality(r.contentQuality)}` : ''}
+  ${(r as any).resourceHints ? `<h2>Resource hints</h2>${renderResourceHints((r as any).resourceHints)}` : ''}
+  ${(r as any).mixedContent ? `<h2>Mixed content</h2>${renderMixedContent((r as any).mixedContent)}` : ''}
+  ${(r as any).compression ? `<h2>Compression</h2>${renderCompression((r as any).compression)}` : ''}
+  ${(r as any).cacheHeaders ? `<h2>Cache headers</h2>${renderCacheHeaders((r as any).cacheHeaders)}` : ''}
+  ${(r as any).cookieBanner ? `<h2>Cookie banner</h2>${renderCookieBanner((r as any).cookieBanner)}` : ''}
+  ${(r as any).thirdParty ? `<h2>Third-party resources</h2>${renderThirdParty((r as any).thirdParty)}` : ''}
+  ${(r as any).bundleSize ? `<h2>Bundle size</h2>${renderBundleSize((r as any).bundleSize)}` : ''}
+  ${(r as any).openGraph ? `<h2>Open Graph</h2>${renderOpenGraph((r as any).openGraph)}` : ''}
+  ${(r as any).robotsAudit ? `<h2>robots.txt</h2>${renderRobotsAudit((r as any).robotsAudit)}` : ''}
+  ${(r as any).imageAudit ? `<h2>Images</h2>${renderImageAudit((r as any).imageAudit)}` : ''}
+  ${(r as any).webfonts ? `<h2>Webfonts</h2>${renderWebfonts((r as any).webfonts)}` : ''}
+  ${(r as any).motionPrefs ? `<h2>Motion preferences</h2>${renderMotionPrefs((r as any).motionPrefs)}` : ''}
   ${r.explore ? `<h2>Exploration</h2>${renderExplore(r.explore)}` : ''}
 </body>
 </html>`;
@@ -270,5 +321,492 @@ function renderExplore(e: any): string {
 }
 
 function escape(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return (s ?? '').toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function statusBadge(passed: boolean, label?: string): string {
+  return `<span class="${passed ? 'pass' : 'fail'}">${label ?? (passed ? 'PASS' : 'FAIL')}</span>`;
+}
+
+function summaryRow(title: string, passed: boolean, meta: string): string {
+  return `<summary><span>${escape(title)}</span><span class="summary-meta">${meta} ${statusBadge(passed)}</span></summary>`;
+}
+
+function plural(n: number, one: string, many?: string): string {
+  return `${n} ${n === 1 ? one : many ?? one + 's'}`;
+}
+
+function bytes(n: number | undefined): string {
+  if (n === undefined || n === null || !Number.isFinite(n)) return '—';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function renderRetire(r: any): string {
+  const pageUrl = r.findings[0]?.url ?? '';
+  const vulnCount = r.findings.reduce((n: number, f: any) => n + f.vulnerabilities.length, 0);
+  const meta = `${plural(r.findings.length, 'library', 'libraries')} · ${plural(vulnCount, 'vulnerability', 'vulnerabilities')} · ${r.librariesScanned} scanned`;
+  const body = r.findings.length === 0
+    ? `<div class="empty">No vulnerable libraries detected.</div>`
+    : `<table><thead><tr><th>Library</th><th>Version</th><th>Severity</th><th>Summary</th><th>CVE</th></tr></thead><tbody>${
+        r.findings.map((f: any) => f.vulnerabilities.map((v: any) => `
+          <tr>
+            <td><strong>${escape(f.library)}</strong><div class="mono trunc">${escape(f.url)}</div></td>
+            <td><code>${escape(f.version)}</code></td>
+            <td><span class="pill pill-${v.severity === 'critical' ? 'critical' : v.severity === 'high' ? 'serious' : v.severity === 'medium' ? 'moderate' : 'minor'}">${escape(v.severity)}</span></td>
+            <td>${escape(v.summary)}</td>
+            <td class="mono">${(v.identifiers?.CVE ?? []).map((c: string) => escape(c)).join(', ') || '—'}</td>
+          </tr>`).join('')).join('')
+      }</tbody></table>`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(pageUrl || 'Retire.js', r.passed, meta)}${body}</details>`;
+}
+
+function renderDeadClicks(r: any): string {
+  const meta = `${plural(r.clicked, 'click')} · ${plural(r.findings.length, 'dead click')}`;
+  const body = r.findings.length === 0
+    ? `<div class="empty">All interactive elements responded.</div>`
+    : `<table><thead><tr><th>Selector</th><th>Reason</th><th>Feedback</th><th>HTML</th></tr></thead><tbody>${
+        r.findings.map((f: any) => `
+          <tr>
+            <td class="mono trunc">${escape(f.selector)}</td>
+            <td><span class="pill pill-warn">${escape(f.reason)}</span></td>
+            <td>${f.feedbackMs !== undefined ? `${f.feedbackMs}ms` : '—'}</td>
+            <td class="mono trunc">${escape(f.html)}</td>
+          </tr>`).join('')
+      }</tbody></table>`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${body}</details>`;
+}
+
+function renderTouchTargets(r: any): string {
+  const meta = `${r.scanned} scanned · ${plural(r.tooSmall.length, 'too small')} · ${plural(r.overlapping.length, 'overlap')}`;
+  const rows = (arr: any[], kind: string) => arr.map((f: any) => `
+    <tr>
+      <td class="mono trunc">${escape(f.selector)}</td>
+      <td><span class="pill pill-warn">${kind}</span></td>
+      <td>${Math.round(f.width)}×${Math.round(f.height)}px</td>
+      <td class="mono trunc">${escape(f.overlapsWith ?? '')}</td>
+    </tr>`).join('');
+  const body = r.tooSmall.length === 0 && r.overlapping.length === 0
+    ? `<div class="empty">All touch targets meet minimum size.</div>`
+    : `<table><thead><tr><th>Selector</th><th>Issue</th><th>Size</th><th>Overlaps with</th></tr></thead><tbody>${rows(r.tooSmall, 'too-small')}${rows(r.overlapping, 'overlapping')}</tbody></table>`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${body}</details>`;
+}
+
+function renderKeyboard(r: any): string {
+  const meta = `${r.focusableCount} focusable · ${r.tabsTaken} tabs · ${plural(r.issues.length, 'issue')}`;
+  const body = r.issues.length === 0
+    ? `<div class="empty">Keyboard navigation is healthy.</div>`
+    : `<table><thead><tr><th>Level</th><th>Type</th><th>Selector</th><th>Message</th></tr></thead><tbody>${
+        r.issues.map((i: any) => `
+          <tr>
+            <td><span class="pill pill-${i.level === 'error' ? 'error' : 'warn'}">${escape(i.level)}</span></td>
+            <td><code>${escape(i.type)}</code></td>
+            <td class="mono trunc">${escape(i.selector ?? '—')}</td>
+            <td>${escape(i.message)}</td>
+          </tr>`).join('')
+      }</tbody></table>`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${body}</details>`;
+}
+
+function renderLongTasks(r: any): string {
+  const meta = `TBT ${Math.round(r.totalBlockingMs)}ms · INP ${r.inpMs !== undefined ? `${Math.round(r.inpMs)}ms` : '—'} · ${plural(r.longTasks.length, 'long task')}`;
+  const body = `
+    <dl class="kv">
+      <dt>Total blocking</dt><dd>${Math.round(r.totalBlockingMs)}ms</dd>
+      <dt>INP</dt><dd>${r.inpMs !== undefined ? `${Math.round(r.inpMs)}ms${r.inpTarget ? ` on <code>${escape(r.inpTarget)}</code>` : ''}` : '—'}</dd>
+      <dt>Long tasks</dt><dd>${r.longTasks.length}</dd>
+      <dt>LoAF frames</dt><dd>${r.longAnimationFrames.length}</dd>
+    </dl>
+    ${r.longTasks.length ? `<table><thead><tr><th>Start</th><th>Duration</th><th>Attribution</th></tr></thead><tbody>${
+      r.longTasks.slice(0, 20).map((t: any) => `
+        <tr>
+          <td>${Math.round(t.startTime)}ms</td>
+          <td>${Math.round(t.duration)}ms</td>
+          <td class="mono trunc">${(t.attribution ?? []).map((a: any) => escape([a.containerType, a.containerName, a.containerSrc].filter(Boolean).join(' '))).join(', ') || '—'}</td>
+        </tr>`).join('')
+    }</tbody></table>` : ''}`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${body}</details>`;
+}
+
+function renderClsTimeline(r: any): string {
+  const meta = `CLS ${r.cls.toFixed(3)} · ${plural(r.timeline.length, 'shift')}`;
+  const body = r.worstElements.length === 0
+    ? `<div class="empty">No layout shifts recorded.</div>`
+    : `<table><thead><tr><th>Selector</th><th>Total shift</th><th>Occurrences</th></tr></thead><tbody>${
+        r.worstElements.map((e: any) => `
+          <tr>
+            <td class="mono trunc">${escape(e.selector)}</td>
+            <td>${e.totalShift.toFixed(4)}</td>
+            <td>${e.occurrences}</td>
+          </tr>`).join('')
+      }</tbody></table>`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${body}</details>`;
+}
+
+function renderForms(r: any): string {
+  const meta = `${plural(r.forms.length, 'form')} · ${plural(r.totalIssues, 'issue')}`;
+  const body = r.forms.length === 0
+    ? `<div class="empty">No forms on this page.</div>`
+    : r.forms.map((f: any) => `
+        <div style="margin-top:12px">
+          <div><strong class="mono">${escape(f.selector)}</strong> <span class="label">${escape(f.method)} · ${f.fields} fields</span></div>
+          ${f.issues.length ? `<table><thead><tr><th>Level</th><th>Type</th><th>Selector</th><th>Message</th></tr></thead><tbody>${
+            f.issues.map((i: any) => `
+              <tr>
+                <td><span class="pill pill-${i.level === 'error' ? 'error' : 'warn'}">${escape(i.level)}</span></td>
+                <td><code>${escape(i.type)}</code></td>
+                <td class="mono trunc">${escape(i.selector)}</td>
+                <td>${escape(i.message)}</td>
+              </tr>`).join('')
+          }</tbody></table>` : '<div class="empty">No issues.</div>'}
+        </div>`).join('');
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${body}</details>`;
+}
+
+function renderStructuredData(r: any): string {
+  const meta = `${plural(r.items.length, 'item')} · ${plural(r.hreflangTags.length, 'hreflang')} · ${plural(r.issues.length, 'issue')}`;
+  const items = r.items.length
+    ? `<table><thead><tr><th>Format</th><th>Type</th></tr></thead><tbody>${
+        r.items.map((i: any) => `<tr><td><code>${escape(i.format)}</code></td><td>${escape(i.type)}</td></tr>`).join('')
+      }</tbody></table>` : '';
+  const issues = r.issues.length
+    ? `<table><thead><tr><th>Level</th><th>Type</th><th>Message</th></tr></thead><tbody>${
+        r.issues.map((i: any) => `
+          <tr>
+            <td><span class="pill pill-${i.level === 'error' ? 'error' : 'warn'}">${escape(i.level)}</span></td>
+            <td><code>${escape(i.type)}</code></td>
+            <td>${escape(i.message)}${i.snippet ? `<div class="mono trunc">${escape(i.snippet)}</div>` : ''}</td>
+          </tr>`).join('')
+      }</tbody></table>` : '';
+  const body = r.items.length === 0 && r.issues.length === 0
+    ? `<div class="empty">No structured data found.</div>`
+    : items + issues;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${body}</details>`;
+}
+
+function renderPassiveSecurity(r: any): string {
+  const meta = `${plural(r.issues.length, 'issue')} · ${r.scannedScripts} scripts · ${r.scannedLinks} links · ${r.cookiesChecked} cookies`;
+  const body = r.issues.length === 0
+    ? `<div class="empty">No passive security smells.</div>`
+    : `<table><thead><tr><th>Level</th><th>Type</th><th>Target</th><th>Message</th></tr></thead><tbody>${
+        r.issues.map((i: any) => `
+          <tr>
+            <td><span class="pill pill-${i.level === 'error' ? 'error' : 'warn'}">${escape(i.level)}</span></td>
+            <td><code>${escape(i.type)}</code></td>
+            <td class="mono trunc">${escape(i.selector ?? i.url ?? i.cookieName ?? '—')}</td>
+            <td>${escape(i.message)}</td>
+          </tr>`).join('')
+      }</tbody></table>`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${body}</details>`;
+}
+
+function renderConsoleErrors(r: any): string {
+  const meta = `${r.errorCount} errors · ${r.warningCount} warnings · ${plural(r.issues.length, 'unique issue')}`;
+  const body = r.issues.length === 0
+    ? `<div class="empty">No console messages captured.</div>`
+    : `<table><thead><tr><th>Type</th><th>Count</th><th>Message</th><th>Source</th></tr></thead><tbody>${
+        r.issues.map((i: any) => `
+          <tr>
+            <td><span class="pill pill-${i.type === 'warning' ? 'warn' : 'error'}">${escape(i.type)}</span></td>
+            <td>${i.occurrences}</td>
+            <td class="mono trunc">${escape(i.message)}</td>
+            <td class="mono trunc">${escape([i.url, i.lineNumber, i.columnNumber].filter((v) => v !== undefined).join(':'))}</td>
+          </tr>`).join('')
+      }</tbody></table>`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${body}</details>`;
+}
+
+function renderSitemap(r: any): string {
+  const meta = `${r.sitemapFound ? 'found' : 'missing'} · ${r.urlsInSitemap} urls · ${plural(r.brokenUrls.length, 'broken')} · ${plural(r.issues.length, 'issue')}`;
+  const body = `
+    <dl class="kv">
+      <dt>Sitemap URL</dt><dd>${r.sitemapUrl ? `<code>${escape(r.sitemapUrl)}</code>` : '—'}</dd>
+      <dt>robots.txt</dt><dd>${r.robotsTxtFound ? 'found' : 'missing'}</dd>
+      <dt>URLs checked</dt><dd>${r.urlsChecked}</dd>
+      <dt>Blocked critical</dt><dd>${r.robotsBlockedCritical.length ? r.robotsBlockedCritical.map((u: string) => `<code>${escape(u)}</code>`).join(' ') : '—'}</dd>
+    </dl>
+    ${r.brokenUrls.length ? `<table><thead><tr><th>Status</th><th>URL</th></tr></thead><tbody>${
+      r.brokenUrls.map((b: any) => `<tr><td><code>${b.status}</code></td><td class="mono trunc">${escape(b.url)}</td></tr>`).join('')
+    }</tbody></table>` : ''}
+    ${r.issues.length ? `<ul>${r.issues.map((i: any) => `<li><span class="pill pill-${i.level === 'error' ? 'error' : i.level === 'warn' ? 'warn' : 'info'}">${escape(i.level)}</span> ${escape(i.message)}${i.url ? ` — <code>${escape(i.url)}</code>` : ''}</li>`).join('')}</ul>` : ''}`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.baseUrl, r.passed, meta)}${body}</details>`;
+}
+
+function renderRedirects(r: any): string {
+  const meta = `${r.hopCount} hops${r.loop ? ' · loop' : ''}${r.mixedScheme ? ' · mixed scheme' : ''}${r.metaRefresh ? ' · meta-refresh' : ''}`;
+  const body = `
+    <dl class="kv">
+      <dt>Start</dt><dd class="mono trunc">${escape(r.start)}</dd>
+      <dt>Final</dt><dd class="mono trunc">${escape(r.final)}</dd>
+    </dl>
+    ${r.hops.length ? `<table><thead><tr><th>#</th><th>Status</th><th>Method</th><th>URL</th><th>Location</th><th>Time</th></tr></thead><tbody>${
+      r.hops.map((h: any, idx: number) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td><code>${h.status}</code></td>
+          <td>${escape(h.method)}</td>
+          <td class="mono trunc">${escape(h.url)}</td>
+          <td class="mono trunc">${escape(h.location ?? '—')}</td>
+          <td>${Math.round(h.durationMs)}ms</td>
+        </tr>`).join('')
+    }</tbody></table>` : ''}`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.start, r.passed, meta)}${body}</details>`;
+}
+
+function renderExposedPaths(r: any): string {
+  const meta = `${r.scanned} scanned · ${plural(r.findings.length, 'finding')}${r.securityTxtPresent ? ' · security.txt' : ''}`;
+  const body = r.findings.length === 0
+    ? `<div class="empty">No exposed paths detected.</div>`
+    : `<table><thead><tr><th>Severity</th><th>Path</th><th>Status</th><th>Snippet</th></tr></thead><tbody>${
+        r.findings.map((f: any) => `
+          <tr>
+            <td><span class="pill pill-${f.severity}">${escape(f.severity)}</span></td>
+            <td class="mono trunc">${escape(f.path)}</td>
+            <td><code>${f.status}</code></td>
+            <td class="mono trunc">${escape(f.contentSnippet ?? '')}</td>
+          </tr>`).join('')
+      }</tbody></table>`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.baseUrl, r.passed, meta)}${body}</details>`;
+}
+
+function renderTls(r: any): string {
+  const meta = `${r.protocol ?? '—'}${r.cert ? ` · expires in ${r.cert.daysUntilExpiry}d` : ''} · ${plural(r.issues.length, 'issue')}`;
+  const body = `
+    <dl class="kv">
+      <dt>Host</dt><dd>${escape(r.host)}:${r.port}</dd>
+      <dt>Protocol</dt><dd>${escape(r.protocol ?? '—')}</dd>
+      <dt>Cipher</dt><dd>${r.cipher ? `${escape(r.cipher.name)} (${escape(r.cipher.version)})` : '—'}</dd>
+      ${r.cert ? `
+        <dt>Subject</dt><dd class="mono trunc">${escape(r.cert.subject)}</dd>
+        <dt>Issuer</dt><dd class="mono trunc">${escape(r.cert.issuer)}</dd>
+        <dt>Valid</dt><dd>${escape(r.cert.validFrom)} → ${escape(r.cert.validTo)} (${r.cert.daysUntilExpiry}d)</dd>
+        <dt>Key length</dt><dd>${r.cert.keyLength ?? '—'}${r.cert.selfSigned ? ' · self-signed' : ''}</dd>
+      ` : ''}
+      <dt>Chain</dt><dd>${r.chainComplete ? 'complete' : 'incomplete'}</dd>
+      <dt>HSTS</dt><dd class="mono trunc">${escape(r.hstsHeader ?? '—')}${r.hstsPreloadEligible ? ' · preload-eligible' : ''}</dd>
+    </dl>
+    ${r.issues.length ? `<ul>${r.issues.map((i: any) => `<li><span class="pill pill-${i.level === 'error' ? 'error' : i.level === 'warn' ? 'warn' : 'info'}">${escape(i.level)}</span> ${escape(i.message)}</li>`).join('')}</ul>` : ''}`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.host, r.passed, meta)}${body}</details>`;
+}
+
+function renderCrawl(r: any): string {
+  const errors = r.pages.filter((p: any) => p.error || (p.status >= 400 && p.status !== 0)).length;
+  const passed = errors === 0;
+  const meta = `${r.pagesVisited} pages · ${plural(errors, 'error')} · ${(r.durationMs / 1000).toFixed(1)}s`;
+  const body = `
+    <dl class="kv">
+      <dt>Seed</dt><dd class="mono trunc">${escape(r.seed)}</dd>
+      <dt>Pages visited</dt><dd>${r.pagesVisited}</dd>
+      <dt>Duration</dt><dd>${(r.durationMs / 1000).toFixed(1)}s</dd>
+    </dl>
+    <table><thead><tr><th>Depth</th><th>Status</th><th>URL</th><th>Title</th><th>Load</th></tr></thead><tbody>${
+      r.pages.slice(0, 100).map((p: any) => `
+        <tr>
+          <td>${p.depth}</td>
+          <td><code class="${p.status >= 400 || p.error ? 'fail' : 'pass'}">${p.error ? 'ERR' : p.status}</code></td>
+          <td class="mono trunc">${escape(p.url)}</td>
+          <td class="trunc">${escape(p.title ?? '')}</td>
+          <td>${Math.round(p.loadTimeMs)}ms</td>
+        </tr>`).join('')
+    }</tbody></table>`;
+  return `<details${passed ? '' : ' open'}>${summaryRow(r.seed, passed, meta)}${body}</details>`;
+}
+
+function renderContentQuality(r: any): string {
+  const meta = `${r.pages.length} pages · ${plural(r.thinContent.length, 'thin')} · ${plural(r.duplicates.length, 'duplicate')} · ${plural(r.issues.length, 'issue')}`;
+  const body = `
+    <table><thead><tr><th>URL</th><th>Words</th><th>H1s</th><th>Flesch</th><th>Grade</th></tr></thead><tbody>${
+      r.pages.slice(0, 50).map((p: any) => `
+        <tr>
+          <td class="mono trunc">${escape(p.url)}</td>
+          <td>${p.wordCount}</td>
+          <td class="${p.h1Count === 1 ? 'pass' : 'fail'}">${p.h1Count}</td>
+          <td>${p.fleschReadingEase}</td>
+          <td>${p.fleschKincaidGrade}</td>
+        </tr>`).join('')
+    }</tbody></table>
+    ${r.duplicates.length ? `<h3 style="font-size:13px;margin-top:12px">Duplicates</h3><ul>${r.duplicates.map((d: any) => `<li><code>${escape(d.kind)}</code> (${d.similarity.toFixed(2)}): ${d.urls.map((u: string) => `<span class="mono">${escape(u)}</span>`).join(', ')}</li>`).join('')}</ul>` : ''}
+    ${r.issues.length ? `<ul>${r.issues.map((i: any) => `<li><span class="pill pill-${i.level === 'error' ? 'error' : 'warn'}">${escape(i.level)}</span> ${escape(i.message)}${i.url ? ` — <code>${escape(i.url)}</code>` : ''}</li>`).join('')}</ul>` : ''}`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow('Content quality', r.passed, meta)}${body}</details>`;
+}
+
+function renderIssueTable(issues: any[], targetKey = 'target'): string {
+  if (!issues?.length) return '<div class="empty">No issues.</div>';
+  return `<table><thead><tr><th>Type</th><th>Target</th><th>Detail</th></tr></thead><tbody>${
+    issues.map((i: any) => `
+      <tr>
+        <td><code>${escape(i.type)}</code></td>
+        <td class="mono trunc">${escape(i[targetKey] ?? '')}</td>
+        <td>${escape(i.detail ?? i.message ?? '')}</td>
+      </tr>`).join('')
+  }</tbody></table>`;
+}
+
+function renderResourceHints(r: any): string {
+  const meta = `${plural(r.hints.length, 'hint')} · score ${r.score} · ${plural(r.issues.length, 'issue')}`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${renderIssueTable(r.issues)}</details>`;
+}
+
+function renderMixedContent(r: any): string {
+  const meta = `${r.httpsPage ? 'HTTPS' : 'HTTP'} · ${plural(r.insecureResources.length, 'insecure resource')}`;
+  const body = `
+    <dl class="kv">
+      <dt>CSP present</dt><dd>${r.cspPresent ? 'yes' : 'no'}</dd>
+      <dt>upgrade-insecure-requests</dt><dd>${r.cspUpgradeInsecure ? 'yes' : 'no'}</dd>
+      <dt>block-all-mixed-content</dt><dd>${r.cspBlockAllMixed ? 'yes' : 'no'}</dd>
+      <dt>Referrer-Policy</dt><dd>${escape(r.referrerPolicy ?? '—')}</dd>
+    </dl>
+    ${r.insecureResources.length ? `<table><thead><tr><th>Type</th><th>URL</th></tr></thead><tbody>${
+      r.insecureResources.map((i: any) => `<tr><td>${escape(i.type ?? i.tag ?? '')}</td><td class="mono trunc">${escape(i.url)}</td></tr>`).join('')
+    }</tbody></table>` : ''}`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${body}</details>`;
+}
+
+function renderCompression(r: any): string {
+  const meta = `${escape(r.contentEncoding ?? 'identity')} · ${escape(r.httpVersion ?? '—')} · ${plural(r.issues.length, 'issue')}`;
+  const body = `
+    <dl class="kv">
+      <dt>HTTP version</dt><dd>${escape(r.httpVersion ?? '—')}</dd>
+      <dt>Content-Encoding</dt><dd>${escape(r.contentEncoding ?? '—')}</dd>
+      <dt>Content-Length</dt><dd>${bytes(r.contentLength)}</dd>
+      <dt>Transfer size</dt><dd>${bytes(r.transferLength)}</dd>
+      <dt>Ratio</dt><dd>${r.compressionRatio !== undefined ? r.compressionRatio.toFixed(2) : '—'}</dd>
+      <dt>Brotli supported</dt><dd>${r.supportsBrotli ? 'yes' : 'no'}</dd>
+      <dt>Alt-Svc has h3</dt><dd>${r.altSvcHasH3 ? 'yes' : 'no'}</dd>
+    </dl>
+    ${r.issues.length ? `<ul>${r.issues.map((i: string) => `<li>${escape(i)}</li>`).join('')}</ul>` : ''}`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.url, r.passed, meta)}${body}</details>`;
+}
+
+function renderCacheHeaders(r: any): string {
+  const meta = `${r.resources.length} resources · ${plural(r.issues.length, 'issue')}`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${renderIssueTable(r.issues)}</details>`;
+}
+
+function renderCookieBanner(r: any): string {
+  const meta = `${r.bannerDetected ? 'banner detected' : 'no banner'} · ${plural(r.issues.length, 'issue')}`;
+  const body = `
+    <dl class="kv">
+      <dt>Accept button</dt><dd>${r.hasAcceptButton ? 'yes' : 'no'}</dd>
+      <dt>Reject button</dt><dd>${r.hasRejectButton ? 'yes' : 'no'}</dd>
+      <dt>Settings button</dt><dd>${r.hasSettingsButton ? 'yes' : 'no'}</dd>
+      <dt>Cookies before consent</dt><dd>${r.beforeConsentCookies.length}</dd>
+      <dt>Trackers before consent</dt><dd>${r.beforeConsentTrackers.length ? r.beforeConsentTrackers.map((t: string) => `<code>${escape(t)}</code>`).join(' ') : '—'}</dd>
+    </dl>
+    ${r.issues.length ? `<ul>${r.issues.map((i: any) => `<li><code>${escape(i.type)}</code> — ${escape(i.detail)}</li>`).join('')}</ul>` : ''}`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${body}</details>`;
+}
+
+function renderThirdParty(r: any): string {
+  const meta = `${r.thirdPartyResources}/${r.totalResources} resources · ${bytes(r.thirdPartyBytes)} · ${Math.round(r.thirdPartyBlockingMs)}ms blocking`;
+  const body = `
+    <dl class="kv">
+      <dt>First-party origin</dt><dd class="mono trunc">${escape(r.firstPartyOrigin)}</dd>
+      <dt>Third-party bytes</dt><dd>${bytes(r.thirdPartyBytes)}</dd>
+      <dt>Blocking time</dt><dd>${Math.round(r.thirdPartyBlockingMs)}ms</dd>
+    </dl>
+    ${r.topEntities?.length ? `<table><thead><tr><th>Entity</th><th>Requests</th><th>Bytes</th></tr></thead><tbody>${
+      r.topEntities.slice(0, 20).map((e: any) => `<tr><td>${escape(e.name ?? e.entity ?? '—')}</td><td>${e.requests ?? e.count ?? '—'}</td><td>${bytes(e.bytes)}</td></tr>`).join('')
+    }</tbody></table>` : ''}
+    ${r.issues?.length ? renderIssueTable(r.issues) : ''}`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${body}</details>`;
+}
+
+function renderBundleSize(r: any): string {
+  const meta = `JS ${bytes(r.totalJsBytes)} · CSS ${bytes(r.totalCssBytes)} · ${plural(r.bundles.length, 'bundle')}`;
+  const body = `
+    <dl class="kv">
+      <dt>JS</dt><dd>${bytes(r.totalJsBytes)} (transfer ${bytes(r.totalJsTransferBytes)})</dd>
+      <dt>CSS</dt><dd>${bytes(r.totalCssBytes)} (transfer ${bytes(r.totalCssTransferBytes)})</dd>
+      <dt>Duplicate packages</dt><dd>${r.duplicatePackages?.length ?? 0}</dd>
+    </dl>
+    ${r.bundles?.length ? `<table><thead><tr><th>Type</th><th>URL</th><th>Size</th><th>Transfer</th><th>Framework</th></tr></thead><tbody>${
+      r.bundles.slice(0, 30).map((b: any) => `
+        <tr>
+          <td><code>${escape(b.type)}</code></td>
+          <td class="mono trunc">${escape(b.url)}</td>
+          <td>${bytes(b.bytes)}</td>
+          <td>${bytes(b.transferBytes)}</td>
+          <td>${escape(b.framework ?? '—')}</td>
+        </tr>`).join('')
+    }</tbody></table>` : ''}
+    ${r.issues?.length ? renderIssueTable(r.issues) : ''}`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${body}</details>`;
+}
+
+function renderOpenGraph(r: any): string {
+  const og = r.openGraph ?? {};
+  const tw = r.twitter ?? {};
+  const meta = `og:${og.type ?? '—'} · twitter:${tw.card ?? '—'} · ${plural(r.issues.length, 'issue')}`;
+  const body = `
+    <dl class="kv">
+      <dt>og:title</dt><dd>${escape(og.title ?? '—')}</dd>
+      <dt>og:description</dt><dd>${escape(og.description ?? '—')}</dd>
+      <dt>og:image</dt><dd class="mono trunc">${escape(og.image ?? '—')}</dd>
+      <dt>og:url</dt><dd class="mono trunc">${escape(og.url ?? '—')}</dd>
+      <dt>image reachable</dt><dd>${r.imageReachable ? 'yes' : 'no'}</dd>
+      <dt>image size</dt><dd>${r.imageActualWidth ?? '—'}×${r.imageActualHeight ?? '—'}</dd>
+      <dt>twitter:card</dt><dd>${escape(tw.card ?? '—')}</dd>
+      <dt>twitter:site</dt><dd>${escape(tw.site ?? '—')}</dd>
+    </dl>
+    ${r.issues?.length ? `<ul>${r.issues.map((i: any) => `<li><code>${escape(i.type)}</code>${i.detail ? ` — ${escape(i.detail)}` : ''}</li>`).join('')}</ul>` : ''}`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${body}</details>`;
+}
+
+function renderRobotsAudit(r: any): string {
+  const meta = `${r.present ? 'present' : 'missing'}${r.status !== undefined ? ` · ${r.status}` : ''} · ${r.disallowRules?.length ?? 0} disallow · ${plural(r.issues.length, 'issue')}`;
+  const body = `
+    <dl class="kv">
+      <dt>URL</dt><dd class="mono trunc">${escape(r.url)}</dd>
+      <dt>Size</dt><dd>${bytes(r.size)}</dd>
+      <dt>User agents</dt><dd>${(r.userAgents ?? []).map((u: string) => `<code>${escape(u)}</code>`).join(' ') || '—'}</dd>
+      <dt>Sitemap URLs</dt><dd>${(r.sitemapUrls ?? []).map((u: string) => `<div class="mono trunc">${escape(u)}</div>`).join('') || '—'}</dd>
+      <dt>Crawl-delay</dt><dd>${r.crawlDelay ?? '—'}</dd>
+      <dt>Wildcard disallow</dt><dd>${r.hasWildcardDisallow ? 'yes' : 'no'}</dd>
+    </dl>
+    ${r.issues?.length ? `<ul>${r.issues.map((i: any) => `<li><code>${escape(i.type)}</code> — ${escape(i.detail)}</li>`).join('')}</ul>` : ''}`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.url, r.passed, meta)}${body}</details>`;
+}
+
+function renderImageAudit(r: any): string {
+  const meta = `${r.images?.length ?? 0} images · ${plural(r.issues.length, 'issue')}`;
+  const body = `
+    ${r.stats ? `<dl class="kv">${Object.entries(r.stats).map(([k, v]) => `<dt>${escape(k)}</dt><dd>${typeof v === 'number' ? (k.toLowerCase().includes('byte') ? bytes(v as number) : v) : escape(String(v))}</dd>`).join('')}</dl>` : ''}
+    ${r.issues?.length ? renderIssueTable(r.issues) : '<div class="empty">No issues.</div>'}`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${body}</details>`;
+}
+
+function renderWebfonts(r: any): string {
+  const meta = `${r.totalFontsLoaded ?? r.fonts?.length ?? 0} fonts · ${bytes(r.totalFontBytes)} · ${plural(r.issues.length, 'issue')}`;
+  const body = `
+    ${r.fonts?.length ? `<table><thead><tr><th>Family</th><th>Source</th><th>Format</th><th>Size</th><th>Display</th><th>Preloaded</th></tr></thead><tbody>${
+      r.fonts.slice(0, 30).map((f: any) => `
+        <tr>
+          <td>${escape(f.family)}</td>
+          <td><code>${escape(f.source)}</code></td>
+          <td>${escape(f.format ?? '—')}</td>
+          <td>${bytes(f.size)}</td>
+          <td>${escape(f.fontDisplay ?? '—')}</td>
+          <td>${f.preloaded ? 'yes' : 'no'}</td>
+        </tr>`).join('')
+    }</tbody></table>` : ''}
+    ${r.issues?.length ? renderIssueTable(r.issues) : ''}`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${body}</details>`;
+}
+
+function renderMotionPrefs(r: any): string {
+  const meta = `${r.animationsCount ?? 0} animations · ${r.autoplayVideos ?? 0} autoplay · ${plural(r.issues.length, 'issue')}`;
+  const body = `
+    <dl class="kv">
+      <dt>Respects reduced motion</dt><dd>${r.respectsReducedMotion ? 'yes' : 'no'}</dd>
+      <dt>Respects dark mode</dt><dd>${r.respectsDarkMode ? 'yes' : 'no'}</dd>
+      <dt>Respects print</dt><dd>${r.respectsPrint ? 'yes' : 'no'}</dd>
+      <dt>Respects forced colors</dt><dd>${r.respectsForcedColors ? 'yes' : 'no'}</dd>
+      <dt>Animations</dt><dd>${r.animationsCount}</dd>
+      <dt>Autoplay videos</dt><dd>${r.autoplayVideos}</dd>
+      <dt>Infinite animations</dt><dd>${r.infiniteAnimations}</dd>
+    </dl>
+    ${r.issues?.length ? renderIssueTable(r.issues) : ''}`;
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, r.passed, meta)}${body}</details>`;
 }

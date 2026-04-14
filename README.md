@@ -2,8 +2,9 @@
 
 > All-in-one UI/UX testing — tests like a real human, every click, every screen, every accessibility rule, in one CLI.
 
-[![npm](https://img.shields.io/npm/v/uxinspect.svg)](https://npmjs.com/package/uxinspect)
-[![license](https://img.shields.io/npm/l/uxinspect.svg)](LICENSE)
+[![npm](https://img.shields.io/npm/v/uxinspect.svg?color=10B981)](https://npmjs.com/package/uxinspect)
+[![license](https://img.shields.io/npm/l/uxinspect.svg?color=10B981)](LICENSE)
+[![checks](https://img.shields.io/badge/checks-38-10B981)](#checks)
 
 ## What it does
 
@@ -79,25 +80,201 @@ const result = await inspect({
 if (!result.passed) process.exit(1);
 ```
 
-## CLI options
+## Checks
+
+38 built-in checks across 8 categories. Enable any subset via `checks` in the config, or use `--all` on the CLI.
+
+### Accessibility & UX
+
+| Check | Key | One-liner |
+|---|---|---|
+| Accessibility | `a11y` | WCAG violations via axe-core on every viewport |
+| Keyboard | `keyboard` | Focus trap, tab order, visible focus rings |
+| Touch targets | `touchTargets` | WCAG 2.5.5 / 2.5.8 target-size (44/24 px) audit |
+| Dead clicks | `deadClicks` | Flags elements that look clickable but do nothing |
+| Motion prefs | `motionPrefs` | `prefers-reduced-motion`, dark-mode, print, forced-colors |
+| Forms | `forms` | Label, autocomplete, required, validation audit |
+
+```ts
+checks: {
+  a11y: true,
+  keyboard: true,
+  touchTargets: true,
+  deadClicks: true,
+  motionPrefs: true,
+  forms: true,
+}
+```
+
+### Performance
+
+| Check | Key | One-liner |
+|---|---|---|
+| Lighthouse | `perf` | Core Web Vitals + Lighthouse scoring |
+| Long tasks | `longTasks` | Long tasks, LoAF attribution, INP capture |
+| CLS timeline | `clsTimeline` | Layout shift timeline with node attribution |
+| Bundle size | `bundleSize` | JS/CSS byte budget + duplicate package detection |
+| Webfonts | `webfonts` | `font-display`, FOIT/FOUT, oversize font files |
+| Images | `imageAudit` | Alt text, lazy-load, modern format, intrinsic dims |
+| Resource hints | `resourceHints` | `preload` / `prefetch` / `preconnect` audit |
+| Cache headers | `cacheHeaders` | `Cache-Control`, `ETag`, `immutable` audit |
+| Compression | `compression` | gzip / brotli + HTTP/2 / HTTP/3 negotiation |
+
+```ts
+checks: {
+  perf: true,
+  longTasks: true,
+  clsTimeline: true,
+  bundleSize: true,
+  webfonts: true,
+  imageAudit: true,
+  resourceHints: true,
+  cacheHeaders: true,
+  compression: true,
+}
+```
+
+### Security
+
+| Check | Key | One-liner |
+|---|---|---|
+| Headers | `security` | CSP, HSTS, X-Frame-Options, Referrer-Policy, etc. |
+| Passive smells | `passiveSecurity` | Surface-level security red flags |
+| Retire.js | `retire` | Vulnerable JS library scan (12 lib signatures) |
+| TLS | `tls` | Socket audit: protocol, cipher, cert chain |
+| Exposed paths | `exposedPaths` | Sensitive path scan (35 signatures) |
+| Mixed content | `mixedContent` | Insecure resources on HTTPS pages |
+
+```ts
+checks: {
+  security: true,
+  passiveSecurity: true,
+  retire: true,
+  tls: true,
+  exposedPaths: true,
+  mixedContent: true,
+}
+```
+
+### SEO & Content
+
+| Check | Key | One-liner |
+|---|---|---|
+| SEO | `seo` | Meta tags, heading structure, canonical |
+| Sitemap | `sitemap` | `sitemap.xml` fetch + schema validation |
+| Robots | `robotsAudit` | `robots.txt` + meta robots + `X-Robots-Tag` |
+| Structured data | `structuredData` | JSON-LD, microdata, `hreflang` |
+| Open Graph | `openGraph` | OpenGraph + Twitter Card validation |
+| Content quality | `contentQuality` | Flesch-Kincaid readability + duplicate detection |
+| Links | `links` | Broken link check across crawled pages |
+
+```ts
+checks: {
+  seo: true,
+  sitemap: true,
+  robotsAudit: true,
+  structuredData: true,
+  openGraph: true,
+  contentQuality: true,
+  links: true,
+}
+```
+
+### Network & Infra
+
+| Check | Key | One-liner |
+|---|---|---|
+| PWA | `pwa` | Manifest + service worker audit |
+| Redirects | `redirects` | Redirect chain length + loop detection |
+| Crawl | `crawl` | BFS site crawl with configurable depth |
+| Third-party | `thirdParty` | Tracker / ad / analytics script analysis |
+
+```ts
+checks: {
+  pwa: true,
+  redirects: true,
+  crawl: true,
+  thirdParty: true,
+}
+```
+
+### Visual
+
+| Check | Key | One-liner |
+|---|---|---|
+| Visual diff | `visual` | Pixelmatch diff against stored baselines |
+
+```ts
+checks: { visual: true }
+```
+
+### Privacy & Compliance
+
+| Check | Key | One-liner |
+|---|---|---|
+| Cookie banner | `cookieBanner` | GDPR consent popup detection |
+| Console errors | `consoleErrors` | Browser console capture across the run |
+
+```ts
+checks: {
+  cookieBanner: true,
+  consoleErrors: true,
+}
+```
+
+### Exploration
+
+| Check | Key | One-liner |
+|---|---|---|
+| Explore | `explore` | Heuristic automated crawling + interaction |
+| AI | `ai` | Keyless AI instructions (Playwright role/text locators) |
+
+```ts
+checks: {
+  explore: true,
+  ai: true,
+}
+```
+
+## CLI flags
+
+Every check has a matching flag. Use `--all` to turn them all on, or pick individually. Flags are boolean; prefix with `--no-` to disable (e.g. `--no-a11y`).
+
+### Core flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--url` | required | URL to inspect |
-| `--config` | — | Config file (`.ts`/`.js`/`.json`) |
-| `--a11y` | `true` | Accessibility audit |
-| `--perf` | `false` | Performance audit |
-| `--visual` | `true` | Visual diff against baseline |
-| `--explore` | `false` | Auto-click every interactive element |
+| `--config` | — | Config file (`.ts` / `.js` / `.json`) |
 | `--out` | `./uxinspect-report` | Report directory |
 | `--baselines` | `./uxinspect-baselines` | Visual baseline directory |
-| `--ai` | `false` | Enable keyless AI flow steps |
 | `--headed` | `false` | Run with visible browser |
 | `--parallel` | `false` | Run flows in parallel |
 | `--storage-state` | — | Path to auth storageState JSON |
 | `--reporters` | `html,json` | Comma list: `html`, `json`, `junit`, `sarif` |
-| `--publish` | — | Dashboard URL to upload report (e.g. `https://dash.example.com`) |
+| `--publish` | — | Dashboard URL to upload report |
 | `--publish-token` | — | Bearer token for dashboard upload |
+| `--all` | `false` | Enable every check below |
+
+### Check flags
+
+| Category | Flag |
+|---|---|
+| Accessibility & UX | `--a11y` `--keyboard` `--touch-targets` `--dead-clicks` `--motion-prefs` `--forms` |
+| Performance | `--perf` `--long-tasks` `--cls-timeline` `--bundle-size` `--webfonts` `--image-audit` `--resource-hints` `--cache-headers` `--compression` |
+| Security | `--security` `--passive-security` `--retire` `--tls` `--exposed-paths` `--mixed-content` |
+| SEO & Content | `--seo` `--sitemap` `--robots-audit` `--structured-data` `--open-graph` `--content-quality` `--links` |
+| Network & Infra | `--pwa` `--redirects` `--crawl` `--third-party` |
+| Visual | `--visual` |
+| Privacy & Compliance | `--cookie-banner` `--console-errors` |
+| Exploration | `--explore` `--ai` |
+
+Example:
+
+```bash
+uxinspect run --url https://example.com --all
+uxinspect run --url https://example.com --a11y --perf --retire --seo --visual
+```
 
 ## AI without keys
 
@@ -136,17 +313,20 @@ uxinspect report ./uxinspect-report --port 4173
 
 ## How it compares
 
-| Capability | uxinspect | Cypress | Visual SaaS | A11y plugin |
+| Capability | uxinspect | E2E frameworks | Visual SaaS | A11y plugins |
 |---|:-:|:-:|:-:|:-:|
-| Real-user clicks | ✅ | ✅ | — | — |
-| Multi-browser | ✅ | partial | — | — |
-| Accessibility | ✅ | plugin | — | ✅ |
-| Performance | ✅ | — | — | — |
-| Visual diff | ✅ | plugin | ✅ paid | — |
-| Auto-explore | ✅ | — | — | — |
-| AI helpers | ✅ | — | — | — |
-| One report | ✅ | — | — | — |
-| Open source | ✅ MIT | mixed | ❌ | ✅ |
+| Real-user clicks | yes | yes | — | — |
+| Multi-browser | yes | partial | — | — |
+| Accessibility | yes | plugin | — | yes |
+| Performance | yes | — | — | — |
+| Visual diff | yes | plugin | paid | — |
+| Security headers | yes | — | — | — |
+| Vuln JS scan | yes | — | — | — |
+| SEO / structured data | yes | — | — | — |
+| Auto-explore | yes | — | — | — |
+| AI helpers | yes | — | — | — |
+| One report | yes | — | — | — |
+| Open source | MIT | mixed | no | yes |
 
 ## License
 

@@ -75,14 +75,43 @@ const argv = await yargs(hideBin(process.argv))
     y
       .option('url', { type: 'string', demandOption: true, describe: 'URL to inspect' })
       .option('config', { type: 'string', describe: 'Path to config file (.ts/.js/.json)' })
-      .option('a11y', { type: 'boolean', default: true, describe: 'Run accessibility checks' })
-      .option('perf', { type: 'boolean', default: false, describe: 'Run performance audit' })
-      .option('visual', { type: 'boolean', default: true, describe: 'Run visual diff' })
-      .option('explore', { type: 'boolean', default: false, describe: 'Auto-explore by clicking everything' })
-      .option('seo', { type: 'boolean', default: false, describe: 'SEO audit (meta, OG, canonical)' })
-      .option('links', { type: 'boolean', default: false, describe: 'Broken link crawler' })
-      .option('pwa', { type: 'boolean', default: false, describe: 'PWA audit (manifest, service worker)' })
-      .option('security', { type: 'boolean', default: false, describe: 'Security headers audit' })
+      .option('all', { type: 'boolean', describe: 'Enable every check' })
+      .option('a11y', { type: 'boolean', describe: 'Run accessibility checks' })
+      .option('perf', { type: 'boolean', describe: 'Run performance audit' })
+      .option('visual', { type: 'boolean', describe: 'Run visual diff' })
+      .option('explore', { type: 'boolean', describe: 'Auto-explore by clicking everything' })
+      .option('seo', { type: 'boolean', describe: 'SEO audit (meta, OG, canonical)' })
+      .option('links', { type: 'boolean', describe: 'Broken link crawler' })
+      .option('pwa', { type: 'boolean', describe: 'PWA audit (manifest, service worker)' })
+      .option('security', { type: 'boolean', describe: 'Security headers audit' })
+      .option('retire', { type: 'boolean', describe: 'Detect outdated JS libraries with known vulnerabilities' })
+      .option('dead-clicks', { type: 'boolean', describe: 'Detect non-interactive elements that appear clickable' })
+      .option('touch-targets', { type: 'boolean', describe: 'Audit touch target sizes for mobile usability' })
+      .option('keyboard', { type: 'boolean', describe: 'Keyboard navigation and focus trap audit' })
+      .option('long-tasks', { type: 'boolean', describe: 'Detect long-running main-thread tasks' })
+      .option('cls-timeline', { type: 'boolean', describe: 'Record Cumulative Layout Shift timeline' })
+      .option('forms', { type: 'boolean', describe: 'Audit form accessibility and validation' })
+      .option('structured-data', { type: 'boolean', describe: 'Validate JSON-LD / structured data' })
+      .option('passive-security', { type: 'boolean', describe: 'Passive security scan (headers, cookies, CSP)' })
+      .option('console-errors', { type: 'boolean', describe: 'Capture browser console errors' })
+      .option('sitemap', { type: 'boolean', describe: 'Validate sitemap.xml' })
+      .option('redirects', { type: 'boolean', describe: 'Audit redirect chains' })
+      .option('exposed-paths', { type: 'boolean', describe: 'Probe for exposed sensitive paths' })
+      .option('tls', { type: 'boolean', describe: 'TLS / HTTPS configuration audit' })
+      .option('crawl', { type: 'boolean', describe: 'Crawl site for additional pages' })
+      .option('content-quality', { type: 'boolean', describe: 'Content quality audit (readability, grammar signals)' })
+      .option('resource-hints', { type: 'boolean', describe: 'Audit preload / preconnect / dns-prefetch hints' })
+      .option('mixed-content', { type: 'boolean', describe: 'Detect mixed HTTP/HTTPS content' })
+      .option('compression', { type: 'boolean', describe: 'Audit response compression (gzip/brotli)' })
+      .option('cache-headers', { type: 'boolean', describe: 'Audit cache-control and HTTP cache headers' })
+      .option('cookie-banner', { type: 'boolean', describe: 'Detect consent / cookie banner presence' })
+      .option('third-party', { type: 'boolean', describe: 'Audit third-party script impact' })
+      .option('bundle-size', { type: 'boolean', describe: 'Audit JS/CSS bundle sizes' })
+      .option('open-graph', { type: 'boolean', describe: 'Validate OpenGraph and Twitter card meta tags' })
+      .option('robots-audit', { type: 'boolean', describe: 'Validate robots.txt' })
+      .option('image-audit', { type: 'boolean', describe: 'Audit images (alt text, dimensions, formats)' })
+      .option('webfonts', { type: 'boolean', describe: 'Audit web font loading and performance' })
+      .option('motion-prefs', { type: 'boolean', describe: 'Audit prefers-reduced-motion respect' })
       .option('out', { type: 'string', default: './uxinspect-report', describe: 'Output directory' })
       .option('baselines', { type: 'string', default: './uxinspect-baselines', describe: 'Visual baseline directory' })
       .option('ai', { type: 'boolean', default: false, describe: 'Enable keyless AI flow steps' })
@@ -156,18 +185,51 @@ async function runCmd(): Promise<void> {
     ? JSON.parse(await fs.readFile(path.resolve((argv as any).budget), 'utf8'))
     : undefined;
 
+  const a = argv as any;
+  const all: boolean | undefined = a.all === true ? true : undefined;
+  const pick = (v: unknown): boolean | undefined =>
+    v === undefined ? all : Boolean(v);
+  const checks = {
+    a11y: pick(a.a11y),
+    perf: pick(a.perf),
+    visual: pick(a.visual),
+    explore: pick(a.explore),
+    seo: pick(a.seo),
+    links: pick(a.links),
+    pwa: pick(a.pwa),
+    security: pick(a.security),
+    retire: pick(a.retire),
+    deadClicks: pick(a['dead-clicks']),
+    touchTargets: pick(a['touch-targets']),
+    keyboard: pick(a.keyboard),
+    longTasks: pick(a['long-tasks']),
+    clsTimeline: pick(a['cls-timeline']),
+    forms: pick(a.forms),
+    structuredData: pick(a['structured-data']),
+    passiveSecurity: pick(a['passive-security']),
+    consoleErrors: pick(a['console-errors']),
+    sitemap: pick(a.sitemap),
+    redirects: pick(a.redirects),
+    exposedPaths: pick(a['exposed-paths']),
+    tls: pick(a.tls),
+    crawl: pick(a.crawl),
+    contentQuality: pick(a['content-quality']),
+    resourceHints: pick(a['resource-hints']),
+    mixedContent: pick(a['mixed-content']),
+    compression: pick(a.compression),
+    cacheHeaders: pick(a['cache-headers']),
+    cookieBanner: pick(a['cookie-banner']),
+    thirdParty: pick(a['third-party']),
+    bundleSize: pick(a['bundle-size']),
+    openGraph: pick(a['open-graph']),
+    robotsAudit: pick(a['robots-audit']),
+    imageAudit: pick(a['image-audit']),
+    webfonts: pick(a.webfonts),
+    motionPrefs: pick(a['motion-prefs']),
+  };
   const cliConfig: InspectConfig = {
-    url: (argv as any).url,
-    checks: {
-      a11y: (argv as any).a11y,
-      perf: (argv as any).perf,
-      visual: (argv as any).visual,
-      explore: (argv as any).explore,
-      seo: (argv as any).seo,
-      links: (argv as any).links,
-      pwa: (argv as any).pwa,
-      security: (argv as any).security,
-    },
+    url: a.url,
+    checks: checks as InspectConfig['checks'],
     output: { dir: (argv as any).out, baselineDir: (argv as any).baselines },
     ai: (argv as any).ai ? { enabled: true } : undefined,
     headed: (argv as any).headed,

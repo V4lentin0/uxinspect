@@ -30,6 +30,18 @@ import { scanExposedPaths } from './exposed-paths.js';
 import { auditTls } from './tls.js';
 import { crawlSite } from './crawl.js';
 import { analyzePage as analyzeContent, analyzeBatch as analyzeContentBatch } from './content-quality.js';
+import { auditResourceHints } from './resource-hints.js';
+import { checkMixedContent } from './mixed-content.js';
+import { auditCompression } from './compression.js';
+import { auditCacheHeaders } from './cache-headers.js';
+import { auditCookieBanner } from './cookie-banner.js';
+import { auditThirdParty } from './third-party.js';
+import { analyzeBundles } from './bundle-size.js';
+import { checkOpenGraph } from './open-graph.js';
+import { auditRobots } from './robots-audit.js';
+import { auditImages } from './image-audit.js';
+import { auditWebfonts } from './webfonts.js';
+import { auditMotionPrefs } from './motion-prefs.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -52,6 +64,16 @@ import type { StructuredDataResult } from './structured-data.js';
 import type { PassiveSecurityResult } from './passive-security.js';
 import type { ConsoleCapture } from './console-errors.js';
 import type { PageContentInfo } from './content-quality.js';
+import type { ResourceHintsResult } from './resource-hints.js';
+import type { MixedContentResult } from './mixed-content.js';
+import type { CacheHeadersResult } from './cache-headers.js';
+import type { CookieBannerResult } from './cookie-banner.js';
+import type { ThirdPartyResult } from './third-party.js';
+import type { BundleSizeResult } from './bundle-size.js';
+import type { OpenGraphResult } from './open-graph.js';
+import type { ImageAuditResult } from './image-audit.js';
+import type { WebfontsResult } from './webfonts.js';
+import type { MotionPrefsResult } from './motion-prefs.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -79,6 +101,18 @@ export { scanExposedPaths } from './exposed-paths.js';
 export { auditTls } from './tls.js';
 export { crawlSite } from './crawl.js';
 export { analyzePage as analyzeContent, analyzeBatch as analyzeContentBatch } from './content-quality.js';
+export { auditResourceHints } from './resource-hints.js';
+export { checkMixedContent } from './mixed-content.js';
+export { auditCompression } from './compression.js';
+export { auditCacheHeaders } from './cache-headers.js';
+export { auditCookieBanner } from './cookie-banner.js';
+export { auditThirdParty } from './third-party.js';
+export { analyzeBundles } from './bundle-size.js';
+export { checkOpenGraph } from './open-graph.js';
+export { auditRobots } from './robots-audit.js';
+export { auditImages } from './image-audit.js';
+export { auditWebfonts } from './webfonts.js';
+export { auditMotionPrefs } from './motion-prefs.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
@@ -108,6 +142,16 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const passiveSecurityResults: PassiveSecurityResult[] = [];
   const consoleErrorResults: ConsoleCapture[] = [];
   const pageContentInfos: PageContentInfo[] = [];
+  const resourceHintsResults: ResourceHintsResult[] = [];
+  const mixedContentResults: MixedContentResult[] = [];
+  const cacheHeadersResults: CacheHeadersResult[] = [];
+  const cookieBannerResults: CookieBannerResult[] = [];
+  const thirdPartyResults: ThirdPartyResult[] = [];
+  const bundleSizeResults: BundleSizeResult[] = [];
+  const openGraphResults: OpenGraphResult[] = [];
+  const imageAuditResults: ImageAuditResult[] = [];
+  const webfontsResults: WebfontsResult[] = [];
+  const motionPrefsResults: MotionPrefsResult[] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
 
@@ -152,6 +196,16 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         passiveSecurity?: PassiveSecurityResult;
         consoleErrors?: ConsoleCapture;
         contentInfo?: PageContentInfo;
+        resourceHints?: ResourceHintsResult;
+        mixedContent?: MixedContentResult;
+        cacheHeaders?: CacheHeadersResult;
+        cookieBanner?: CookieBannerResult;
+        thirdParty?: ThirdPartyResult;
+        bundleSize?: BundleSizeResult;
+        openGraph?: OpenGraphResult;
+        imageAudit?: ImageAuditResult;
+        webfonts?: WebfontsResult;
+        motionPrefs?: MotionPrefsResult;
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
@@ -191,6 +245,16 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const deadR = checks.deadClicks
           ? await checkDeadClicks(page, typeof checks.deadClicks === 'object' ? checks.deadClicks : {}).catch(() => undefined)
           : undefined;
+        const resourceHintsR = checks.resourceHints ? await auditResourceHints(page).catch(() => undefined) : undefined;
+        const mixedContentR = checks.mixedContent ? await checkMixedContent(page).catch(() => undefined) : undefined;
+        const cacheHeadersR = checks.cacheHeaders ? await auditCacheHeaders(page).catch(() => undefined) : undefined;
+        const cookieBannerR = checks.cookieBanner ? await auditCookieBanner(page).catch(() => undefined) : undefined;
+        const thirdPartyR = checks.thirdParty ? await auditThirdParty(page).catch(() => undefined) : undefined;
+        const bundleSizeR = checks.bundleSize ? await analyzeBundles(page).catch(() => undefined) : undefined;
+        const openGraphR = checks.openGraph ? await checkOpenGraph(page).catch(() => undefined) : undefined;
+        const imageAuditR = checks.imageAudit ? await auditImages(page).catch(() => undefined) : undefined;
+        const webfontsR = checks.webfonts ? await auditWebfonts(page).catch(() => undefined) : undefined;
+        const motionPrefsR = checks.motionPrefs ? await auditMotionPrefs(page).catch(() => undefined) : undefined;
         const consoleR = console ? console.result() : undefined;
         if (console) console.detach();
         if (!config.parallel) await page.close();
@@ -201,6 +265,11 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           longTasks: longTasksR, clsTimeline: clsR, forms: formsR,
           structuredData: structuredR, passiveSecurity: passiveSecR, consoleErrors: consoleR,
           contentInfo: contentR,
+          resourceHints: resourceHintsR, mixedContent: mixedContentR,
+          cacheHeaders: cacheHeadersR, cookieBanner: cookieBannerR,
+          thirdParty: thirdPartyR, bundleSize: bundleSizeR,
+          openGraph: openGraphR, imageAudit: imageAuditR,
+          webfonts: webfontsR, motionPrefs: motionPrefsR,
         };
       };
 
@@ -224,6 +293,16 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.passiveSecurity) passiveSecurityResults.push(r.passiveSecurity);
         if (r.consoleErrors) consoleErrorResults.push(r.consoleErrors);
         if (r.contentInfo) pageContentInfos.push(r.contentInfo);
+        if (r.resourceHints) resourceHintsResults.push(r.resourceHints);
+        if (r.mixedContent) mixedContentResults.push(r.mixedContent);
+        if (r.cacheHeaders) cacheHeadersResults.push(r.cacheHeaders);
+        if (r.cookieBanner) cookieBannerResults.push(r.cookieBanner);
+        if (r.thirdParty) thirdPartyResults.push(r.thirdParty);
+        if (r.bundleSize) bundleSizeResults.push(r.bundleSize);
+        if (r.openGraph) openGraphResults.push(r.openGraph);
+        if (r.imageAudit) imageAuditResults.push(r.imageAudit);
+        if (r.webfonts) webfontsResults.push(r.webfonts);
+        if (r.motionPrefs) motionPrefsResults.push(r.motionPrefs);
       }
 
       if (checks.perf) {
@@ -280,6 +359,15 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     contentQualityResult = analyzeContentBatch(pageContentInfos, typeof checks.contentQuality === 'object' ? checks.contentQuality : {});
   }
 
+  let compressionResult: InspectResult['compression'];
+  let robotsAuditResult: InspectResult['robotsAudit'];
+  if (checks.compression) {
+    compressionResult = await auditCompression(config.url).catch(() => undefined);
+  }
+  if (checks.robotsAudit) {
+    robotsAuditResult = await auditRobots(config.url).catch(() => undefined);
+  }
+
   const finishedAt = new Date();
   const baselinePassed =
     flowResults.every((f) => f.passed) &&
@@ -302,7 +390,19 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     (tlsResult === undefined || (tlsResult as any).passed !== false) &&
     (exposedPathsResult === undefined || (exposedPathsResult as any).passed !== false) &&
     (crawlResult === undefined || (crawlResult as any).passed !== false) &&
-    (contentQualityResult === undefined || (contentQualityResult as any).passed !== false);
+    (contentQualityResult === undefined || (contentQualityResult as any).passed !== false) &&
+    resourceHintsResults.every((r) => (r as any).passed !== false) &&
+    mixedContentResults.every((r) => (r as any).passed !== false) &&
+    cacheHeadersResults.every((r) => (r as any).passed !== false) &&
+    cookieBannerResults.every((r) => (r as any).passed !== false) &&
+    thirdPartyResults.every((r) => (r as any).passed !== false) &&
+    bundleSizeResults.every((r) => (r as any).passed !== false) &&
+    openGraphResults.every((r) => (r as any).passed !== false) &&
+    imageAuditResults.every((r) => (r as any).passed !== false) &&
+    webfontsResults.every((r) => (r as any).passed !== false) &&
+    motionPrefsResults.every((r) => (r as any).passed !== false) &&
+    (compressionResult === undefined || (compressionResult as any).passed !== false) &&
+    (robotsAuditResult === undefined || (robotsAuditResult as any).passed !== false);
 
   const result: InspectResult = {
     url: config.url,
@@ -334,6 +434,18 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     tls: tlsResult,
     crawl: crawlResult,
     contentQuality: contentQualityResult,
+    resourceHints: checks.resourceHints ? resourceHintsResults : undefined,
+    mixedContent: checks.mixedContent ? mixedContentResults : undefined,
+    compression: compressionResult,
+    cacheHeaders: checks.cacheHeaders ? cacheHeadersResults : undefined,
+    cookieBanner: checks.cookieBanner ? cookieBannerResults : undefined,
+    thirdParty: checks.thirdParty ? thirdPartyResults : undefined,
+    bundleSize: checks.bundleSize ? bundleSizeResults : undefined,
+    openGraph: checks.openGraph ? openGraphResults : undefined,
+    robotsAudit: robotsAuditResult,
+    imageAudit: checks.imageAudit ? imageAuditResults : undefined,
+    webfonts: checks.webfonts ? webfontsResults : undefined,
+    motionPrefs: checks.motionPrefs ? motionPrefsResults : undefined,
     passed: baselinePassed,
   };
 
