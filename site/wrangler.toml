@@ -3,3 +3,11 @@ compatibility_date = "2025-04-01"
 
 [assets]
 directory = "./public"
+
+[[routes]]
+pattern = "uxinspect.com"
+custom_domain = true
+
+[[routes]]
+pattern = "www.uxinspect.com"
+custom_domain = true
