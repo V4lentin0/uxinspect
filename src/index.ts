@@ -230,6 +230,22 @@ export { scanPageObject, renderPageObjectClass, generatePageObject } from './pag
 export { retry, retryWithStats, computeBackoff } from './retry.js';
 export { parseCron, nextFireTime, runSchedule } from './schedule.js';
 export { loadBudgetFile, validateBudgetFile, applyBudget, mergeBudgets, discoverBudgetFile } from './budget-file.js';
+export { auditInp } from './inp-audit.js';
+export { auditLcpElement } from './lcp-element.js';
+export { auditClsCulprit } from './cls-culprit.js';
+export { auditHreflang } from './hreflang-audit.js';
+export { auditCookieFlags } from './cookie-flags-audit.js';
+export { auditFocusTrap } from './focus-trap-audit.js';
+export { auditFavicons } from './favicon-audit.js';
+export { auditClickjacking } from './clickjacking-audit.js';
+export { extractCriticalCss } from './critical-css.js';
+export { scanSourceMaps } from './sourcemap-scan.js';
+export { scanSecrets } from './secret-scan.js';
+export { sniffTrackers } from './tracker-sniff.js';
+export { auditZIndex } from './zindex-audit.js';
+export { auditHydration } from './hydration-audit.js';
+export { auditStorage } from './storage-audit.js';
+export { auditCsrf } from './csrf-audit.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
