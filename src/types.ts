@@ -28,6 +28,7 @@ export interface InspectConfig {
   mocks?: RouteMock[];
   debug?: boolean;
   slowMo?: number;
+  apiFlows?: ApiFlow[];
 }
 
 export interface RouteMock {
@@ -39,6 +40,22 @@ export interface RouteMock {
 export interface Flow {
   name: string;
   steps: Step[];
+}
+
+export interface ApiFlow {
+  name: string;
+  steps: ApiStep[];
+}
+
+export type ApiStep =
+  | { request: { method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS'; url: string; headers?: Record<string, string>; body?: unknown } }
+  | { expect: { status?: number; statusIn?: number[]; headerIncludes?: { name: string; value: string }; bodyIncludes?: string; jsonPath?: { path: string; equals?: unknown; exists?: boolean } } };
+
+export interface ApiFlowResult {
+  name: string;
+  passed: boolean;
+  steps: { step: ApiStep; passed: boolean; durationMs: number; status?: number; error?: string }[];
+  error?: string;
 }
 
 export type Step =
@@ -70,7 +87,11 @@ export type Step =
   | { switchTab: number | string }
   | { closeTab: true }
   | { iframe: { selector: string; steps: Step[] } }
-  | { sleep: number };
+  | { sleep: number }
+  | { waitForDownload: { trigger: string; saveAs: string } }
+  | { waitForPopup: { trigger: string; switchTo?: boolean } }
+  | { cookie: { name: string; value: string; domain?: string; path?: string; expires?: number; httpOnly?: boolean; secure?: boolean; sameSite?: 'Strict' | 'Lax' | 'None' } }
+  | { clearCookies: true };
 
 export interface Viewport {
   name: string;
@@ -115,6 +136,7 @@ export interface InspectResult {
   pwa?: import('./pwa.js').PwaResult[];
   security?: import('./security.js').SecurityHeadersResult;
   budget?: import('./budget.js').BudgetViolation[];
+  apiFlows?: ApiFlowResult[];
   passed: boolean;
 }
 

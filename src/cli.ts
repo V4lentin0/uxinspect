@@ -117,7 +117,10 @@ const argv = await yargs(hideBin(process.argv))
     y.positional('dir', { type: 'string', default: '.', describe: 'Directory to initialize' }),
   )
   .command('record', 'Record a flow by clicking in a real browser', (y) =>
-    y.option('url', { type: 'string', demandOption: true }),
+    y
+      .option('url', { type: 'string', demandOption: true })
+      .option('save', { type: 'string', describe: 'Parse codegen output and save to this config path' })
+      .option('name', { type: 'string', default: 'recorded', describe: 'Flow name when saving' }),
   )
   .command('accept <dir>', 'Accept current screenshots as new visual baselines', (y) =>
     y
@@ -296,10 +299,84 @@ async function initCmd(): Promise<void> {
 
 async function recordCmd(): Promise<void> {
   const url = (argv as any).url as string;
-  console.log(`Opening ${url} for recording. Click through your flow, then close the browser.`);
-  const child = spawn('npx', ['playwright', 'codegen', url], { stdio: 'inherit' });
+  const savePath = (argv as any).save as string | undefined;
+  const name = (argv as any).name as string;
+
+  if (!savePath) {
+    console.log(`Opening ${url} for recording. Click through your flow, then close the browser.`);
+    const child = spawn('npx', ['playwright', 'codegen', url], { stdio: 'inherit' });
+    await new Promise<void>((resolve) => child.on('exit', () => resolve()));
+    console.log('\nPaste the recorded steps into your uxinspect.config.ts flows array.');
+    return;
+  }
+
+  const tmp = path.join(process.cwd(), `.uxinspect-recorded-${Date.now()}.ts`);
+  console.log(`Opening ${url} for recording. Close the browser to finish — codegen writes to ${tmp}`);
+  const child = spawn('npx', ['playwright', 'codegen', '--output', tmp, url], { stdio: 'inherit' });
   await new Promise<void>((resolve) => child.on('exit', () => resolve()));
-  console.log('\nPaste the recorded steps into your uxinspect.config.ts flows array.');
+
+  const code = await fs.readFile(tmp, 'utf8').catch(() => '');
+  await fs.unlink(tmp).catch(() => {});
+  if (!code) {
+    console.error('No recording captured.');
+    process.exit(1);
+  }
+
+  const steps = parseCodegen(code);
+  if (!steps.length) {
+    console.error('Could not parse any steps from codegen output.');
+    process.exit(1);
+  }
+
+  await appendFlowToConfig(path.resolve(savePath), name, steps);
+  console.log(`\nAppended flow "${name}" (${steps.length} steps) to ${savePath}`);
+}
+
+function parseCodegen(code: string): any[] {
+  const steps: any[] = [];
+  const lines = code.split('\n').map((l) => l.trim());
+  for (const line of lines) {
+    let m: RegExpMatchArray | null;
+    if ((m = line.match(/page\.goto\(['"]([^'"]+)['"]\)/))) {
+      steps.push({ goto: m[1] });
+    } else if ((m = line.match(/getByRole\(['"](\w+)['"](?:,\s*\{\s*name:\s*['"]([^'"]+)['"]\s*\})?\)\.click\(\)/))) {
+      steps.push({ click: m[2] ? `role=${m[1]}[name="${m[2]}"]` : `role=${m[1]}` });
+    } else if ((m = line.match(/getByRole\(['"](\w+)['"](?:,\s*\{\s*name:\s*['"]([^'"]+)['"]\s*\})?\)\.fill\(['"]([^'"]+)['"]\)/))) {
+      steps.push({ fill: { selector: m[2] ? `role=${m[1]}[name="${m[2]}"]` : `role=${m[1]}`, text: m[3] } });
+    } else if ((m = line.match(/getByLabel\(['"]([^'"]+)['"]\)\.fill\(['"]([^'"]+)['"]\)/))) {
+      steps.push({ fill: { selector: `label=${m[1]}`, text: m[2] } });
+    } else if ((m = line.match(/getByPlaceholder\(['"]([^'"]+)['"]\)\.fill\(['"]([^'"]+)['"]\)/))) {
+      steps.push({ fill: { selector: `placeholder=${m[1]}`, text: m[2] } });
+    } else if ((m = line.match(/locator\(['"]([^'"]+)['"]\)\.click\(\)/))) {
+      steps.push({ click: m[1] });
+    } else if ((m = line.match(/locator\(['"]([^'"]+)['"]\)\.fill\(['"]([^'"]+)['"]\)/))) {
+      steps.push({ fill: { selector: m[1], text: m[2] } });
+    } else if ((m = line.match(/keyboard\.press\(['"]([^'"]+)['"]\)/))) {
+      steps.push({ key: m[1] });
+    }
+  }
+  return steps;
+}
+
+async function appendFlowToConfig(configPath: string, name: string, steps: any[]): Promise<void> {
+  const exists = await fs.stat(configPath).catch(() => null);
+  const body = JSON.stringify({ name, steps }, null, 2);
+  if (!exists) {
+    const template = `import type { InspectConfig } from 'uxinspect';\n\nexport default {\n  url: 'https://example.com',\n  flows: [\n${body}\n  ],\n} satisfies InspectConfig;\n`;
+    await fs.writeFile(configPath, template);
+    return;
+  }
+  const cur = await fs.readFile(configPath, 'utf8');
+  const flowsMatch = cur.match(/flows:\s*\[([\s\S]*?)\]/);
+  if (!flowsMatch) {
+    await fs.writeFile(configPath + `.recorded-${Date.now()}.json`, body);
+    console.log('Could not edit flows array in place; wrote adjacent JSON instead.');
+    return;
+  }
+  const before = cur.slice(0, flowsMatch.index! + flowsMatch[0].indexOf('[') + 1);
+  const after = cur.slice(flowsMatch.index! + flowsMatch[0].length - 1);
+  const injected = `\n${body},${flowsMatch[1]!.trim() ? '\n' + flowsMatch[1] : ''}`;
+  await fs.writeFile(configPath, before + injected + after);
 }
 
 async function watchCmd(): Promise<void> {

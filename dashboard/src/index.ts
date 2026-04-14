@@ -284,7 +284,8 @@ function reportPage(r: ReportSummary, id: string): string {
   <p style="margin-top:32px">
     <a href="/">\u2190 all reports</a> \u00b7
     <a href="/trends?url=${encodeURIComponent(r.url)}">trends for this URL</a> \u00b7
-    <a href="/compare?a=${encodeURIComponent(id)}">compare</a>
+    <a href="/compare?a=${encodeURIComponent(id)}">compare</a> \u00b7
+    <a href="https://trace.playwright.dev" target="_blank" rel="noopener">trace viewer</a>
   </p>
 </body></html>`;
 }

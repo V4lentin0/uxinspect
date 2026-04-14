@@ -13,6 +13,7 @@ import { notify } from './notify.js';
 import { AIHelper } from './ai.js';
 import { writeReport } from './report.js';
 import { r2StoreFromEnv } from './store.js';
+import { runApiFlows } from './api.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -34,6 +35,7 @@ export { checkPwa } from './pwa.js';
 export { checkSecurityHeaders } from './security.js';
 export { checkBudget } from './budget.js';
 export { notify } from './notify.js';
+export { runApiFlows } from './api.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
@@ -169,6 +171,12 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     passed: baselinePassed,
   };
 
+  if (config.apiFlows?.length) {
+    const apiResults = await runApiFlows(config.apiFlows).catch(() => []);
+    result.apiFlows = apiResults;
+    if (apiResults.some((r) => !r.passed)) result.passed = false;
+  }
+
   if (config.budget) {
     const violations = checkBudget(result, config.budget);
     result.budget = violations;
@@ -292,6 +300,28 @@ async function runStep(page: Page, step: Step, ai: AIHelper): Promise<void> {
     }
   } else if ('sleep' in step) {
     await page.waitForTimeout(step.sleep);
+  } else if ('waitForDownload' in step) {
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.click(step.waitForDownload.trigger)]);
+    await dl.saveAs(step.waitForDownload.saveAs);
+  } else if ('waitForPopup' in step) {
+    const [popup] = await Promise.all([page.waitForEvent('popup'), page.click(step.waitForPopup.trigger)]);
+    await popup.waitForLoadState('domcontentloaded');
+    if (step.waitForPopup.switchTo) await popup.bringToFront();
+  } else if ('cookie' in step) {
+    const c = step.cookie;
+    const url = new URL(page.url());
+    await page.context().addCookies([{
+      name: c.name,
+      value: c.value,
+      domain: c.domain ?? url.hostname,
+      path: c.path ?? '/',
+      expires: c.expires,
+      httpOnly: c.httpOnly,
+      secure: c.secure,
+      sameSite: c.sameSite,
+    }]);
+  } else if ('clearCookies' in step) {
+    await page.context().clearCookies();
   }
 }
 
