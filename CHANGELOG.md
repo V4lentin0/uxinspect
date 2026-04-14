@@ -5,6 +5,25 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-04-15
+
+### Added
+
+- 17 keyless audits wired into `inspect()` single-run with CLI flags:
+  `inp`, `lcpElement`, `clsCulprit`, `hreflang`, `cookieFlags`, `focusTrap`,
+  `favicon`, `clickjacking`, `criticalCss`, `sourcemapScan`, `secretScan`,
+  `trackerSniff`, `zIndex`, `hydration`, `storage`, `csrf`, `errorPages`.
+- `InspectConfig.checks` + `InspectResult` extended with 17 new keys.
+- CLI flags: `--inp`, `--lcp-element`, `--cls-culprit`, `--hreflang`,
+  `--cookie-flags`, `--focus-trap`, `--favicon`, `--clickjacking`,
+  `--critical-css`, `--sourcemap-scan`, `--secret-scan`, `--tracker-sniff`,
+  `--z-index`, `--hydration`, `--storage`, `--csrf`, `--error-pages`.
+
+### Changed
+
+- Single-run now wires 65+ audits (up from 50+). All keyless library audits
+  exposed via `inspect()`.
+
 ## [0.10.0] - 2026-04-14
 
 ### Added

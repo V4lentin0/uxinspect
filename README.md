@@ -199,7 +199,7 @@ const email = await waitForEmail(
 
 ## Checks
 
-100+ built-in audits. 50+ wired into `inspect()` single-run (enable via `checks` or `--all`); all available as library imports.
+100+ built-in audits. 65+ wired into `inspect()` single-run (enable via `checks` or `--all`); all available as library imports.
 
 ### Accessibility & UX
 

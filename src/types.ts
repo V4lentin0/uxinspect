@@ -163,6 +163,23 @@ export interface ChecksConfig {
   sri?: boolean;
   webWorkers?: boolean;
   orphanAssets?: boolean;
+  inp?: boolean | { interactSelectors?: string[]; maxInteractions?: number; delayBetweenMs?: number };
+  lcpElement?: boolean;
+  clsCulprit?: boolean | { durationMs?: number };
+  hreflang?: boolean;
+  cookieFlags?: boolean;
+  focusTrap?: boolean;
+  favicon?: boolean;
+  clickjacking?: boolean;
+  criticalCss?: boolean;
+  sourcemapScan?: boolean;
+  secretScan?: boolean;
+  trackerSniff?: boolean;
+  zIndex?: boolean;
+  hydration?: boolean;
+  storage?: boolean;
+  csrf?: boolean;
+  errorPages?: boolean;
 }
 
 export interface OutputConfig {
@@ -247,6 +264,23 @@ export interface InspectResult {
   sri?: import('./sri-audit.js').SriAuditResult[];
   webWorkers?: import('./web-worker-audit.js').WebWorkerAuditResult[];
   orphanAssets?: import('./orphan-assets.js').OrphanAssetResult[];
+  inp?: import('./inp-audit.js').InpAuditResult[];
+  lcpElement?: import('./lcp-element.js').LcpElementResult[];
+  clsCulprit?: import('./cls-culprit.js').ClsCulpritResult[];
+  hreflang?: import('./hreflang-audit.js').HreflangAuditResult[];
+  cookieFlags?: import('./cookie-flags-audit.js').CookieFlagsResult[];
+  focusTrap?: import('./focus-trap-audit.js').FocusTrapResult[];
+  favicon?: import('./favicon-audit.js').FaviconAuditResult[];
+  clickjacking?: import('./clickjacking-audit.js').ClickjackingResult[];
+  criticalCss?: import('./critical-css.js').CriticalCssResult[];
+  sourcemapScan?: import('./sourcemap-scan.js').SourceMapScanResult[];
+  secretScan?: import('./secret-scan.js').SecretScanResult[];
+  trackerSniff?: import('./tracker-sniff.js').TrackerSniffResult[];
+  zIndex?: import('./zindex-audit.js').ZIndexAuditResult[];
+  hydration?: import('./hydration-audit.js').HydrationAuditResult[];
+  storage?: import('./storage-audit.js').StorageAuditResult[];
+  csrf?: import('./csrf-audit.js').CsrfAuditResult[];
+  errorPages?: import('./error-page-audit.js').ErrorPageAuditResult[];
   passed: boolean;
 }
 

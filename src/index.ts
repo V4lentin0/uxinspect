@@ -69,6 +69,23 @@ import { auditCanonical } from './canonical-audit.js';
 import { auditSri } from './sri-audit.js';
 import { auditWebWorkers } from './web-worker-audit.js';
 import { detectOrphanAssets } from './orphan-assets.js';
+import { auditInp } from './inp-audit.js';
+import { auditLcpElement } from './lcp-element.js';
+import { auditClsCulprit } from './cls-culprit.js';
+import { auditHreflang } from './hreflang-audit.js';
+import { auditCookieFlags } from './cookie-flags-audit.js';
+import { auditFocusTrap } from './focus-trap-audit.js';
+import { auditFavicons } from './favicon-audit.js';
+import { auditClickjacking } from './clickjacking-audit.js';
+import { extractCriticalCss } from './critical-css.js';
+import { scanSourceMaps } from './sourcemap-scan.js';
+import { scanSecrets } from './secret-scan.js';
+import { sniffTrackers } from './tracker-sniff.js';
+import { auditZIndex } from './zindex-audit.js';
+import { auditHydration } from './hydration-audit.js';
+import { auditStorage } from './storage-audit.js';
+import { auditCsrf } from './csrf-audit.js';
+import { auditErrorPages } from './error-page-audit.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -128,6 +145,23 @@ import type { CanonicalAuditResult } from './canonical-audit.js';
 import type { SriAuditResult } from './sri-audit.js';
 import type { WebWorkerAuditResult } from './web-worker-audit.js';
 import type { OrphanAssetResult } from './orphan-assets.js';
+import type { InpAuditResult } from './inp-audit.js';
+import type { LcpElementResult } from './lcp-element.js';
+import type { ClsCulpritResult } from './cls-culprit.js';
+import type { HreflangAuditResult } from './hreflang-audit.js';
+import type { CookieFlagsResult } from './cookie-flags-audit.js';
+import type { FocusTrapResult } from './focus-trap-audit.js';
+import type { FaviconAuditResult } from './favicon-audit.js';
+import type { ClickjackingResult } from './clickjacking-audit.js';
+import type { CriticalCssResult } from './critical-css.js';
+import type { SourceMapScanResult } from './sourcemap-scan.js';
+import type { SecretScanResult } from './secret-scan.js';
+import type { TrackerSniffResult } from './tracker-sniff.js';
+import type { ZIndexAuditResult } from './zindex-audit.js';
+import type { HydrationAuditResult } from './hydration-audit.js';
+import type { StorageAuditResult } from './storage-audit.js';
+import type { CsrfAuditResult } from './csrf-audit.js';
+import type { ErrorPageAuditResult } from './error-page-audit.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -323,6 +357,23 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const sriResults: SriAuditResult[] = [];
   const webWorkersResults: WebWorkerAuditResult[] = [];
   const orphanAssetsResults: OrphanAssetResult[] = [];
+  const inpResults: InpAuditResult[] = [];
+  const lcpElementResults: LcpElementResult[] = [];
+  const clsCulpritResults: ClsCulpritResult[] = [];
+  const hreflangResults: HreflangAuditResult[] = [];
+  const cookieFlagsResults: CookieFlagsResult[] = [];
+  const focusTrapResults: FocusTrapResult[] = [];
+  const faviconResults: FaviconAuditResult[] = [];
+  const clickjackingResults: ClickjackingResult[] = [];
+  const criticalCssResults: CriticalCssResult[] = [];
+  const sourcemapScanResults: SourceMapScanResult[] = [];
+  const secretScanResults: SecretScanResult[] = [];
+  const trackerSniffResults: TrackerSniffResult[] = [];
+  const zIndexResults: ZIndexAuditResult[] = [];
+  const hydrationResults: HydrationAuditResult[] = [];
+  const storageResults: StorageAuditResult[] = [];
+  const csrfResults: CsrfAuditResult[] = [];
+  const errorPagesResults: ErrorPageAuditResult[] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
 
@@ -404,6 +455,23 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         sri?: SriAuditResult;
         webWorkers?: WebWorkerAuditResult;
         orphanAssets?: OrphanAssetResult;
+        inp?: InpAuditResult;
+        lcpElement?: LcpElementResult;
+        clsCulprit?: ClsCulpritResult;
+        hreflang?: HreflangAuditResult;
+        cookieFlags?: CookieFlagsResult;
+        focusTrap?: FocusTrapResult;
+        favicon?: FaviconAuditResult;
+        clickjacking?: ClickjackingResult;
+        criticalCss?: CriticalCssResult;
+        sourcemapScan?: SourceMapScanResult;
+        secretScan?: SecretScanResult;
+        trackerSniff?: TrackerSniffResult;
+        zIndex?: ZIndexAuditResult;
+        hydration?: HydrationAuditResult;
+        storage?: StorageAuditResult;
+        csrf?: CsrfAuditResult;
+        errorPages?: ErrorPageAuditResult;
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
@@ -498,6 +566,27 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const sriR = checks.sri ? await auditSri(page).catch(() => undefined) : undefined;
         const webWorkersR = checks.webWorkers ? await auditWebWorkers(page).catch(() => undefined) : undefined;
         const orphanAssetsR = checks.orphanAssets ? await detectOrphanAssets(page).catch(() => undefined) : undefined;
+        const inpR = checks.inp
+          ? await auditInp(page, typeof checks.inp === 'object' ? checks.inp : {}).catch(() => undefined)
+          : undefined;
+        const lcpElementR = checks.lcpElement ? await auditLcpElement(page).catch(() => undefined) : undefined;
+        const clsCulpritR = checks.clsCulprit
+          ? await auditClsCulprit(page, typeof checks.clsCulprit === 'object' ? checks.clsCulprit : {}).catch(() => undefined)
+          : undefined;
+        const hreflangR = checks.hreflang ? await auditHreflang(page).catch(() => undefined) : undefined;
+        const cookieFlagsR = checks.cookieFlags ? await auditCookieFlags(page, page.context()).catch(() => undefined) : undefined;
+        const focusTrapR = checks.focusTrap ? await auditFocusTrap(page).catch(() => undefined) : undefined;
+        const faviconR = checks.favicon ? await auditFavicons(page).catch(() => undefined) : undefined;
+        const clickjackingR = checks.clickjacking ? await auditClickjacking(page, page.context()).catch(() => undefined) : undefined;
+        const criticalCssR = checks.criticalCss ? await extractCriticalCss(page).catch(() => undefined) : undefined;
+        const sourcemapScanR = checks.sourcemapScan ? await scanSourceMaps(page).catch(() => undefined) : undefined;
+        const secretScanR = checks.secretScan ? await scanSecrets(page).catch(() => undefined) : undefined;
+        const trackerSniffR = checks.trackerSniff ? await sniffTrackers(page).catch(() => undefined) : undefined;
+        const zIndexR = checks.zIndex ? await auditZIndex(page).catch(() => undefined) : undefined;
+        const hydrationR = checks.hydration ? await auditHydration(page).catch(() => undefined) : undefined;
+        const storageR = checks.storage ? await auditStorage(page).catch(() => undefined) : undefined;
+        const csrfR = checks.csrf ? await auditCsrf(page, page.context()).catch(() => undefined) : undefined;
+        const errorPagesR = checks.errorPages ? await auditErrorPages(page.context(), config.url).catch(() => undefined) : undefined;
         const consoleR = console ? console.result() : undefined;
         if (console) console.detach();
         if (!config.parallel) await page.close();
@@ -523,6 +612,12 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           readingLevel: readingLevelR, deadImages: deadImagesR,
           pagination: paginationR, print: printR, canonical: canonicalR,
           sri: sriR, webWorkers: webWorkersR, orphanAssets: orphanAssetsR,
+          inp: inpR, lcpElement: lcpElementR, clsCulprit: clsCulpritR,
+          hreflang: hreflangR, cookieFlags: cookieFlagsR, focusTrap: focusTrapR,
+          favicon: faviconR, clickjacking: clickjackingR, criticalCss: criticalCssR,
+          sourcemapScan: sourcemapScanR, secretScan: secretScanR, trackerSniff: trackerSniffR,
+          zIndex: zIndexR, hydration: hydrationR, storage: storageR,
+          csrf: csrfR, errorPages: errorPagesR,
         };
       };
 
@@ -583,6 +678,23 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.sri) sriResults.push(r.sri);
         if (r.webWorkers) webWorkersResults.push(r.webWorkers);
         if (r.orphanAssets) orphanAssetsResults.push(r.orphanAssets);
+        if (r.inp) inpResults.push(r.inp);
+        if (r.lcpElement) lcpElementResults.push(r.lcpElement);
+        if (r.clsCulprit) clsCulpritResults.push(r.clsCulprit);
+        if (r.hreflang) hreflangResults.push(r.hreflang);
+        if (r.cookieFlags) cookieFlagsResults.push(r.cookieFlags);
+        if (r.focusTrap) focusTrapResults.push(r.focusTrap);
+        if (r.favicon) faviconResults.push(r.favicon);
+        if (r.clickjacking) clickjackingResults.push(r.clickjacking);
+        if (r.criticalCss) criticalCssResults.push(r.criticalCss);
+        if (r.sourcemapScan) sourcemapScanResults.push(r.sourcemapScan);
+        if (r.secretScan) secretScanResults.push(r.secretScan);
+        if (r.trackerSniff) trackerSniffResults.push(r.trackerSniff);
+        if (r.zIndex) zIndexResults.push(r.zIndex);
+        if (r.hydration) hydrationResults.push(r.hydration);
+        if (r.storage) storageResults.push(r.storage);
+        if (r.csrf) csrfResults.push(r.csrf);
+        if (r.errorPages) errorPagesResults.push(r.errorPages);
       }
 
       if (checks.perf) {
@@ -777,6 +889,23 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     sri: checks.sri ? sriResults : undefined,
     webWorkers: checks.webWorkers ? webWorkersResults : undefined,
     orphanAssets: checks.orphanAssets ? orphanAssetsResults : undefined,
+    inp: checks.inp ? inpResults : undefined,
+    lcpElement: checks.lcpElement ? lcpElementResults : undefined,
+    clsCulprit: checks.clsCulprit ? clsCulpritResults : undefined,
+    hreflang: checks.hreflang ? hreflangResults : undefined,
+    cookieFlags: checks.cookieFlags ? cookieFlagsResults : undefined,
+    focusTrap: checks.focusTrap ? focusTrapResults : undefined,
+    favicon: checks.favicon ? faviconResults : undefined,
+    clickjacking: checks.clickjacking ? clickjackingResults : undefined,
+    criticalCss: checks.criticalCss ? criticalCssResults : undefined,
+    sourcemapScan: checks.sourcemapScan ? sourcemapScanResults : undefined,
+    secretScan: checks.secretScan ? secretScanResults : undefined,
+    trackerSniff: checks.trackerSniff ? trackerSniffResults : undefined,
+    zIndex: checks.zIndex ? zIndexResults : undefined,
+    hydration: checks.hydration ? hydrationResults : undefined,
+    storage: checks.storage ? storageResults : undefined,
+    csrf: checks.csrf ? csrfResults : undefined,
+    errorPages: checks.errorPages ? errorPagesResults : undefined,
     passed: baselinePassed,
   };
 

@@ -115,6 +115,23 @@ const argv = await yargs(hideBin(process.argv))
       .option('sri', { type: 'boolean', describe: 'Subresource Integrity audit on third-party scripts/styles' })
       .option('web-workers', { type: 'boolean', describe: 'Web Worker lifecycle and error audit' })
       .option('orphan-assets', { type: 'boolean', describe: 'Detect loaded assets with no DOM reference' })
+      .option('inp', { type: 'boolean', describe: 'Interaction-to-Next-Paint audit' })
+      .option('lcp-element', { type: 'boolean', describe: 'Identify the Largest Contentful Paint element' })
+      .option('cls-culprit', { type: 'boolean', describe: 'Identify DOM nodes causing layout shifts' })
+      .option('hreflang', { type: 'boolean', describe: 'Validate hreflang link tags' })
+      .option('cookie-flags', { type: 'boolean', describe: 'Audit cookie Secure/HttpOnly/SameSite flags' })
+      .option('focus-trap', { type: 'boolean', describe: 'Detect focus traps in modals/dialogs' })
+      .option('favicon', { type: 'boolean', describe: 'Validate favicon and apple-touch-icon presence' })
+      .option('clickjacking', { type: 'boolean', describe: 'Probe clickjacking defences (X-Frame-Options / CSP)' })
+      .option('critical-css', { type: 'boolean', describe: 'Extract above-the-fold critical CSS' })
+      .option('sourcemap-scan', { type: 'boolean', describe: 'Scan for exposed JS source maps' })
+      .option('secret-scan', { type: 'boolean', describe: 'Scan HTML/JS for leaked API keys and secrets' })
+      .option('tracker-sniff', { type: 'boolean', describe: 'Detect analytics / ad / tracker network calls' })
+      .option('z-index', { type: 'boolean', describe: 'Audit z-index usage and stacking context issues' })
+      .option('hydration', { type: 'boolean', describe: 'SSR hydration mismatch detection (React/Vue/Svelte)' })
+      .option('storage', { type: 'boolean', describe: 'Audit localStorage/sessionStorage/IndexedDB usage' })
+      .option('csrf', { type: 'boolean', describe: 'CSRF defence audit (tokens + SameSite cookies)' })
+      .option('error-pages', { type: 'boolean', describe: 'Detect broken/misconfigured 404 and 500 pages' })
       .option('out', { type: 'string', default: './uxinspect-report', describe: 'Output directory' })
       .option('baselines', { type: 'string', default: './uxinspect-baselines', describe: 'Visual baseline directory' })
       .option('ai', { type: 'boolean', default: false, describe: 'Enable keyless AI flow steps' })
@@ -232,6 +249,23 @@ async function runCmd(): Promise<void> {
     sri: pick(a.sri),
     webWorkers: pick(a['web-workers']),
     orphanAssets: pick(a['orphan-assets']),
+    inp: pick(a.inp),
+    lcpElement: pick(a['lcp-element']),
+    clsCulprit: pick(a['cls-culprit']),
+    hreflang: pick(a.hreflang),
+    cookieFlags: pick(a['cookie-flags']),
+    focusTrap: pick(a['focus-trap']),
+    favicon: pick(a.favicon),
+    clickjacking: pick(a.clickjacking),
+    criticalCss: pick(a['critical-css']),
+    sourcemapScan: pick(a['sourcemap-scan']),
+    secretScan: pick(a['secret-scan']),
+    trackerSniff: pick(a['tracker-sniff']),
+    zIndex: pick(a['z-index']),
+    hydration: pick(a.hydration),
+    storage: pick(a.storage),
+    csrf: pick(a.csrf),
+    errorPages: pick(a['error-pages']),
   };
   const cliConfig: InspectConfig = {
     url: a.url,
