@@ -112,6 +112,9 @@ const argv = await yargs(hideBin(process.argv))
       .option('image-audit', { type: 'boolean', describe: 'Audit images (alt text, dimensions, formats)' })
       .option('webfonts', { type: 'boolean', describe: 'Audit web font loading and performance' })
       .option('motion-prefs', { type: 'boolean', describe: 'Audit prefers-reduced-motion respect' })
+      .option('sri', { type: 'boolean', describe: 'Subresource Integrity audit on third-party scripts/styles' })
+      .option('web-workers', { type: 'boolean', describe: 'Web Worker lifecycle and error audit' })
+      .option('orphan-assets', { type: 'boolean', describe: 'Detect loaded assets with no DOM reference' })
       .option('out', { type: 'string', default: './uxinspect-report', describe: 'Output directory' })
       .option('baselines', { type: 'string', default: './uxinspect-baselines', describe: 'Visual baseline directory' })
       .option('ai', { type: 'boolean', default: false, describe: 'Enable keyless AI flow steps' })
@@ -226,6 +229,9 @@ async function runCmd(): Promise<void> {
     imageAudit: pick(a['image-audit']),
     webfonts: pick(a.webfonts),
     motionPrefs: pick(a['motion-prefs']),
+    sri: pick(a.sri),
+    webWorkers: pick(a['web-workers']),
+    orphanAssets: pick(a['orphan-assets']),
   };
   const cliConfig: InspectConfig = {
     url: a.url,

@@ -160,6 +160,9 @@ export interface ChecksConfig {
   pagination?: boolean | { scrollProbes?: number };
   print?: boolean | { screenshotPath?: string };
   canonical?: boolean | { followChain?: boolean };
+  sri?: boolean;
+  webWorkers?: boolean;
+  orphanAssets?: boolean;
 }
 
 export interface OutputConfig {
@@ -241,6 +244,9 @@ export interface InspectResult {
   pagination?: import('./pagination-audit.js').PaginationResult[];
   print?: import('./print-audit.js').PrintAuditResult[];
   canonical?: import('./canonical-audit.js').CanonicalAuditResult[];
+  sri?: import('./sri-audit.js').SriAuditResult[];
+  webWorkers?: import('./web-worker-audit.js').WebWorkerAuditResult[];
+  orphanAssets?: import('./orphan-assets.js').OrphanAssetResult[];
   passed: boolean;
 }
 

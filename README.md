@@ -199,7 +199,7 @@ const email = await waitForEmail(
 
 ## Checks
 
-38 built-in checks across 8 categories. Enable any subset via `checks` in the config, or use `--all` on the CLI.
+100+ built-in audits. 50+ wired into `inspect()` single-run (enable via `checks` or `--all`); all available as library imports.
 
 ### Accessibility & UX
 

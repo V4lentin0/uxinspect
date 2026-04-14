@@ -66,6 +66,9 @@ import { detectDeadImages } from './dead-images.js';
 import { auditPagination } from './pagination-audit.js';
 import { auditPrint } from './print-audit.js';
 import { auditCanonical } from './canonical-audit.js';
+import { auditSri } from './sri-audit.js';
+import { auditWebWorkers } from './web-worker-audit.js';
+import { detectOrphanAssets } from './orphan-assets.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -122,6 +125,9 @@ import type { DeadImageResult } from './dead-images.js';
 import type { PaginationResult } from './pagination-audit.js';
 import type { PrintAuditResult } from './print-audit.js';
 import type { CanonicalAuditResult } from './canonical-audit.js';
+import type { SriAuditResult } from './sri-audit.js';
+import type { WebWorkerAuditResult } from './web-worker-audit.js';
+import type { OrphanAssetResult } from './orphan-assets.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -314,6 +320,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const paginationResults: PaginationResult[] = [];
   const printResults: PrintAuditResult[] = [];
   const canonicalResults: CanonicalAuditResult[] = [];
+  const sriResults: SriAuditResult[] = [];
+  const webWorkersResults: WebWorkerAuditResult[] = [];
+  const orphanAssetsResults: OrphanAssetResult[] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
 
@@ -392,6 +401,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         pagination?: PaginationResult;
         print?: PrintAuditResult;
         canonical?: CanonicalAuditResult;
+        sri?: SriAuditResult;
+        webWorkers?: WebWorkerAuditResult;
+        orphanAssets?: OrphanAssetResult;
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
@@ -483,6 +495,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const canonicalR = checks.canonical
           ? await auditCanonical(page, typeof checks.canonical === 'object' ? checks.canonical : {}).catch(() => undefined)
           : undefined;
+        const sriR = checks.sri ? await auditSri(page).catch(() => undefined) : undefined;
+        const webWorkersR = checks.webWorkers ? await auditWebWorkers(page).catch(() => undefined) : undefined;
+        const orphanAssetsR = checks.orphanAssets ? await detectOrphanAssets(page).catch(() => undefined) : undefined;
         const consoleR = console ? console.result() : undefined;
         if (console) console.detach();
         if (!config.parallel) await page.close();
@@ -507,6 +522,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           darkMode: darkModeR, tables: tablesR, svgs: svgsR, media: mediaR,
           readingLevel: readingLevelR, deadImages: deadImagesR,
           pagination: paginationR, print: printR, canonical: canonicalR,
+          sri: sriR, webWorkers: webWorkersR, orphanAssets: orphanAssetsR,
         };
       };
 
@@ -564,6 +580,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.pagination) paginationResults.push(r.pagination);
         if (r.print) printResults.push(r.print);
         if (r.canonical) canonicalResults.push(r.canonical);
+        if (r.sri) sriResults.push(r.sri);
+        if (r.webWorkers) webWorkersResults.push(r.webWorkers);
+        if (r.orphanAssets) orphanAssetsResults.push(r.orphanAssets);
       }
 
       if (checks.perf) {
@@ -755,6 +774,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     pagination: checks.pagination ? paginationResults : undefined,
     print: checks.print ? printResults : undefined,
     canonical: checks.canonical ? canonicalResults : undefined,
+    sri: checks.sri ? sriResults : undefined,
+    webWorkers: checks.webWorkers ? webWorkersResults : undefined,
+    orphanAssets: checks.orphanAssets ? orphanAssetsResults : undefined,
     passed: baselinePassed,
   };
 
