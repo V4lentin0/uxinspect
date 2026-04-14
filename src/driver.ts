@@ -81,6 +81,16 @@ export class Driver {
     }
     this.context = await this.browser.newContext(ctxOpts);
 
+    // Stub for esbuild/tsx `--keep-names` helper. When this library is loaded
+    // via tsx (unbundled), esbuild wraps inner function expressions with
+    // `__name(fn, 'name')`. That helper is not defined in the page context and
+    // would crash every `page.evaluate` callback that declares named helpers.
+    // Injecting a pass-through makes the identifier resolve harmlessly.
+    await this.context.addInitScript(() => {
+      const g = globalThis as unknown as { __name?: <T>(fn: T) => T };
+      if (typeof g.__name !== 'function') g.__name = (fn) => fn;
+    });
+
     if (opts.trace) {
       await this.context.tracing.start({ screenshots: true, snapshots: true, sources: true });
     }

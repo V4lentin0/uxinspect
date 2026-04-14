@@ -58,7 +58,7 @@ export default {
   ],
   checks: { a11y: true, visual: true, perf: true, explore: true },
   parallel: true,
-  reporters: ['html', 'json', 'junit', 'sarif'],
+  reporters: ['html', 'json', 'junit', 'sarif', 'allure', 'tap'],
   ai: { enabled: true },
 } satisfies InspectConfig;
 ```
@@ -78,6 +78,123 @@ const result = await inspect({
 });
 
 if (!result.passed) process.exit(1);
+```
+
+## Programmatic helpers
+
+Composable helpers that sit alongside `inspect()` for specialized flows and integrations.
+
+### `flaky` — retry with flake detection
+
+Re-runs a block until it passes, classifies intermittent failures as flakes.
+
+```ts
+import { retryWithFlakeDetection, inspect } from 'uxinspect';
+
+const result = await retryWithFlakeDetection(
+  () => inspect(config),
+  { maxAttempts: 3 },
+);
+```
+
+### `websocket` — WebSocket flow support
+
+Drive WebSocket endpoints with a step-based flow.
+
+```ts
+import { runWebSocketFlow } from 'uxinspect';
+
+await runWebSocketFlow({
+  url: 'wss://example.com/socket',
+  steps: [
+    { send: '{"type":"ping"}' },
+    { expect: { contains: 'pong' } },
+  ],
+});
+```
+
+### `graphql` — GraphQL flow support
+
+Query/mutation steps with variable interpolation and assertions.
+
+```ts
+import { runGraphQLFlow } from 'uxinspect';
+
+await runGraphQLFlow({
+  endpoint: 'https://example.com/graphql',
+  steps: [
+    { query: '{ viewer { id } }', expect: { path: 'data.viewer.id' } },
+  ],
+});
+```
+
+### `service-worker` — Service Worker audit
+
+Checks registration, scope, cache strategy, and update flow.
+
+```ts
+import { auditServiceWorker } from 'uxinspect';
+
+const report = await auditServiceWorker(page);
+```
+
+### `rum` — Real User Monitoring
+
+Collect field metrics from a page, or inject the RUM client script into production.
+
+```ts
+import { collectRUM, rumClientScript } from 'uxinspect';
+
+const metrics = await collectRUM(page);
+
+// In your production HTML:
+// <script>${rumClientScript()}</script>
+```
+
+### `github-annotations` — GitHub Actions PR annotations
+
+Emits `::error` / `::warning` workflow commands so findings surface as inline PR annotations.
+
+```ts
+import { emitGitHubAnnotations } from 'uxinspect';
+
+emitGitHubAnnotations(result);
+```
+
+### `amp` — AMP HTML validation
+
+Validates AMP markup on the current page.
+
+```ts
+import { validateAmp } from 'uxinspect';
+
+const ampReport = await validateAmp(page);
+```
+
+### `bdd` — Gherkin feature file runner
+
+Parse Gherkin syntax, map steps to flows, and hand them to `inspect()`.
+
+```ts
+import { readFileSync } from 'node:fs';
+import { parseFeature, featureToFlows, builtinSteps, inspect } from 'uxinspect';
+
+const feature = parseFeature(readFileSync('login.feature', 'utf8'));
+const flows = featureToFlows(feature, builtinSteps);
+await inspect({ url: 'https://example.com', flows });
+```
+
+### `mailbox` — email intercept for signup flows
+
+Wait for a verification email during a test run.
+
+```ts
+import { waitForEmail } from 'uxinspect';
+
+const email = await waitForEmail(
+  { provider: 'mailpit', baseUrl: 'https://mail.example.com' },
+  { subjectContains: 'Verify' },
+);
 ```
 
 ## Checks
@@ -251,7 +368,7 @@ Every check has a matching flag. Use `--all` to turn them all on, or pick indivi
 | `--headed` | `false` | Run with visible browser |
 | `--parallel` | `false` | Run flows in parallel |
 | `--storage-state` | — | Path to auth storageState JSON |
-| `--reporters` | `html,json` | Comma list: `html`, `json`, `junit`, `sarif` |
+| `--reporters` | `html,json` | Comma list: `html`, `json`, `junit`, `sarif`, `allure`, `tap` |
 | `--publish` | — | Dashboard URL to upload report |
 | `--publish-token` | — | Bearer token for dashboard upload |
 | `--all` | `false` | Enable every check below |
@@ -275,6 +392,19 @@ Example:
 uxinspect run --url https://example.com --all
 uxinspect run --url https://example.com --a11y --perf --retire --seo --visual
 ```
+
+## Reporters
+
+Pick any combination via `reporters: [...]` or `--reporters html,json,...`.
+
+| Reporter | Output | Use |
+|---|---|---|
+| `html` | `report.html` | Human-readable dashboard with screenshots |
+| `json` | `report.json` | Machine-readable full result tree |
+| `junit` | `junit.xml` | CI test result ingestion |
+| `sarif` | `report.sarif` | Code scanning / security tab ingestion |
+| `allure` | `allure-results/` | Directory for the Allure UI |
+| `tap` | `report.tap` | TAP 14 stream for TAP-compatible tooling |
 
 ## AI without keys
 

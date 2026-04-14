@@ -8,7 +8,7 @@ export interface InspectConfig {
   headed?: boolean;
   parallel?: boolean;
   storageState?: string;
-  reporters?: ('html' | 'json' | 'junit' | 'sarif')[];
+  reporters?: ('html' | 'json' | 'junit' | 'sarif' | 'allure' | 'tap')[];
   browser?: 'chromium' | 'firefox' | 'webkit';
   device?: string;
   locale?: string;
@@ -136,6 +136,9 @@ export interface ChecksConfig {
   imageAudit?: boolean;
   webfonts?: boolean;
   motionPrefs?: boolean;
+  serviceWorker?: boolean;
+  rum?: boolean | { durationMs?: number };
+  amp?: boolean;
 }
 
 export interface OutputConfig {
@@ -193,6 +196,9 @@ export interface InspectResult {
   imageAudit?: import('./image-audit.js').ImageAuditResult[];
   webfonts?: import('./webfonts.js').WebfontsResult[];
   motionPrefs?: import('./motion-prefs.js').MotionPrefsResult[];
+  serviceWorker?: import('./service-worker.js').ServiceWorkerResult[];
+  rum?: import('./rum.js').RUMResult[];
+  amp?: import('./amp.js').AmpResult[];
   passed: boolean;
 }
 

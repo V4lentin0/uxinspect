@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import type { InspectResult } from './types.js';
 
 const _pathRef = path;
@@ -7,7 +8,7 @@ const _pathRef = path;
 export async function writeReport(
   result: InspectResult,
   outDir: string,
-  reporters: ('html' | 'json' | 'junit' | 'sarif')[] = ['html', 'json'],
+  reporters: ('html' | 'json' | 'junit' | 'sarif' | 'allure' | 'tap')[] = ['html', 'json'],
 ): Promise<string> {
   await fs.mkdir(outDir, { recursive: true });
   const htmlPath = path.join(outDir, 'report.html');
@@ -23,8 +24,270 @@ export async function writeReport(
   if (reporters.includes('sarif')) {
     await fs.writeFile(path.join(outDir, 'sarif.json'), JSON.stringify(renderSARIF(result), null, 2));
   }
+  if (reporters.includes('allure')) {
+    await writeAllure(result, outDir);
+  }
+  if (reporters.includes('tap')) {
+    await fs.writeFile(path.join(outDir, 'report.tap'), renderTAP(result));
+  }
   return htmlPath;
 }
+
+async function writeAllure(r: InspectResult, outDir: string): Promise<void> {
+  const allureDir = path.join(outDir, 'allure-results');
+  await fs.mkdir(allureDir, { recursive: true });
+  const startBase = new Date(r.startedAt).getTime();
+  const stopBase = new Date(r.finishedAt).getTime();
+  const safeUrl = r.url.replace(/[^a-zA-Z0-9]+/g, '_');
+
+  const hashId = (s: string): string => crypto.createHash('md5').update(s).digest('hex');
+
+  const writeResult = async (obj: Record<string, unknown>): Promise<void> => {
+    const uuid = (obj.uuid as string) ?? crypto.randomUUID();
+    obj.uuid = uuid;
+    await fs.writeFile(path.join(allureDir, `${uuid}-result.json`), JSON.stringify(obj, null, 2));
+  };
+
+  for (const flow of r.flows) {
+    const flowStart = startBase;
+    let cursor = flowStart;
+    const steps = flow.steps.map((s) => {
+      const stepStart = cursor;
+      const stepStop = cursor + (s.durationMs || 0);
+      cursor = stepStop;
+      return {
+        name: describeStep(s.step),
+        status: s.passed ? 'passed' : 'failed',
+        stage: 'finished',
+        start: stepStart,
+        stop: stepStop,
+        ...(s.error ? { statusDetails: { message: s.error } } : {}),
+      };
+    });
+    const flowStop = cursor > flowStart ? cursor : stopBase;
+    const status: 'passed' | 'failed' | 'broken' = flow.passed ? 'passed' : flow.error ? 'broken' : 'failed';
+    await writeResult({
+      uuid: crypto.randomUUID(),
+      historyId: hashId(`flow:${flow.name}`),
+      name: flow.name,
+      fullName: `uxinspect.${safeUrl}.${flow.name}`,
+      status,
+      stage: 'finished',
+      start: flowStart,
+      stop: flowStop,
+      labels: [
+        { name: 'suite', value: r.url },
+        { name: 'severity', value: 'normal' },
+        { name: 'feature', value: 'flow' },
+      ],
+      steps,
+      ...(flow.error ? { statusDetails: { message: flow.error } } : {}),
+    });
+  }
+
+  for (const a of r.a11y ?? []) {
+    const critical = a.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious');
+    const failed = critical.length > 0;
+    const name = `a11y: ${a.page}`;
+    await writeResult({
+      uuid: crypto.randomUUID(),
+      historyId: hashId(`a11y:${a.page}`),
+      name,
+      fullName: `uxinspect.${safeUrl}.a11y.${a.page}`,
+      status: failed ? 'failed' : 'passed',
+      stage: 'finished',
+      start: startBase,
+      stop: stopBase,
+      labels: [
+        { name: 'suite', value: r.url },
+        { name: 'severity', value: failed ? 'critical' : 'normal' },
+        { name: 'feature', value: 'a11y' },
+      ],
+      steps: a.violations.map((v) => ({
+        name: `${v.id}: ${v.help}`,
+        status: v.impact === 'critical' || v.impact === 'serious' ? 'failed' : 'passed',
+        stage: 'finished',
+        start: startBase,
+        stop: stopBase,
+      })),
+      ...(failed
+        ? { statusDetails: { message: `${critical.length} critical/serious a11y violations` } }
+        : {}),
+    });
+  }
+}
+
+function renderTAP(r: InspectResult): string {
+  const points: { ok: boolean; desc: string; message?: string }[] = [];
+
+  for (const f of r.flows) {
+    points.push({
+      ok: f.passed,
+      desc: `flow: ${f.name}`,
+      message: f.error,
+    });
+  }
+
+  for (const a of r.a11y ?? []) {
+    const crit = a.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious');
+    points.push({
+      ok: crit.length === 0,
+      desc: `a11y: ${a.page}`,
+      message: crit.length > 0 ? `${crit.length} critical/serious violations` : undefined,
+    });
+  }
+
+  for (const v of r.visual ?? []) {
+    points.push({
+      ok: v.passed,
+      desc: `visual: ${v.page} [${v.viewport}]`,
+      message: v.passed ? undefined : `diff ${v.diffPixels}px (${(v.diffRatio * 100).toFixed(2)}%)`,
+    });
+  }
+
+  for (const p of r.perf ?? []) {
+    const score = p.scores.performance;
+    points.push({
+      ok: score >= 50,
+      desc: `perf: ${p.page} (score=${score})`,
+      message: score < 50 ? `performance score ${score} below threshold 50` : undefined,
+    });
+  }
+
+  for (const s of r.seo ?? []) {
+    const issues = (s as { issues?: unknown[] }).issues ?? [];
+    points.push({
+      ok: issues.length === 0,
+      desc: `seo: ${(s as { page?: string }).page ?? 'page'}`,
+      message: issues.length > 0 ? `${issues.length} seo issues` : undefined,
+    });
+  }
+
+  for (const l of r.links ?? []) {
+    const broken = (l as { broken?: unknown[] }).broken ?? [];
+    points.push({
+      ok: broken.length === 0,
+      desc: `links: ${(l as { page?: string }).page ?? 'page'}`,
+      message: broken.length > 0 ? `${broken.length} broken links` : undefined,
+    });
+  }
+
+  for (const p of r.pwa ?? []) {
+    const passed = (p as { passed?: boolean }).passed ?? true;
+    points.push({
+      ok: passed,
+      desc: `pwa: ${(p as { page?: string }).page ?? 'page'}`,
+    });
+  }
+
+  if (r.security) {
+    const missing = (r.security as { missing?: unknown[] }).missing ?? [];
+    points.push({
+      ok: missing.length === 0,
+      desc: 'security: headers',
+      message: missing.length > 0 ? `${missing.length} missing headers` : undefined,
+    });
+  }
+
+  for (const v of r.retire ?? []) {
+    const vulns = (v as { vulnerabilities?: unknown[] }).vulnerabilities ?? [];
+    points.push({
+      ok: vulns.length === 0,
+      desc: `retire: ${(v as { url?: string }).url ?? 'script'}`,
+      message: vulns.length > 0 ? `${vulns.length} vulnerabilities` : undefined,
+    });
+  }
+
+  for (const f of r.apiFlows ?? []) {
+    points.push({ ok: f.passed, desc: `api: ${f.name}`, message: f.error });
+  }
+
+  for (const b of r.budget ?? []) {
+    const msg = (b as { message?: string; metric?: string }).message
+      ?? (b as { metric?: string }).metric
+      ?? 'budget violation';
+    points.push({ ok: false, desc: `budget: ${msg}`, message: msg });
+  }
+
+  for (const d of r.deadClicks ?? []) {
+    const found = (d as { deadClicks?: unknown[] }).deadClicks ?? [];
+    points.push({
+      ok: found.length === 0,
+      desc: `deadClicks: ${(d as { page?: string }).page ?? 'page'}`,
+      message: found.length > 0 ? `${found.length} dead clicks` : undefined,
+    });
+  }
+
+  for (const t of r.touchTargets ?? []) {
+    const small = (t as { tooSmall?: unknown[] }).tooSmall ?? [];
+    points.push({
+      ok: small.length === 0,
+      desc: `touchTargets: ${(t as { page?: string }).page ?? 'page'}`,
+      message: small.length > 0 ? `${small.length} small targets` : undefined,
+    });
+  }
+
+  for (const k of r.keyboard ?? []) {
+    const issues = (k as { issues?: unknown[] }).issues ?? [];
+    points.push({
+      ok: issues.length === 0,
+      desc: `keyboard: ${(k as { page?: string }).page ?? 'page'}`,
+      message: issues.length > 0 ? `${issues.length} keyboard issues` : undefined,
+    });
+  }
+
+  for (const ce of r.consoleErrors ?? []) {
+    const errs = (ce as { errors?: unknown[] }).errors ?? [];
+    points.push({
+      ok: errs.length === 0,
+      desc: `consoleErrors: ${(ce as { page?: string }).page ?? 'page'}`,
+      message: errs.length > 0 ? `${errs.length} console errors` : undefined,
+    });
+  }
+
+  for (const mc of r.mixedContent ?? []) {
+    const items = (mc as { items?: unknown[] }).items ?? [];
+    points.push({
+      ok: items.length === 0,
+      desc: `mixedContent: ${(mc as { page?: string }).page ?? 'page'}`,
+      message: items.length > 0 ? `${items.length} mixed content items` : undefined,
+    });
+  }
+
+  const total = points.length;
+  const lines: string[] = ['TAP version 14', `1..${total}`];
+  points.forEach((p, i) => {
+    const n = i + 1;
+    const prefix = p.ok ? 'ok' : 'not ok';
+    lines.push(`${prefix} ${n} - ${escapeTapDesc(p.desc)}`);
+    if (!p.ok && p.message) {
+      lines.push('  ---');
+      lines.push(`  message: '${escapeTapMsg(p.message)}'`);
+      lines.push('  ---');
+    }
+  });
+  return lines.join('\n') + '\n';
+}
+
+function escapeTapDesc(s: string): string {
+  return s.replace(/[\r\n]+/g, ' ').replace(/#/g, '\\#');
+}
+
+function escapeTapMsg(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n]+/g, ' ');
+}
+
+function describeStep(step: unknown): string {
+  if (!step || typeof step !== 'object') return 'step';
+  const keys = Object.keys(step as Record<string, unknown>);
+  if (keys.length === 0) return 'step';
+  const key = keys[0];
+  const val = (step as Record<string, unknown>)[key];
+  if (typeof val === 'string') return `${key}: ${val}`;
+  if (typeof val === 'number' || typeof val === 'boolean') return `${key}: ${String(val)}`;
+  return key;
+}
+
 
 function renderJUnit(r: InspectResult): string {
   const tests = r.flows.length;
@@ -200,18 +463,18 @@ function renderHTML(r: InspectResult): string {
   ${r.tls ? `<h2>TLS</h2>${renderTls(r.tls)}` : ''}
   ${r.crawl ? `<h2>Crawl</h2>${renderCrawl(r.crawl)}` : ''}
   ${r.contentQuality ? `<h2>Content quality</h2>${renderContentQuality(r.contentQuality)}` : ''}
-  ${(r as any).resourceHints ? `<h2>Resource hints</h2>${renderResourceHints((r as any).resourceHints)}` : ''}
-  ${(r as any).mixedContent ? `<h2>Mixed content</h2>${renderMixedContent((r as any).mixedContent)}` : ''}
+  ${(r as any).resourceHints?.length ? `<h2>Resource hints</h2>${(r as any).resourceHints.map(renderResourceHints).join('')}` : ''}
+  ${(r as any).mixedContent?.length ? `<h2>Mixed content</h2>${(r as any).mixedContent.map(renderMixedContent).join('')}` : ''}
   ${(r as any).compression ? `<h2>Compression</h2>${renderCompression((r as any).compression)}` : ''}
-  ${(r as any).cacheHeaders ? `<h2>Cache headers</h2>${renderCacheHeaders((r as any).cacheHeaders)}` : ''}
-  ${(r as any).cookieBanner ? `<h2>Cookie banner</h2>${renderCookieBanner((r as any).cookieBanner)}` : ''}
-  ${(r as any).thirdParty ? `<h2>Third-party resources</h2>${renderThirdParty((r as any).thirdParty)}` : ''}
-  ${(r as any).bundleSize ? `<h2>Bundle size</h2>${renderBundleSize((r as any).bundleSize)}` : ''}
-  ${(r as any).openGraph ? `<h2>Open Graph</h2>${renderOpenGraph((r as any).openGraph)}` : ''}
+  ${(r as any).cacheHeaders?.length ? `<h2>Cache headers</h2>${(r as any).cacheHeaders.map(renderCacheHeaders).join('')}` : ''}
+  ${(r as any).cookieBanner?.length ? `<h2>Cookie banner</h2>${(r as any).cookieBanner.map(renderCookieBanner).join('')}` : ''}
+  ${(r as any).thirdParty?.length ? `<h2>Third-party resources</h2>${(r as any).thirdParty.map(renderThirdParty).join('')}` : ''}
+  ${(r as any).bundleSize?.length ? `<h2>Bundle size</h2>${(r as any).bundleSize.map(renderBundleSize).join('')}` : ''}
+  ${(r as any).openGraph?.length ? `<h2>Open Graph</h2>${(r as any).openGraph.map(renderOpenGraph).join('')}` : ''}
   ${(r as any).robotsAudit ? `<h2>robots.txt</h2>${renderRobotsAudit((r as any).robotsAudit)}` : ''}
-  ${(r as any).imageAudit ? `<h2>Images</h2>${renderImageAudit((r as any).imageAudit)}` : ''}
-  ${(r as any).webfonts ? `<h2>Webfonts</h2>${renderWebfonts((r as any).webfonts)}` : ''}
-  ${(r as any).motionPrefs ? `<h2>Motion preferences</h2>${renderMotionPrefs((r as any).motionPrefs)}` : ''}
+  ${(r as any).imageAudit?.length ? `<h2>Images</h2>${(r as any).imageAudit.map(renderImageAudit).join('')}` : ''}
+  ${(r as any).webfonts?.length ? `<h2>Webfonts</h2>${(r as any).webfonts.map(renderWebfonts).join('')}` : ''}
+  ${(r as any).motionPrefs?.length ? `<h2>Motion preferences</h2>${(r as any).motionPrefs.map(renderMotionPrefs).join('')}` : ''}
   ${r.explore ? `<h2>Exploration</h2>${renderExplore(r.explore)}` : ''}
 </body>
 </html>`;

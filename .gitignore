@@ -12,3 +12,6 @@ diffs/
 playwright-report/
 test-results/
 coverage/
+uxinspect-report/
+uxinspect-smoke-report/
+uxinspect-baselines/

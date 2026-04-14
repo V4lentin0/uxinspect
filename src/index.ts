@@ -42,6 +42,9 @@ import { auditRobots } from './robots-audit.js';
 import { auditImages } from './image-audit.js';
 import { auditWebfonts } from './webfonts.js';
 import { auditMotionPrefs } from './motion-prefs.js';
+import { auditServiceWorker } from './service-worker.js';
+import { collectRUM } from './rum.js';
+import { validateAmp } from './amp.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -74,6 +77,9 @@ import type { OpenGraphResult } from './open-graph.js';
 import type { ImageAuditResult } from './image-audit.js';
 import type { WebfontsResult } from './webfonts.js';
 import type { MotionPrefsResult } from './motion-prefs.js';
+import type { ServiceWorkerResult } from './service-worker.js';
+import type { RUMResult } from './rum.js';
+import type { AmpResult } from './amp.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -113,6 +119,15 @@ export { auditRobots } from './robots-audit.js';
 export { auditImages } from './image-audit.js';
 export { auditWebfonts } from './webfonts.js';
 export { auditMotionPrefs } from './motion-prefs.js';
+export { auditServiceWorker } from './service-worker.js';
+export { collectRUM, rumClientScript } from './rum.js';
+export { validateAmp } from './amp.js';
+export { retryWithFlakeDetection, classifyFlakeRate, defaultIsTransient } from './flaky.js';
+export { runGraphQLFlow } from './graphql.js';
+export { runWebSocketFlow } from './websocket.js';
+export { waitForEmail, extractLinks as extractEmailLinks, extractCode as extractEmailCode } from './mailbox.js';
+export { parseFeature, featureToFlows, builtinSteps } from './bdd.js';
+export { emitGitHubAnnotations, writeSummary as writeGitHubSummary } from './github-annotations.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
@@ -152,6 +167,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const imageAuditResults: ImageAuditResult[] = [];
   const webfontsResults: WebfontsResult[] = [];
   const motionPrefsResults: MotionPrefsResult[] = [];
+  const serviceWorkerResults: ServiceWorkerResult[] = [];
+  const rumResults: RUMResult[] = [];
+  const ampResults: AmpResult[] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
 
@@ -206,6 +224,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         imageAudit?: ImageAuditResult;
         webfonts?: WebfontsResult;
         motionPrefs?: MotionPrefsResult;
+        serviceWorker?: ServiceWorkerResult;
+        rum?: RUMResult;
+        amp?: AmpResult;
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
@@ -255,6 +276,11 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const imageAuditR = checks.imageAudit ? await auditImages(page).catch(() => undefined) : undefined;
         const webfontsR = checks.webfonts ? await auditWebfonts(page).catch(() => undefined) : undefined;
         const motionPrefsR = checks.motionPrefs ? await auditMotionPrefs(page).catch(() => undefined) : undefined;
+        const swR = checks.serviceWorker ? await auditServiceWorker(page).catch(() => undefined) : undefined;
+        const rumR = checks.rum
+          ? await collectRUM(page, typeof checks.rum === 'object' ? checks.rum : {}).catch(() => undefined)
+          : undefined;
+        const ampR = checks.amp ? await validateAmp(page).catch(() => undefined) : undefined;
         const consoleR = console ? console.result() : undefined;
         if (console) console.detach();
         if (!config.parallel) await page.close();
@@ -270,6 +296,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           thirdParty: thirdPartyR, bundleSize: bundleSizeR,
           openGraph: openGraphR, imageAudit: imageAuditR,
           webfonts: webfontsR, motionPrefs: motionPrefsR,
+          serviceWorker: swR, rum: rumR, amp: ampR,
         };
       };
 
@@ -303,6 +330,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.imageAudit) imageAuditResults.push(r.imageAudit);
         if (r.webfonts) webfontsResults.push(r.webfonts);
         if (r.motionPrefs) motionPrefsResults.push(r.motionPrefs);
+        if (r.serviceWorker) serviceWorkerResults.push(r.serviceWorker);
+        if (r.rum) rumResults.push(r.rum);
+        if (r.amp) ampResults.push(r.amp);
       }
 
       if (checks.perf) {
@@ -401,6 +431,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     imageAuditResults.every((r) => (r as any).passed !== false) &&
     webfontsResults.every((r) => (r as any).passed !== false) &&
     motionPrefsResults.every((r) => (r as any).passed !== false) &&
+    serviceWorkerResults.every((r) => (r as any).passed !== false) &&
+    rumResults.every((r) => (r as any).passed !== false) &&
+    ampResults.every((r) => (r as any).passed !== false) &&
     (compressionResult === undefined || (compressionResult as any).passed !== false) &&
     (robotsAuditResult === undefined || (robotsAuditResult as any).passed !== false);
 
@@ -446,6 +479,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     imageAudit: checks.imageAudit ? imageAuditResults : undefined,
     webfonts: checks.webfonts ? webfontsResults : undefined,
     motionPrefs: checks.motionPrefs ? motionPrefsResults : undefined,
+    serviceWorker: checks.serviceWorker ? serviceWorkerResults : undefined,
+    rum: checks.rum ? rumResults : undefined,
+    amp: checks.amp ? ampResults : undefined,
     passed: baselinePassed,
   };
 
