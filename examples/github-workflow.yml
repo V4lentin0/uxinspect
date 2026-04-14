@@ -1,0 +1,79 @@
+name: uxinspect
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  audit:
+    name: Audit with uxinspect
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run uxinspect audit
+        id: uxinspect
+        uses: uxinspect/uxinspect@v0.4.0
+        with:
+          url: https://staging.example.com
+          config: uxinspect.config.yml
+          output-dir: uxinspect-report
+          all: "true"
+          fail-on-regression: "true"
+          emit-annotations: "true"
+          upload-artifact: "true"
+          artifact-name: uxinspect-report
+
+      - name: Read uxinspect summary
+        id: summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          REPORT="uxinspect-report/report.json"
+          if [ ! -f "${REPORT}" ]; then
+            echo "passed=0" >> "${GITHUB_OUTPUT}"
+            echo "failed=0" >> "${GITHUB_OUTPUT}"
+            echo "warnings=0" >> "${GITHUB_OUTPUT}"
+            echo "total=0" >> "${GITHUB_OUTPUT}"
+            echo "status=unknown" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          PASSED=$(node -e "const r=require('./${REPORT}');console.log((r.summary&&r.summary.passed)||0)")
+          FAILED=$(node -e "const r=require('./${REPORT}');console.log((r.summary&&r.summary.failed)||0)")
+          WARNINGS=$(node -e "const r=require('./${REPORT}');console.log((r.summary&&r.summary.warnings)||0)")
+          TOTAL=$(node -e "const r=require('./${REPORT}');console.log((r.summary&&r.summary.total)||0)")
+          STATUS=$(node -e "const r=require('./${REPORT}');console.log((r.summary&&r.summary.status)||'unknown')")
+          echo "passed=${PASSED}" >> "${GITHUB_OUTPUT}"
+          echo "failed=${FAILED}" >> "${GITHUB_OUTPUT}"
+          echo "warnings=${WARNINGS}" >> "${GITHUB_OUTPUT}"
+          echo "total=${TOTAL}" >> "${GITHUB_OUTPUT}"
+          echo "status=${STATUS}" >> "${GITHUB_OUTPUT}"
+
+      - name: Post uxinspect summary on PR
+        if: ${{ github.event_name == 'pull_request' && always() }}
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: uxinspect
+          message: |
+            ### uxinspect report
+
+            | Result | Count |
+            | --- | --- |
+            | Passed | ${{ steps.summary.outputs.passed }} |
+            | Failed | ${{ steps.summary.outputs.failed }} |
+            | Warnings | ${{ steps.summary.outputs.warnings }} |
+            | Total | ${{ steps.summary.outputs.total }} |
+
+            Overall status: **${{ steps.summary.outputs.status }}**
+
+            The full report is attached as the `uxinspect-report` workflow artifact.

@@ -139,6 +139,18 @@ export interface ChecksConfig {
   serviceWorker?: boolean;
   rum?: boolean | { durationMs?: number };
   amp?: boolean;
+  jsCoverage?: boolean | { threshold?: number };
+  cssCoverage?: boolean | { threshold?: number };
+  domSize?: boolean | { maxNodes?: number; maxDepth?: number; maxChildren?: number };
+  ariaAudit?: boolean;
+  headings?: boolean;
+  langAudit?: boolean;
+  protocols?: boolean;
+  fontLoading?: boolean;
+  prerenderAudit?: boolean;
+  headlessDetect?: boolean;
+  animations?: boolean;
+  eventListeners?: boolean;
 }
 
 export interface OutputConfig {
@@ -199,6 +211,18 @@ export interface InspectResult {
   serviceWorker?: import('./service-worker.js').ServiceWorkerResult[];
   rum?: import('./rum.js').RUMResult[];
   amp?: import('./amp.js').AmpResult[];
+  jsCoverage?: import('./js-coverage.js').JsCoverageResult[];
+  cssCoverage?: import('./css-coverage.js').CssCoverageResult[];
+  domSize?: import('./dom-audit.js').DomAuditResult[];
+  ariaAudit?: import('./aria-audit.js').AriaAuditResult[];
+  headings?: import('./heading-hierarchy.js').HeadingHierarchyResult[];
+  langAudit?: import('./lang-audit.js').LangAuditResult[];
+  protocols?: import('./protocol-audit.js').ProtocolAuditResult[];
+  fontLoading?: import('./font-loading.js').FontLoadingResult[];
+  prerenderAudit?: import('./prerender-audit.js').PrerenderAuditResult[];
+  headlessDetect?: import('./headless-detect.js').HeadlessDetectResult[];
+  animations?: import('./animation-audit.js').AnimationAuditResult[];
+  eventListeners?: import('./event-listener-audit.js').EventListenerAuditResult[];
   passed: boolean;
 }
 

@@ -1,0 +1,146 @@
+name: "uxinspect"
+description: "Full-page UI/UX + a11y + perf audit on every PR"
+author: "uxinspect"
+
+branding:
+  icon: check-square
+  color: green
+
+inputs:
+  url:
+    description: "The site URL to audit"
+    required: true
+  config:
+    description: "Path to uxinspect config YAML"
+    required: false
+    default: ""
+  output-dir:
+    description: "Directory to write the uxinspect report into"
+    required: false
+    default: "uxinspect-report"
+  all:
+    description: "Run every available check"
+    required: false
+    default: "false"
+  checks:
+    description: "Comma-separated list of check names to run"
+    required: false
+    default: ""
+  fail-on-regression:
+    description: "Fail the step if uxinspect reports a regression"
+    required: false
+    default: "true"
+  emit-annotations:
+    description: "Emit GitHub annotations for each finding"
+    required: false
+    default: "true"
+  upload-artifact:
+    description: "Upload the uxinspect report directory as a workflow artifact"
+    required: false
+    default: "true"
+  artifact-name:
+    description: "Name of the uploaded artifact"
+    required: false
+    default: "uxinspect-report"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Install uxinspect CLI
+      shell: bash
+      run: npm i -g uxinspect@latest
+
+    - name: Install Playwright browser
+      shell: bash
+      run: npx playwright install --with-deps chromium
+
+    - name: Run uxinspect
+      id: uxinspect
+      shell: bash
+      env:
+        INPUT_URL: ${{ inputs.url }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_OUTPUT_DIR: ${{ inputs.output-dir }}
+        INPUT_ALL: ${{ inputs.all }}
+        INPUT_CHECKS: ${{ inputs.checks }}
+      run: |
+        set +e
+        CMD="uxinspect"
+        if [ -n "${INPUT_CONFIG}" ]; then
+          CMD="${CMD} --config ${INPUT_CONFIG}"
+        fi
+        if [ -n "${INPUT_URL}" ]; then
+          CMD="${CMD} ${INPUT_URL}"
+        fi
+        if [ -n "${INPUT_OUTPUT_DIR}" ]; then
+          CMD="${CMD} --output ${INPUT_OUTPUT_DIR}"
+        fi
+        if [ "${INPUT_ALL}" = "true" ]; then
+          CMD="${CMD} --all"
+        fi
+        if [ -n "${INPUT_CHECKS}" ]; then
+          CMD="${CMD} --checks ${INPUT_CHECKS}"
+        fi
+        echo "Running: ${CMD}"
+        eval "${CMD}"
+        EXIT_CODE=$?
+        echo "exit-code=${EXIT_CODE}" >> "${GITHUB_OUTPUT}"
+        echo "uxinspect exited with code ${EXIT_CODE}"
+        exit 0
+
+    - name: Emit GitHub annotations
+      if: ${{ inputs.emit-annotations == 'true' }}
+      shell: bash
+      env:
+        REPORT_DIR: ${{ inputs.output-dir }}
+      run: |
+        REPORT_JSON="${REPORT_DIR}/report.json"
+        if [ ! -f "${REPORT_JSON}" ]; then
+          echo "No report.json at ${REPORT_JSON} — skipping annotations."
+          exit 0
+        fi
+        node --input-type=module -e "
+          import { readFileSync } from 'node:fs';
+          import { createRequire } from 'node:module';
+          const require = createRequire(import.meta.url);
+          const reportPath = process.env.REPORT_JSON;
+          const report = JSON.parse(readFileSync(reportPath, 'utf8'));
+          let emit;
+          try {
+            const mod = require('uxinspect');
+            emit = mod.emitGitHubAnnotations;
+          } catch (err) {
+            console.error('Could not load uxinspect module:', err.message);
+            process.exit(0);
+          }
+          if (typeof emit !== 'function') {
+            console.error('emitGitHubAnnotations not exported by uxinspect');
+            process.exit(0);
+          }
+          const lines = emit(report) || [];
+          for (const line of lines) {
+            process.stdout.write(line + '\n');
+          }
+        "
+      env:
+        REPORT_JSON: ${{ inputs.output-dir }}/report.json
+
+    - name: Upload uxinspect report artifact
+      if: ${{ inputs.upload-artifact == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.output-dir }}
+        if-no-files-found: warn
+
+    - name: Fail on regression
+      if: ${{ inputs.fail-on-regression == 'true' && steps.uxinspect.outputs.exit-code != '0' }}
+      shell: bash
+      run: |
+        echo "uxinspect reported a regression (exit code ${{ steps.uxinspect.outputs.exit-code }})."
+        exit 1

@@ -45,6 +45,18 @@ import { auditMotionPrefs } from './motion-prefs.js';
 import { auditServiceWorker } from './service-worker.js';
 import { collectRUM } from './rum.js';
 import { validateAmp } from './amp.js';
+import { auditJsCoverage } from './js-coverage.js';
+import { auditCssCoverage } from './css-coverage.js';
+import { auditDomSize } from './dom-audit.js';
+import { auditAria } from './aria-audit.js';
+import { auditHeadings } from './heading-hierarchy.js';
+import { auditLang } from './lang-audit.js';
+import { auditProtocols } from './protocol-audit.js';
+import { auditFontLoading } from './font-loading.js';
+import { auditPrerender } from './prerender-audit.js';
+import { auditHeadlessDetect } from './headless-detect.js';
+import { auditAnimations } from './animation-audit.js';
+import { auditEventListeners } from './event-listener-audit.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -80,6 +92,18 @@ import type { MotionPrefsResult } from './motion-prefs.js';
 import type { ServiceWorkerResult } from './service-worker.js';
 import type { RUMResult } from './rum.js';
 import type { AmpResult } from './amp.js';
+import type { JsCoverageResult } from './js-coverage.js';
+import type { CssCoverageResult } from './css-coverage.js';
+import type { DomAuditResult } from './dom-audit.js';
+import type { AriaAuditResult } from './aria-audit.js';
+import type { HeadingHierarchyResult } from './heading-hierarchy.js';
+import type { LangAuditResult } from './lang-audit.js';
+import type { ProtocolAuditResult } from './protocol-audit.js';
+import type { FontLoadingResult } from './font-loading.js';
+import type { PrerenderAuditResult } from './prerender-audit.js';
+import type { HeadlessDetectResult } from './headless-detect.js';
+import type { AnimationAuditResult } from './animation-audit.js';
+import type { EventListenerAuditResult } from './event-listener-audit.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -128,6 +152,22 @@ export { runWebSocketFlow } from './websocket.js';
 export { waitForEmail, extractLinks as extractEmailLinks, extractCode as extractEmailCode } from './mailbox.js';
 export { parseFeature, featureToFlows, builtinSteps } from './bdd.js';
 export { emitGitHubAnnotations, writeSummary as writeGitHubSummary } from './github-annotations.js';
+export { auditJsCoverage } from './js-coverage.js';
+export { auditCssCoverage } from './css-coverage.js';
+export { auditDomSize } from './dom-audit.js';
+export { auditAria } from './aria-audit.js';
+export { auditHeadings } from './heading-hierarchy.js';
+export { auditLang } from './lang-audit.js';
+export { auditProtocols } from './protocol-audit.js';
+export { auditFontLoading } from './font-loading.js';
+export { auditPrerender } from './prerender-audit.js';
+export { auditHeadlessDetect } from './headless-detect.js';
+export { auditAnimations } from './animation-audit.js';
+export { auditEventListeners } from './event-listener-audit.js';
+export { runOpenApiContract } from './contract-openapi.js';
+export { compareInspect } from './ab-compare.js';
+export { runWatchMode } from './watch-mode.js';
+export { postWebhookReport } from './webhook-reporter.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
@@ -170,6 +210,18 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const serviceWorkerResults: ServiceWorkerResult[] = [];
   const rumResults: RUMResult[] = [];
   const ampResults: AmpResult[] = [];
+  const jsCoverageResults: JsCoverageResult[] = [];
+  const cssCoverageResults: CssCoverageResult[] = [];
+  const domSizeResults: DomAuditResult[] = [];
+  const ariaAuditResults: AriaAuditResult[] = [];
+  const headingsResults: HeadingHierarchyResult[] = [];
+  const langAuditResults: LangAuditResult[] = [];
+  const protocolsResults: ProtocolAuditResult[] = [];
+  const fontLoadingResults: FontLoadingResult[] = [];
+  const prerenderAuditResults: PrerenderAuditResult[] = [];
+  const headlessDetectResults: HeadlessDetectResult[] = [];
+  const animationsResults: AnimationAuditResult[] = [];
+  const eventListenersResults: EventListenerAuditResult[] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
 
@@ -227,6 +279,18 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         serviceWorker?: ServiceWorkerResult;
         rum?: RUMResult;
         amp?: AmpResult;
+        jsCoverage?: JsCoverageResult;
+        cssCoverage?: CssCoverageResult;
+        domSize?: DomAuditResult;
+        ariaAudit?: AriaAuditResult;
+        headings?: HeadingHierarchyResult;
+        langAudit?: LangAuditResult;
+        protocols?: ProtocolAuditResult;
+        fontLoading?: FontLoadingResult;
+        prerenderAudit?: PrerenderAuditResult;
+        headlessDetect?: HeadlessDetectResult;
+        animations?: AnimationAuditResult;
+        eventListeners?: EventListenerAuditResult;
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
@@ -281,6 +345,24 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           ? await collectRUM(page, typeof checks.rum === 'object' ? checks.rum : {}).catch(() => undefined)
           : undefined;
         const ampR = checks.amp ? await validateAmp(page).catch(() => undefined) : undefined;
+        const jsCovR = checks.jsCoverage
+          ? await auditJsCoverage(page, typeof checks.jsCoverage === 'object' ? checks.jsCoverage : {}).catch(() => undefined)
+          : undefined;
+        const cssCovR = checks.cssCoverage
+          ? await auditCssCoverage(page, typeof checks.cssCoverage === 'object' ? checks.cssCoverage : {}).catch(() => undefined)
+          : undefined;
+        const domSizeR = checks.domSize
+          ? await auditDomSize(page, typeof checks.domSize === 'object' ? checks.domSize : {}).catch(() => undefined)
+          : undefined;
+        const ariaR = checks.ariaAudit ? await auditAria(page).catch(() => undefined) : undefined;
+        const headingsR = checks.headings ? await auditHeadings(page).catch(() => undefined) : undefined;
+        const langR = checks.langAudit ? await auditLang(page).catch(() => undefined) : undefined;
+        const protocolsR = checks.protocols ? await auditProtocols(page).catch(() => undefined) : undefined;
+        const fontLoadR = checks.fontLoading ? await auditFontLoading(page).catch(() => undefined) : undefined;
+        const prerenderR = checks.prerenderAudit ? await auditPrerender(page).catch(() => undefined) : undefined;
+        const headlessR = checks.headlessDetect ? await auditHeadlessDetect(page).catch(() => undefined) : undefined;
+        const animationsR = checks.animations ? await auditAnimations(page).catch(() => undefined) : undefined;
+        const eventListenersR = checks.eventListeners ? await auditEventListeners(page).catch(() => undefined) : undefined;
         const consoleR = console ? console.result() : undefined;
         if (console) console.detach();
         if (!config.parallel) await page.close();
@@ -297,6 +379,11 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           openGraph: openGraphR, imageAudit: imageAuditR,
           webfonts: webfontsR, motionPrefs: motionPrefsR,
           serviceWorker: swR, rum: rumR, amp: ampR,
+          jsCoverage: jsCovR, cssCoverage: cssCovR, domSize: domSizeR,
+          ariaAudit: ariaR, headings: headingsR, langAudit: langR,
+          protocols: protocolsR, fontLoading: fontLoadR,
+          prerenderAudit: prerenderR, headlessDetect: headlessR,
+          animations: animationsR, eventListeners: eventListenersR,
         };
       };
 
@@ -333,6 +420,18 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.serviceWorker) serviceWorkerResults.push(r.serviceWorker);
         if (r.rum) rumResults.push(r.rum);
         if (r.amp) ampResults.push(r.amp);
+        if (r.jsCoverage) jsCoverageResults.push(r.jsCoverage);
+        if (r.cssCoverage) cssCoverageResults.push(r.cssCoverage);
+        if (r.domSize) domSizeResults.push(r.domSize);
+        if (r.ariaAudit) ariaAuditResults.push(r.ariaAudit);
+        if (r.headings) headingsResults.push(r.headings);
+        if (r.langAudit) langAuditResults.push(r.langAudit);
+        if (r.protocols) protocolsResults.push(r.protocols);
+        if (r.fontLoading) fontLoadingResults.push(r.fontLoading);
+        if (r.prerenderAudit) prerenderAuditResults.push(r.prerenderAudit);
+        if (r.headlessDetect) headlessDetectResults.push(r.headlessDetect);
+        if (r.animations) animationsResults.push(r.animations);
+        if (r.eventListeners) eventListenersResults.push(r.eventListeners);
       }
 
       if (checks.perf) {
@@ -434,6 +533,18 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     serviceWorkerResults.every((r) => (r as any).passed !== false) &&
     rumResults.every((r) => (r as any).passed !== false) &&
     ampResults.every((r) => (r as any).passed !== false) &&
+    jsCoverageResults.every((r) => (r as any).passed !== false) &&
+    cssCoverageResults.every((r) => (r as any).passed !== false) &&
+    domSizeResults.every((r) => (r as any).passed !== false) &&
+    ariaAuditResults.every((r) => (r as any).passed !== false) &&
+    headingsResults.every((r) => (r as any).passed !== false) &&
+    langAuditResults.every((r) => (r as any).passed !== false) &&
+    protocolsResults.every((r) => (r as any).passed !== false) &&
+    fontLoadingResults.every((r) => (r as any).passed !== false) &&
+    prerenderAuditResults.every((r) => (r as any).passed !== false) &&
+    headlessDetectResults.every((r) => (r as any).passed !== false) &&
+    animationsResults.every((r) => (r as any).passed !== false) &&
+    eventListenersResults.every((r) => (r as any).passed !== false) &&
     (compressionResult === undefined || (compressionResult as any).passed !== false) &&
     (robotsAuditResult === undefined || (robotsAuditResult as any).passed !== false);
 
@@ -482,6 +593,18 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     serviceWorker: checks.serviceWorker ? serviceWorkerResults : undefined,
     rum: checks.rum ? rumResults : undefined,
     amp: checks.amp ? ampResults : undefined,
+    jsCoverage: checks.jsCoverage ? jsCoverageResults : undefined,
+    cssCoverage: checks.cssCoverage ? cssCoverageResults : undefined,
+    domSize: checks.domSize ? domSizeResults : undefined,
+    ariaAudit: checks.ariaAudit ? ariaAuditResults : undefined,
+    headings: checks.headings ? headingsResults : undefined,
+    langAudit: checks.langAudit ? langAuditResults : undefined,
+    protocols: checks.protocols ? protocolsResults : undefined,
+    fontLoading: checks.fontLoading ? fontLoadingResults : undefined,
+    prerenderAudit: checks.prerenderAudit ? prerenderAuditResults : undefined,
+    headlessDetect: checks.headlessDetect ? headlessDetectResults : undefined,
+    animations: checks.animations ? animationsResults : undefined,
+    eventListeners: checks.eventListeners ? eventListenersResults : undefined,
     passed: baselinePassed,
   };
 
