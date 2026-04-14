@@ -217,6 +217,19 @@ export { generateConfigSchema, writeSchemaFile } from './json-schema.js';
 export { parseShardArg, shardFlows, shardConfig, shardSummary } from './shard.js';
 export { diffReports, formatDiff, loadReport, diffReportFiles } from './budget-diff.js';
 export { loadHistory, renderHistoryHtml, writeHistoryHtml } from './history-timeline.js';
+export { toPrComment, renderGithubComment, renderGitlabComment, renderBitbucketComment } from './pr-comment.js';
+export { flowsToCsv, a11yToCsv, perfToCsv, visualToCsv, linksToCsv, consoleErrorsToCsv, summaryToCsv, writeAllCsvs } from './csv-exporter.js';
+export { parseAssertion, resolveMetric, evaluateAssertions, formatAssertionFailures } from './assertions.js';
+export { detectFlakiness, formatFlakyReport } from './flaky-detector.js';
+export { renderBadge, statusBadge, a11yBadge, perfBadge, lcpBadge, visualBadge, writeBadges } from './badge.js';
+export { fetchSitemapUrls, urlsToFlows, sitemapToFlows } from './sitemap-flows.js';
+export { bisect, defaultRegressionOracle } from './bisect.js';
+export { runFilteredA11y, filterViolationsByImpact, WCAG_TAG_GROUPS } from './a11y-filter.js';
+export { ReporterRegistry, defaultReporterRegistry, runReporters, loadReporterFromPath, jsonFileReporter } from './reporter-plugin.js';
+export { scanPageObject, renderPageObjectClass, generatePageObject } from './page-object.js';
+export { retry, retryWithStats, computeBackoff } from './retry.js';
+export { parseCron, nextFireTime, runSchedule } from './schedule.js';
+export { loadBudgetFile, validateBudgetFile, applyBudget, mergeBudgets, discoverBudgetFile } from './budget-file.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
