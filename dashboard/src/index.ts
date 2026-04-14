@@ -22,8 +22,13 @@ export default {
 
     if (req.method === 'POST' && path === '/upload') return upload(req, env);
     if (req.method === 'GET' && path === '/api/reports') return listReports(env);
+    if (req.method === 'GET' && path === '/api/trends') return trends(url, env);
+    if (req.method === 'GET' && path === '/api/compare') return compare(url, env);
     if (req.method === 'GET' && path.startsWith('/r/')) return getReport(path.slice(3), env);
+    if (req.method === 'GET' && path === '/compare') return new Response(comparePage(url), { headers: html() });
+    if (req.method === 'GET' && path === '/trends') return new Response(trendsPage(url), { headers: html() });
     if (req.method === 'GET' && path === '/') return new Response(indexPage(), { headers: html() });
+    if (req.method === 'DELETE' && path.startsWith('/r/')) return deleteReport(path.slice(3), req, env);
     return new Response('not found', { status: 404 });
   },
 };
@@ -74,7 +79,69 @@ async function getReport(id: string, env: Env): Promise<Response> {
   const obj = await env.REPORTS.get(`${id}.json`);
   if (!obj) return new Response('not found', { status: 404 });
   const r = await obj.json<ReportSummary>();
-  return new Response(reportPage(r), { headers: html() });
+  return new Response(reportPage(r, id), { headers: html() });
+}
+
+async function deleteReport(id: string, req: Request, env: Env): Promise<Response> {
+  if (env.UPLOAD_TOKEN) {
+    const auth = req.headers.get('authorization') ?? '';
+    if (auth !== `Bearer ${env.UPLOAD_TOKEN}`) return new Response('unauthorized', { status: 401 });
+  }
+  await env.REPORTS.delete(`${id}.json`);
+  return new Response(null, { status: 204 });
+}
+
+async function trends(url: URL, env: Env): Promise<Response> {
+  const target = url.searchParams.get('url');
+  if (!target) return new Response('missing url', { status: 400 });
+  const list = await env.REPORTS.list({ limit: 1000 });
+  const items = await Promise.all(
+    list.objects
+      .filter((o) => o.key.endsWith('.json'))
+      .sort((a, b) => a.uploaded.getTime() - b.uploaded.getTime())
+      .map(async (o) => {
+        const obj = await env.REPORTS.get(o.key);
+        if (!obj) return null;
+        const r = await obj.json<ReportSummary>();
+        if (r.url !== target) return null;
+        const a11yIssues = (r.a11y ?? []).reduce((a, p) => a + p.violations.length, 0);
+        const perf = r.perf?.length
+          ? r.perf.reduce((a, p) => a + p.scores.performance, 0) / r.perf.length
+          : null;
+        return {
+          id: o.key.replace('.json', ''),
+          startedAt: r.startedAt,
+          passed: r.passed,
+          durationMs: r.durationMs,
+          a11y: a11yIssues,
+          visualFails: (r.visual ?? []).filter((v) => !v.passed).length,
+          perf,
+        };
+      }),
+  );
+  return Response.json(items.filter(Boolean));
+}
+
+async function compare(url: URL, env: Env): Promise<Response> {
+  const a = url.searchParams.get('a');
+  const b = url.searchParams.get('b');
+  if (!a || !b) return new Response('missing a or b', { status: 400 });
+  const [ra, rb] = await Promise.all([env.REPORTS.get(`${a}.json`), env.REPORTS.get(`${b}.json`)]);
+  if (!ra || !rb) return new Response('not found', { status: 404 });
+  const [ja, jb] = await Promise.all([ra.json<ReportSummary>(), rb.json<ReportSummary>()]);
+  const sum = (r: ReportSummary) => ({
+    passed: r.passed,
+    startedAt: r.startedAt,
+    durationMs: r.durationMs,
+    flowFails: r.flows.filter((f) => !f.passed).length,
+    flows: r.flows.length,
+    a11y: (r.a11y ?? []).reduce((x, p) => x + p.violations.length, 0),
+    visualFails: (r.visual ?? []).filter((v) => !v.passed).length,
+    perf: r.perf?.length
+      ? Math.round(r.perf.reduce((x, p) => x + p.scores.performance, 0) / r.perf.length)
+      : null,
+  });
+  return Response.json({ a: { id: a, ...sum(ja) }, b: { id: b, ...sum(jb) } });
 }
 
 function html() {
@@ -179,7 +246,7 @@ function indexPage(): string {
 </body></html>`;
 }
 
-function reportPage(r: ReportSummary): string {
+function reportPage(r: ReportSummary, id: string): string {
   const a11yCount = (r.a11y ?? []).reduce((a, p) => a + p.violations.length, 0);
   const visualFails = (r.visual ?? []).filter((v) => !v.passed).length;
   const perfAvg = r.perf?.length
@@ -214,8 +281,158 @@ function reportPage(r: ReportSummary): string {
   </div>
   <h2>Flows</h2>
   ${flowRows}
-  <p style="margin-top:32px"><a href="/">\u2190 all reports</a></p>
+  <p style="margin-top:32px">
+    <a href="/">\u2190 all reports</a> \u00b7
+    <a href="/trends?url=${encodeURIComponent(r.url)}">trends for this URL</a> \u00b7
+    <a href="/compare?a=${encodeURIComponent(id)}">compare</a>
+  </p>
 </body></html>`;
+}
+
+function comparePage(url: URL): string {
+  const a = url.searchParams.get('a') ?? '';
+  const b = url.searchParams.get('b') ?? '';
+  return `<!doctype html><html><head><meta charset="utf-8"><title>compare</title>${shellCss()}</head>
+<body>
+  <h1>Compare runs</h1>
+  <p class="meta">Enter two run IDs to diff.</p>
+  <form id="f" style="display:flex;gap:8px;margin-bottom:16px">
+    <input id="a" placeholder="run id A" value="${escapeAttr(a)}" style="flex:1;padding:8px;border:1px solid #E5E7EB;border-radius:6px"/>
+    <input id="b" placeholder="run id B" value="${escapeAttr(b)}" style="flex:1;padding:8px;border:1px solid #E5E7EB;border-radius:6px"/>
+    <button style="padding:8px 16px;background:#10B981;color:white;border:none;border-radius:6px;cursor:pointer">Compare</button>
+  </form>
+  <div id="out"></div>
+  <p><a href="/">\u2190 all reports</a></p>
+<script>
+const f = document.getElementById('f');
+const out = document.getElementById('out');
+async function run() {
+  const a = document.getElementById('a').value.trim();
+  const b = document.getElementById('b').value.trim();
+  if (!a || !b) return;
+  const res = await fetch('/api/compare?a=' + encodeURIComponent(a) + '&b=' + encodeURIComponent(b));
+  if (!res.ok) { out.textContent = 'error ' + res.status; return; }
+  const { a: A, b: B } = await res.json();
+  out.textContent = '';
+  const table = document.createElement('table');
+  table.style.width = '100%';
+  table.style.borderCollapse = 'collapse';
+  const rows = [
+    ['Status', A.passed ? 'PASS' : 'FAIL', B.passed ? 'PASS' : 'FAIL'],
+    ['Started', new Date(A.startedAt).toLocaleString(), new Date(B.startedAt).toLocaleString()],
+    ['Duration', (A.durationMs/1000).toFixed(1)+'s', (B.durationMs/1000).toFixed(1)+'s'],
+    ['Flows', A.flows - A.flowFails + '/' + A.flows, B.flows - B.flowFails + '/' + B.flows],
+    ['A11y', A.a11y, B.a11y],
+    ['Visual fails', A.visualFails, B.visualFails],
+    ['Perf', A.perf ?? '\u2014', B.perf ?? '\u2014'],
+  ];
+  const header = document.createElement('tr');
+  for (const h of ['', 'A: ' + A.id, 'B: ' + B.id]) {
+    const th = document.createElement('th');
+    th.textContent = h;
+    th.style.textAlign = 'left';
+    th.style.padding = '8px';
+    th.style.fontSize = '12px';
+    th.style.color = '#6B7280';
+    th.style.textTransform = 'uppercase';
+    header.appendChild(th);
+  }
+  table.appendChild(header);
+  for (const [k, av, bv] of rows) {
+    const tr = document.createElement('tr');
+    tr.style.borderTop = '1px solid #E5E7EB';
+    for (const val of [k, av, bv]) {
+      const td = document.createElement('td');
+      td.textContent = String(val);
+      td.style.padding = '8px';
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  }
+  out.appendChild(table);
+}
+f.addEventListener('submit', e => { e.preventDefault(); run(); });
+if (document.getElementById('a').value && document.getElementById('b').value) run();
+</script>
+</body></html>`;
+}
+
+function trendsPage(url: URL): string {
+  const target = url.searchParams.get('url') ?? '';
+  return `<!doctype html><html><head><meta charset="utf-8"><title>trends</title>${shellCss()}</head>
+<body>
+  <h1>Trends</h1>
+  <p class="meta">${escape(target)}</p>
+  <div id="chart"></div>
+  <div id="list"></div>
+  <p><a href="/">\u2190 all reports</a></p>
+<script>
+const target = ${JSON.stringify(target)};
+fetch('/api/trends?url=' + encodeURIComponent(target)).then(r => r.json()).then(items => {
+  const chart = document.getElementById('chart');
+  const list = document.getElementById('list');
+  if (!items.length) { chart.textContent = 'No runs yet.'; return; }
+  const W = 800, H = 120, pad = 20;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  svg.style.background = '#fff';
+  svg.style.border = '1px solid #E5E7EB';
+  svg.style.borderRadius = '8px';
+  const max = Math.max(...items.map(i => i.a11y), 1);
+  items.forEach((it, i) => {
+    const x = pad + (i * (W - 2*pad) / Math.max(items.length-1, 1));
+    const y = H - pad - (it.a11y / max) * (H - 2*pad);
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('cx', String(x));
+    c.setAttribute('cy', String(y));
+    c.setAttribute('r', '4');
+    c.setAttribute('fill', it.passed ? '#10B981' : '#EF4444');
+    svg.appendChild(c);
+    if (i > 0) {
+      const prev = items[i-1];
+      const px = pad + ((i-1) * (W - 2*pad) / Math.max(items.length-1, 1));
+      const py = H - pad - (prev.a11y / max) * (H - 2*pad);
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', String(px));
+      line.setAttribute('y1', String(py));
+      line.setAttribute('x2', String(x));
+      line.setAttribute('y2', String(y));
+      line.setAttribute('stroke', '#3B82F6');
+      line.setAttribute('stroke-width', '2');
+      svg.appendChild(line);
+    }
+  });
+  chart.appendChild(svg);
+  const lbl = document.createElement('div');
+  lbl.className = 'meta';
+  lbl.textContent = 'A11y violations over ' + items.length + ' runs (dot color = pass/fail)';
+  chart.appendChild(lbl);
+  for (const it of items.slice().reverse()) {
+    const a = document.createElement('a');
+    a.className = 'row';
+    a.href = '/r/' + it.id;
+    a.style.color = 'inherit';
+    const badge = document.createElement('span');
+    badge.className = 'badge ' + (it.passed ? 'badge-pass' : 'badge-fail');
+    badge.textContent = it.passed ? 'pass' : 'fail';
+    const mid = document.createElement('div');
+    mid.textContent = new Date(it.startedAt).toLocaleString();
+    const stats = document.createElement('div');
+    stats.className = 'stats';
+    stats.textContent = it.a11y + ' a11y \u00b7 ' + it.visualFails + ' visual \u00b7 ' + (it.perf ?? '\u2014') + ' perf';
+    a.appendChild(badge);
+    a.appendChild(mid);
+    a.appendChild(stats);
+    list.appendChild(a);
+  }
+});
+</script>
+</body></html>`;
+}
+
+function escapeAttr(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }
 
 function escape(s: string): string {
