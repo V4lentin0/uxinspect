@@ -14,6 +14,22 @@ import { AIHelper } from './ai.js';
 import { writeReport } from './report.js';
 import { r2StoreFromEnv } from './store.js';
 import { runApiFlows } from './api.js';
+import { checkRetireJs } from './retire.js';
+import { checkDeadClicks } from './deadclicks.js';
+import { auditTouchTargets } from './touchtargets.js';
+import { auditKeyboard } from './keyboard.js';
+import { captureLongTasks } from './longtasks.js';
+import { captureClsTimeline } from './cls-timeline.js';
+import { auditForms } from './forms-audit.js';
+import { checkStructuredData } from './structured-data.js';
+import { auditPassiveSecurity } from './passive-security.js';
+import { attachConsoleCapture } from './console-errors.js';
+import { auditSitemap } from './sitemap.js';
+import { auditRedirects } from './redirects.js';
+import { scanExposedPaths } from './exposed-paths.js';
+import { auditTls } from './tls.js';
+import { crawlSite } from './crawl.js';
+import { analyzePage as analyzeContent, analyzeBatch as analyzeContentBatch } from './content-quality.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -25,6 +41,17 @@ import type {
   VisualResult,
 } from './types.js';
 import type { Page } from 'playwright';
+import type { RetireResult } from './retire.js';
+import type { DeadClickResult } from './deadclicks.js';
+import type { TouchTargetResult } from './touchtargets.js';
+import type { KeyboardAuditResult } from './keyboard.js';
+import type { LongTasksResult } from './longtasks.js';
+import type { CLSTimelineResult } from './cls-timeline.js';
+import type { FormsAuditResult } from './forms-audit.js';
+import type { StructuredDataResult } from './structured-data.js';
+import type { PassiveSecurityResult } from './passive-security.js';
+import type { ConsoleCapture } from './console-errors.js';
+import type { PageContentInfo } from './content-quality.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -36,6 +63,22 @@ export { checkSecurityHeaders } from './security.js';
 export { checkBudget } from './budget.js';
 export { notify } from './notify.js';
 export { runApiFlows } from './api.js';
+export { checkRetireJs } from './retire.js';
+export { checkDeadClicks } from './deadclicks.js';
+export { auditTouchTargets } from './touchtargets.js';
+export { auditKeyboard } from './keyboard.js';
+export { captureLongTasks } from './longtasks.js';
+export { captureClsTimeline } from './cls-timeline.js';
+export { auditForms } from './forms-audit.js';
+export { checkStructuredData } from './structured-data.js';
+export { auditPassiveSecurity } from './passive-security.js';
+export { attachConsoleCapture } from './console-errors.js';
+export { auditSitemap } from './sitemap.js';
+export { auditRedirects } from './redirects.js';
+export { scanExposedPaths } from './exposed-paths.js';
+export { auditTls } from './tls.js';
+export { crawlSite } from './crawl.js';
+export { analyzePage as analyzeContent, analyzeBatch as analyzeContentBatch } from './content-quality.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
@@ -54,6 +97,17 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const seoResults: InspectResult['seo'] = [];
   const linkResults: InspectResult['links'] = [];
   const pwaResults: InspectResult['pwa'] = [];
+  const retireResults: RetireResult[] = [];
+  const deadClickResults: DeadClickResult[] = [];
+  const touchTargetResults: TouchTargetResult[] = [];
+  const keyboardResults: KeyboardAuditResult[] = [];
+  const longTasksResults: LongTasksResult[] = [];
+  const clsTimelineResults: CLSTimelineResult[] = [];
+  const formsResults: FormsAuditResult[] = [];
+  const structuredDataResults: StructuredDataResult[] = [];
+  const passiveSecurityResults: PassiveSecurityResult[] = [];
+  const consoleErrorResults: ConsoleCapture[] = [];
+  const pageContentInfos: PageContentInfo[] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
 
@@ -87,8 +141,20 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         seo?: InspectResult['seo'] extends Array<infer T> | undefined ? T : never;
         links?: InspectResult['links'] extends Array<infer T> | undefined ? T : never;
         pwa?: InspectResult['pwa'] extends Array<infer T> | undefined ? T : never;
+        retire?: RetireResult;
+        deadClicks?: DeadClickResult;
+        touchTargets?: TouchTargetResult;
+        keyboard?: KeyboardAuditResult;
+        longTasks?: LongTasksResult;
+        clsTimeline?: CLSTimelineResult;
+        forms?: FormsAuditResult;
+        structuredData?: StructuredDataResult;
+        passiveSecurity?: PassiveSecurityResult;
+        consoleErrors?: ConsoleCapture;
+        contentInfo?: PageContentInfo;
       }> => {
         const page = await driver.newPage();
+        const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
         if (config.ai?.enabled) await ai.init(page);
         const flowResult = await runFlow(page, flow.name, flow.steps, ai);
         const a11y = checks.a11y ? await checkA11y(page).catch((e) => emptyA11y(page.url(), e)) : undefined;
@@ -103,8 +169,39 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           ? await checkLinks(page, typeof checks.links === 'object' ? checks.links : {}).catch(() => undefined)
           : undefined;
         const pwaR = checks.pwa ? await checkPwa(page).catch(() => undefined) : undefined;
+        const retireR = checks.retire ? await checkRetireJs(page).catch(() => undefined) : undefined;
+        const touchR = checks.touchTargets
+          ? await auditTouchTargets(page, typeof checks.touchTargets === 'object' ? checks.touchTargets : {}).catch(() => undefined)
+          : undefined;
+        const keyboardR = checks.keyboard
+          ? await auditKeyboard(page, typeof checks.keyboard === 'object' ? checks.keyboard : {}).catch(() => undefined)
+          : undefined;
+        const longTasksR = checks.longTasks
+          ? await captureLongTasks(page, typeof checks.longTasks === 'object' ? checks.longTasks.durationMs : undefined).catch(() => undefined)
+          : undefined;
+        const clsR = checks.clsTimeline
+          ? await captureClsTimeline(page, typeof checks.clsTimeline === 'object' ? checks.clsTimeline.durationMs : undefined).catch(() => undefined)
+          : undefined;
+        const formsR = checks.forms ? await auditForms(page).catch(() => undefined) : undefined;
+        const structuredR = checks.structuredData ? await checkStructuredData(page).catch(() => undefined) : undefined;
+        const passiveSecR = checks.passiveSecurity ? await auditPassiveSecurity(page).catch(() => undefined) : undefined;
+        const contentR = checks.contentQuality
+          ? await analyzeContent(page, typeof checks.contentQuality === 'object' ? checks.contentQuality : {}).catch(() => undefined)
+          : undefined;
+        const deadR = checks.deadClicks
+          ? await checkDeadClicks(page, typeof checks.deadClicks === 'object' ? checks.deadClicks : {}).catch(() => undefined)
+          : undefined;
+        const consoleR = console ? console.result() : undefined;
+        if (console) console.detach();
         if (!config.parallel) await page.close();
-        return { flow: flowResult, a11y, visual, seo: seoR as any, links: linksR as any, pwa: pwaR as any };
+        return {
+          flow: flowResult, a11y, visual,
+          seo: seoR as any, links: linksR as any, pwa: pwaR as any,
+          retire: retireR, deadClicks: deadR, touchTargets: touchR, keyboard: keyboardR,
+          longTasks: longTasksR, clsTimeline: clsR, forms: formsR,
+          structuredData: structuredR, passiveSecurity: passiveSecR, consoleErrors: consoleR,
+          contentInfo: contentR,
+        };
       };
 
       const results = config.parallel ? await Promise.all(flows.map(runOne)) : [];
@@ -116,6 +213,17 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.seo) seoResults!.push(r.seo as any);
         if (r.links) linkResults!.push(r.links as any);
         if (r.pwa) pwaResults!.push(r.pwa as any);
+        if (r.retire) retireResults.push(r.retire);
+        if (r.deadClicks) deadClickResults.push(r.deadClicks);
+        if (r.touchTargets) touchTargetResults.push(r.touchTargets);
+        if (r.keyboard) keyboardResults.push(r.keyboard);
+        if (r.longTasks) longTasksResults.push(r.longTasks);
+        if (r.clsTimeline) clsTimelineResults.push(r.clsTimeline);
+        if (r.forms) formsResults.push(r.forms);
+        if (r.structuredData) structuredDataResults.push(r.structuredData);
+        if (r.passiveSecurity) passiveSecurityResults.push(r.passiveSecurity);
+        if (r.consoleErrors) consoleErrorResults.push(r.consoleErrors);
+        if (r.contentInfo) pageContentInfos.push(r.contentInfo);
       }
 
       if (checks.perf) {
@@ -146,13 +254,55 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     await driver.close();
   }
 
+  let sitemapResult: InspectResult['sitemap'];
+  let redirectsResult: InspectResult['redirects'];
+  let tlsResult: InspectResult['tls'];
+  let exposedPathsResult: InspectResult['exposedPaths'];
+  let crawlResult: InspectResult['crawl'];
+  let contentQualityResult: InspectResult['contentQuality'];
+
+  if (checks.sitemap) {
+    sitemapResult = await auditSitemap(config.url, typeof checks.sitemap === 'object' ? checks.sitemap : {}).catch(() => undefined);
+  }
+  if (checks.redirects) {
+    redirectsResult = await auditRedirects(config.url, typeof checks.redirects === 'object' ? checks.redirects : {}).catch(() => undefined);
+  }
+  if (checks.tls) {
+    tlsResult = await auditTls(config.url).catch(() => undefined);
+  }
+  if (checks.exposedPaths) {
+    exposedPathsResult = await scanExposedPaths(config.url, typeof checks.exposedPaths === 'object' ? checks.exposedPaths : {}).catch(() => undefined);
+  }
+  if (checks.crawl) {
+    crawlResult = await crawlSite(config.url, typeof checks.crawl === 'object' ? checks.crawl : {}).catch(() => undefined);
+  }
+  if (checks.contentQuality && pageContentInfos.length) {
+    contentQualityResult = analyzeContentBatch(pageContentInfos, typeof checks.contentQuality === 'object' ? checks.contentQuality : {});
+  }
+
   const finishedAt = new Date();
   const baselinePassed =
     flowResults.every((f) => f.passed) &&
     a11yResults.every((a) => a.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious').length === 0) &&
     visualResults.every((v) => v.passed) &&
     (!checks.links || (linkResults ?? []).every((l) => l.passed)) &&
-    (!checks.security || securityResult?.passed !== false);
+    (!checks.security || securityResult?.passed !== false) &&
+    retireResults.every((r) => (r as any).passed !== false) &&
+    deadClickResults.every((r) => (r as any).passed !== false) &&
+    touchTargetResults.every((r) => (r as any).passed !== false) &&
+    keyboardResults.every((r) => (r as any).passed !== false) &&
+    longTasksResults.every((r) => (r as any).passed !== false) &&
+    clsTimelineResults.every((r) => (r as any).passed !== false) &&
+    formsResults.every((r) => (r as any).passed !== false) &&
+    structuredDataResults.every((r) => (r as any).passed !== false) &&
+    passiveSecurityResults.every((r) => (r as any).passed !== false) &&
+    consoleErrorResults.every((r) => (r as any).passed !== false) &&
+    (sitemapResult === undefined || (sitemapResult as any).passed !== false) &&
+    (redirectsResult === undefined || (redirectsResult as any).passed !== false) &&
+    (tlsResult === undefined || (tlsResult as any).passed !== false) &&
+    (exposedPathsResult === undefined || (exposedPathsResult as any).passed !== false) &&
+    (crawlResult === undefined || (crawlResult as any).passed !== false) &&
+    (contentQualityResult === undefined || (contentQualityResult as any).passed !== false);
 
   const result: InspectResult = {
     url: config.url,
@@ -168,6 +318,22 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     links: checks.links ? linkResults : undefined,
     pwa: checks.pwa ? pwaResults : undefined,
     security: securityResult,
+    retire: checks.retire ? retireResults : undefined,
+    deadClicks: checks.deadClicks ? deadClickResults : undefined,
+    touchTargets: checks.touchTargets ? touchTargetResults : undefined,
+    keyboard: checks.keyboard ? keyboardResults : undefined,
+    longTasks: checks.longTasks ? longTasksResults : undefined,
+    clsTimeline: checks.clsTimeline ? clsTimelineResults : undefined,
+    forms: checks.forms ? formsResults : undefined,
+    structuredData: checks.structuredData ? structuredDataResults : undefined,
+    passiveSecurity: checks.passiveSecurity ? passiveSecurityResults : undefined,
+    consoleErrors: checks.consoleErrors ? consoleErrorResults : undefined,
+    sitemap: sitemapResult,
+    redirects: redirectsResult,
+    exposedPaths: exposedPathsResult,
+    tls: tlsResult,
+    crawl: crawlResult,
+    contentQuality: contentQualityResult,
     passed: baselinePassed,
   };
 

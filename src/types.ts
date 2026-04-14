@@ -108,6 +108,22 @@ export interface ChecksConfig {
   links?: boolean | { maxLinks?: number; sameOriginOnly?: boolean };
   pwa?: boolean;
   security?: boolean;
+  retire?: boolean;
+  deadClicks?: boolean | { maxElements?: number; waitAfterClickMs?: number };
+  touchTargets?: boolean | { minSize?: number; onlyViewport?: boolean };
+  keyboard?: boolean | { maxTabs?: number; requireFocusRing?: boolean };
+  longTasks?: boolean | { durationMs?: number };
+  clsTimeline?: boolean | { durationMs?: number };
+  forms?: boolean;
+  structuredData?: boolean;
+  passiveSecurity?: boolean;
+  consoleErrors?: boolean;
+  sitemap?: boolean | { checkUrls?: boolean; sampleSize?: number };
+  redirects?: boolean | { maxHops?: number };
+  exposedPaths?: boolean | { concurrency?: number; extraPaths?: string[] };
+  tls?: boolean;
+  crawl?: boolean | { maxDepth?: number; maxPages?: number; sameOriginOnly?: boolean };
+  contentQuality?: boolean | { minWords?: number; dupThreshold?: number };
 }
 
 export interface OutputConfig {
@@ -137,6 +153,22 @@ export interface InspectResult {
   security?: import('./security.js').SecurityHeadersResult;
   budget?: import('./budget.js').BudgetViolation[];
   apiFlows?: ApiFlowResult[];
+  retire?: import('./retire.js').RetireResult[];
+  deadClicks?: import('./deadclicks.js').DeadClickResult[];
+  touchTargets?: import('./touchtargets.js').TouchTargetResult[];
+  keyboard?: import('./keyboard.js').KeyboardAuditResult[];
+  longTasks?: import('./longtasks.js').LongTasksResult[];
+  clsTimeline?: import('./cls-timeline.js').CLSTimelineResult[];
+  forms?: import('./forms-audit.js').FormsAuditResult[];
+  structuredData?: import('./structured-data.js').StructuredDataResult[];
+  passiveSecurity?: import('./passive-security.js').PassiveSecurityResult[];
+  consoleErrors?: import('./console-errors.js').ConsoleCapture[];
+  sitemap?: import('./sitemap.js').SitemapAuditResult;
+  redirects?: import('./redirects.js').RedirectAuditResult;
+  exposedPaths?: import('./exposed-paths.js').ExposedPathsResult;
+  tls?: import('./tls.js').TLSAuditResult;
+  crawl?: import('./crawl.js').CrawlResult;
+  contentQuality?: import('./content-quality.js').ContentQualityResult;
   passed: boolean;
 }
 
