@@ -1,8 +1,15 @@
-import { Driver } from './driver.js';
+import path from 'node:path';
+import { Driver, networkPresets } from './driver.js';
 import { checkA11y } from './a11y.js';
 import { checkPerf } from './perf.js';
 import { checkVisual } from './visual.js';
 import { explore } from './explore.js';
+import { checkSeo } from './seo.js';
+import { checkLinks } from './links.js';
+import { checkPwa } from './pwa.js';
+import { checkSecurityHeaders } from './security.js';
+import { checkBudget } from './budget.js';
+import { notify } from './notify.js';
 import { AIHelper } from './ai.js';
 import { writeReport } from './report.js';
 import { r2StoreFromEnv } from './store.js';
@@ -19,8 +26,14 @@ import type {
 import type { Page } from 'playwright';
 
 export * from './types.js';
-export { Driver } from './driver.js';
+export { Driver, networkPresets } from './driver.js';
 export { AIHelper } from './ai.js';
+export { checkSeo } from './seo.js';
+export { checkLinks } from './links.js';
+export { checkPwa } from './pwa.js';
+export { checkSecurityHeaders } from './security.js';
+export { checkBudget } from './budget.js';
+export { notify } from './notify.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
@@ -36,6 +49,10 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const a11yResults: A11yResult[] = [];
   const perfResults: PerfResult[] = [];
   const visualResults: VisualResult[] = [];
+  const seoResults: InspectResult['seo'] = [];
+  const linkResults: InspectResult['links'] = [];
+  const pwaResults: InspectResult['pwa'] = [];
+  let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
 
   try {
@@ -44,10 +61,26 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         viewport: { width: vp.width, height: vp.height },
         headless: !config.headed,
         storageState: config.storageState,
+        browser: config.browser,
+        device: config.device,
+        locale: config.locale,
+        timezoneId: config.timezoneId,
+        geolocation: config.geolocation,
+        throttle: config.network ? networkPresets[config.network] : undefined,
+        recordVideo: config.video ? path.join(outputDir, 'video') : undefined,
+        recordHar: config.har ? path.join(outputDir, 'trace.har') : undefined,
+        trace: config.trace ? path.join(outputDir, 'trace.zip') : undefined,
       });
       const ai = new AIHelper({ model: config.ai?.model });
 
-      const runOne = async (flow: { name: string; steps: Step[] }): Promise<{ flow: FlowResult; a11y?: A11yResult; visual?: VisualResult }> => {
+      const runOne = async (flow: { name: string; steps: Step[] }): Promise<{
+        flow: FlowResult;
+        a11y?: A11yResult;
+        visual?: VisualResult;
+        seo?: InspectResult['seo'] extends Array<infer T> | undefined ? T : never;
+        links?: InspectResult['links'] extends Array<infer T> | undefined ? T : never;
+        pwa?: InspectResult['pwa'] extends Array<infer T> | undefined ? T : never;
+      }> => {
         const page = await driver.newPage();
         if (config.ai?.enabled) await ai.init(page);
         const flowResult = await runFlow(page, flow.name, flow.steps, ai);
@@ -55,8 +88,13 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const visual = checks.visual
           ? await checkVisual(page, flow.name, vp.name, { baselineDir, outputDir, store: store ?? undefined }).catch((e) => emptyVisual(page.url(), vp.name, e))
           : undefined;
+        const seoR = checks.seo ? await checkSeo(page).catch(() => undefined) : undefined;
+        const linksR = checks.links
+          ? await checkLinks(page, typeof checks.links === 'object' ? checks.links : {}).catch(() => undefined)
+          : undefined;
+        const pwaR = checks.pwa ? await checkPwa(page).catch(() => undefined) : undefined;
         if (!config.parallel) await page.close();
-        return { flow: flowResult, a11y, visual };
+        return { flow: flowResult, a11y, visual, seo: seoR as any, links: linksR as any, pwa: pwaR as any };
       };
 
       const results = config.parallel ? await Promise.all(flows.map(runOne)) : [];
@@ -65,6 +103,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         flowResults.push(r.flow);
         if (r.a11y) a11yResults.push(r.a11y);
         if (r.visual) visualResults.push(r.visual);
+        if (r.seo) seoResults!.push(r.seo as any);
+        if (r.links) linkResults!.push(r.links as any);
+        if (r.pwa) pwaResults!.push(r.pwa as any);
       }
 
       if (checks.perf) {
@@ -84,6 +125,10 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         await ePage.close();
       }
 
+      if (checks.security) {
+        securityResult = await checkSecurityHeaders(config.url).catch(() => undefined);
+      }
+
       await ai.close();
       await driver.close();
     }
@@ -92,10 +137,12 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   }
 
   const finishedAt = new Date();
-  const passed =
+  const baselinePassed =
     flowResults.every((f) => f.passed) &&
     a11yResults.every((a) => a.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious').length === 0) &&
-    visualResults.every((v) => v.passed);
+    visualResults.every((v) => v.passed) &&
+    (!checks.links || (linkResults ?? []).every((l) => l.passed)) &&
+    (!checks.security || securityResult?.passed !== false);
 
   const result: InspectResult = {
     url: config.url,
@@ -107,10 +154,28 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     perf: checks.perf ? perfResults : undefined,
     visual: checks.visual ? visualResults : undefined,
     explore: exploreResult,
-    passed,
+    seo: checks.seo ? seoResults : undefined,
+    links: checks.links ? linkResults : undefined,
+    pwa: checks.pwa ? pwaResults : undefined,
+    security: securityResult,
+    passed: baselinePassed,
   };
 
+  if (config.budget) {
+    const violations = checkBudget(result, config.budget);
+    result.budget = violations;
+    if (violations.length > 0) result.passed = false;
+  }
+
   await writeReport(result, outputDir, config.reporters);
+
+  if (config.notify) {
+    const shouldNotify = !config.notify.onlyOnFail || !result.passed;
+    if (shouldNotify) {
+      await notify(result, config.notify).catch(() => {});
+    }
+  }
+
   return result;
 }
 

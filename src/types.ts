@@ -9,6 +9,22 @@ export interface InspectConfig {
   parallel?: boolean;
   storageState?: string;
   reporters?: ('html' | 'json' | 'junit' | 'sarif')[];
+  browser?: 'chromium' | 'firefox' | 'webkit';
+  device?: string;
+  locale?: string;
+  timezoneId?: string;
+  geolocation?: { latitude: number; longitude: number };
+  network?: 'slow-3g' | 'fast-3g' | '4g' | 'wifi';
+  trace?: boolean;
+  video?: boolean;
+  har?: boolean;
+  budget?: import('./budget.js').Budget;
+  notify?: {
+    slackWebhook?: string;
+    discordWebhook?: string;
+    genericWebhook?: string;
+    onlyOnFail?: boolean;
+  };
 }
 
 export interface Flow {
@@ -36,6 +52,10 @@ export interface ChecksConfig {
   perf?: boolean;
   visual?: boolean;
   explore?: boolean | { maxClicks?: number };
+  seo?: boolean;
+  links?: boolean | { maxLinks?: number; sameOriginOnly?: boolean };
+  pwa?: boolean;
+  security?: boolean;
 }
 
 export interface OutputConfig {
@@ -59,6 +79,11 @@ export interface InspectResult {
   perf?: PerfResult[];
   visual?: VisualResult[];
   explore?: ExploreResult;
+  seo?: import('./seo.js').SeoResult[];
+  links?: import('./links.js').LinkCheckResult[];
+  pwa?: import('./pwa.js').PwaResult[];
+  security?: import('./security.js').SecurityHeadersResult;
+  budget?: import('./budget.js').BudgetViolation[];
   passed: boolean;
 }
 

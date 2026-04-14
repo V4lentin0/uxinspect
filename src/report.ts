@@ -2,6 +2,8 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { InspectResult } from './types.js';
 
+const _pathRef = path;
+
 export async function writeReport(
   result: InspectResult,
   outDir: string,
@@ -133,6 +135,9 @@ function renderHTML(r: InspectResult): string {
   .pill-minor { background: var(--blue-bg); color: var(--blue); }
   pre { background: #F9FAFB; border: 1px solid var(--border); padding: 8px; border-radius: 4px; overflow-x: auto; font-size: 12px; }
   img { max-width: 100%; border: 1px solid var(--border); border-radius: 4px; }
+  .visual-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
+  ul { margin: 8px 0; padding-left: 20px; font-size: 13px; }
+  code { background: #F3F4F6; padding: 1px 6px; border-radius: 3px; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -147,10 +152,15 @@ function renderHTML(r: InspectResult): string {
     ${r.explore ? `<div class="card"><div class="label">Pages explored</div><div class="stat">${r.explore.pagesVisited}</div></div>` : ''}
   </div>
 
+  ${r.budget?.length ? `<h2>Budget violations</h2>${renderBudget(r.budget)}` : ''}
   ${r.flows.length ? `<h2>Flows</h2>${r.flows.map(renderFlow).join('')}` : ''}
   ${r.a11y?.length ? `<h2>Accessibility</h2>${r.a11y.map(renderA11y).join('')}` : ''}
   ${r.perf?.length ? `<h2>Performance</h2>${r.perf.map(renderPerf).join('')}` : ''}
   ${r.visual?.length ? `<h2>Visual</h2>${r.visual.map(renderVisual).join('')}` : ''}
+  ${r.seo?.length ? `<h2>SEO</h2>${r.seo.map(renderSeo).join('')}` : ''}
+  ${r.links?.length ? `<h2>Broken links</h2>${r.links.map(renderLinks).join('')}` : ''}
+  ${r.pwa?.length ? `<h2>PWA</h2>${r.pwa.map(renderPwa).join('')}` : ''}
+  ${r.security ? `<h2>Security headers</h2>${renderSecurity(r.security)}` : ''}
   ${r.explore ? `<h2>Exploration</h2>${renderExplore(r.explore)}` : ''}
 </body>
 </html>`;
@@ -193,11 +203,56 @@ function renderPerf(p: any): string {
 }
 
 function renderVisual(v: any): string {
+  const imgs = v.baseline && v.current
+    ? `<div class="visual-grid">
+        <div><div class="label">Baseline</div><img src="${escape(path.relative('.', v.baseline))}" alt="baseline"></div>
+        <div><div class="label">Current</div><img src="${escape(path.relative('.', v.current))}" alt="current"></div>
+        ${v.diff ? `<div><div class="label">Diff</div><img src="${escape(path.relative('.', v.diff))}" alt="diff"></div>` : ''}
+      </div>`
+    : '';
   return `<div class="section">
     <div class="row">
       <strong>${escape(v.page)} (${escape(v.viewport)})</strong>
       <span class="${v.passed ? 'pass' : 'fail'}">${v.passed ? 'PASS' : 'FAIL'} — ${(v.diffRatio * 100).toFixed(2)}% diff</span>
     </div>
+    ${imgs}
+  </div>`;
+}
+
+function renderSeo(s: any): string {
+  return `<div class="section">
+    <div class="row"><strong>${escape(s.page)}</strong> <span class="${s.passed ? 'pass' : 'fail'}">${s.issues.length} issue${s.issues.length === 1 ? '' : 's'}</span></div>
+    <div class="label">title: ${escape(s.title ?? '—')}</div>
+    <div class="label">description: ${escape(s.description ?? '—')}</div>
+    ${s.issues.length ? `<ul>${s.issues.map((i: string) => `<li>${escape(i)}</li>`).join('')}</ul>` : ''}
+  </div>`;
+}
+
+function renderLinks(l: any): string {
+  return `<div class="section">
+    <div class="row"><strong>${escape(l.page)}</strong> <span class="${l.passed ? 'pass' : 'fail'}">${l.broken.length} broken / ${l.total} links</span></div>
+    ${l.broken.length ? `<ul>${l.broken.map((b: any) => `<li><code>${b.status || 'ERR'}</code> ${escape(b.url)}${b.text ? ` — ${escape(b.text)}` : ''}</li>`).join('')}</ul>` : ''}
+  </div>`;
+}
+
+function renderPwa(p: any): string {
+  return `<div class="section">
+    <div class="row"><strong>${escape(p.page)}</strong> <span class="${p.passed ? 'pass' : 'fail'}">${p.passed ? 'PASS' : p.issues.length + ' issues'}</span></div>
+    <div class="label">Manifest: ${p.manifest ? (p.manifest.valid ? 'valid' : 'invalid') : 'missing'} · SW: ${p.serviceWorker ? 'yes' : 'no'} · Installable: ${p.installable ? 'yes' : 'no'}</div>
+    ${p.issues.length ? `<ul>${p.issues.map((i: string) => `<li>${escape(i)}</li>`).join('')}</ul>` : ''}
+  </div>`;
+}
+
+function renderSecurity(s: any): string {
+  return `<div class="section">
+    <div class="row"><strong>${escape(s.page)}</strong> <span class="${s.passed ? 'pass' : 'fail'}">${s.issues.length} issues</span></div>
+    ${s.issues.length ? `<ul>${s.issues.map((i: string) => `<li>${escape(i)}</li>`).join('')}</ul>` : ''}
+  </div>`;
+}
+
+function renderBudget(v: any[]): string {
+  return `<div class="section">
+    <ul>${v.map((b) => `<li><strong>${escape(b.category)}</strong> — ${escape(b.message)}</li>`).join('')}</ul>
   </div>`;
 }
 
