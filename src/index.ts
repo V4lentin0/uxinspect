@@ -203,6 +203,20 @@ export { triageFailure, triageBatch, TRIAGE_RULES } from './ai-triage.js';
 export { generateFlow, scanInteractions, flowToSnippet } from './ai-codegen.js';
 export { loadDriftDb, saveDriftDb, recordRun, shouldAutoApprove, detectRegression } from './baseline-drift.js';
 export { generateAutoFixes, autoFixesToMarkdown } from './autofix.js';
+export { toSlackBlocks, postSlackBlocks } from './slack-formatter.js';
+export { toDiscordEmbed, postDiscordEmbed } from './discord-formatter.js';
+export { toTeamsCard, postTeamsCard } from './teams-formatter.js';
+export { runChaos } from './chaos.js';
+export { runCrossBrowser } from './cross-browser.js';
+export { convertCodegen, convertCodegenFile, flowToPlaywrightSnippet } from './codegen-converter.js';
+export { installPrecommit, uninstallPrecommit, generateHookScript } from './precommit.js';
+export { runInitWizard, generateConfigFile, generateWorkflowFile } from './init-wizard.js';
+export { runWorkerRuntime, extractMeta, extractAssets } from './worker-runtime.js';
+export { extractMetrics, toPrometheusText, toOtlpJson, pushOtlp } from './metrics-exporter.js';
+export { generateConfigSchema, writeSchemaFile } from './json-schema.js';
+export { parseShardArg, shardFlows, shardConfig, shardSummary } from './shard.js';
+export { diffReports, formatDiff, loadReport, diffReportFiles } from './budget-diff.js';
+export { loadHistory, renderHistoryHtml, writeHistoryHtml } from './history-timeline.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
