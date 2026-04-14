@@ -87,6 +87,8 @@ const argv = await yargs(hideBin(process.argv))
       .option('baselines', { type: 'string', default: './uxinspect-baselines', describe: 'Visual baseline directory' })
       .option('ai', { type: 'boolean', default: false, describe: 'Enable keyless AI flow steps' })
       .option('headed', { type: 'boolean', default: false, describe: 'Run with visible browser window' })
+      .option('debug', { type: 'boolean', default: false, describe: 'Headed + slowMo (step-by-step)' })
+      .option('slow-mo', { type: 'number', describe: 'Slow each action by N ms' })
       .option('parallel', { type: 'boolean', default: false, describe: 'Run flows in parallel' })
       .option('browser', { type: 'string', choices: ['chromium', 'firefox', 'webkit'], default: 'chromium' })
       .option('device', { type: 'string', describe: 'Device preset name (e.g. "iPhone 13", "Pixel 5")' })
@@ -166,6 +168,8 @@ async function runCmd(): Promise<void> {
     output: { dir: (argv as any).out, baselineDir: (argv as any).baselines },
     ai: (argv as any).ai ? { enabled: true } : undefined,
     headed: (argv as any).headed,
+    debug: (argv as any).debug,
+    slowMo: (argv as any)['slow-mo'],
     parallel: (argv as any).parallel,
     browser: (argv as any).browser,
     device: (argv as any).device,

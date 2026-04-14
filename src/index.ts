@@ -59,7 +59,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     for (const vp of viewports) {
       await driver.launch({
         viewport: { width: vp.width, height: vp.height },
-        headless: !config.headed,
+        headless: !config.headed && !config.debug,
         storageState: config.storageState,
         browser: config.browser,
         device: config.device,
@@ -70,6 +70,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         recordVideo: config.video ? path.join(outputDir, 'video') : undefined,
         recordHar: config.har ? path.join(outputDir, 'trace.har') : undefined,
         trace: config.trace ? path.join(outputDir, 'trace.zip') : undefined,
+        slowMo: config.slowMo ?? (config.debug ? 500 : undefined),
+        mocks: config.mocks,
       });
       const ai = new AIHelper({
         model: config.ai?.model,
@@ -224,7 +226,85 @@ async function runStep(page: Page, step: Step, ai: AIHelper): Promise<void> {
     if (!ai.isAvailable()) throw new Error('AI step requested but AI helper not initialized');
     const ok = await ai.act(step.ai);
     if (!ok) throw new Error(`AI step failed: ${step.ai}`);
+  } else if ('drag' in step) {
+    await page.dragAndDrop(step.drag.from, step.drag.to);
+  } else if ('upload' in step) {
+    await page.setInputFiles(step.upload.selector, step.upload.files);
+  } else if ('dialog' in step) {
+    const d = step.dialog;
+    page.once('dialog', (dlg) => {
+      const accept = typeof d === 'string' ? d === 'accept' : (d.accept ?? true);
+      const text = typeof d === 'object' ? d.text : undefined;
+      if (accept) dlg.accept(text); else dlg.dismiss();
+    });
+  } else if ('scroll' in step) {
+    const s = step.scroll;
+    if (s.selector) await page.locator(s.selector).scrollIntoViewIfNeeded();
+    else await page.evaluate(({ x, y }) => window.scrollTo(x ?? 0, y ?? 0), { x: s.x, y: s.y });
+  } else if ('select' in step) {
+    await page.selectOption(step.select.selector, step.select.value as any);
+  } else if ('key' in step) {
+    await page.keyboard.press(step.key);
+  } else if ('eval' in step) {
+    await page.evaluate(step.eval);
+  } else if ('waitForResponse' in step) {
+    const s = step.waitForResponse;
+    const urlPat = typeof s === 'string' ? s : s.url;
+    await page.waitForResponse((res) => {
+      const matches = res.url().includes(urlPat) || new RegExp(urlPat).test(res.url());
+      if (typeof s === 'object' && s.status) return matches && res.status() === s.status;
+      return matches;
+    });
+  } else if ('waitForRequest' in step) {
+    await page.waitForRequest((req) => req.url().includes(step.waitForRequest) || new RegExp(step.waitForRequest).test(req.url()));
+  } else if ('hover' in step) {
+    await page.hover(step.hover);
+  } else if ('check' in step) {
+    await page.check(step.check);
+  } else if ('uncheck' in step) {
+    await page.uncheck(step.uncheck);
+  } else if ('focus' in step) {
+    await page.focus(step.focus);
+  } else if ('blur' in step) {
+    await page.locator(step.blur).evaluate((el: any) => el.blur());
+  } else if ('reload' in step) {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+  } else if ('back' in step) {
+    await page.goBack({ waitUntil: 'domcontentloaded' });
+  } else if ('forward' in step) {
+    await page.goForward({ waitUntil: 'domcontentloaded' });
+  } else if ('newTab' in step) {
+    const ctx = page.context();
+    const p = await ctx.newPage();
+    await p.goto(step.newTab, { waitUntil: 'domcontentloaded' });
+  } else if ('switchTab' in step) {
+    const pages = page.context().pages();
+    const target = typeof step.switchTab === 'number'
+      ? pages[step.switchTab]
+      : pages.find((p) => p.url().includes(String(step.switchTab)));
+    if (target) await target.bringToFront();
+  } else if ('closeTab' in step) {
+    await page.close();
+  } else if ('iframe' in step) {
+    const frame = page.frameLocator(step.iframe.selector);
+    for (const s of step.iframe.steps) {
+      await runIframeStep(frame, s);
+    }
+  } else if ('sleep' in step) {
+    await page.waitForTimeout(step.sleep);
   }
+}
+
+async function runIframeStep(frame: import('playwright').FrameLocator, step: Step): Promise<void> {
+  if ('click' in step) await frame.locator(step.click).click();
+  else if ('fill' in step) await frame.locator(step.fill.selector).fill(step.fill.text);
+  else if ('type' in step) await frame.locator(step.type.selector).type(step.type.text);
+  else if ('waitFor' in step) await frame.locator(step.waitFor).waitFor();
+  else if ('hover' in step) await frame.locator(step.hover).hover();
+  else if ('check' in step) await frame.locator(step.check).check();
+  else if ('uncheck' in step) await frame.locator(step.uncheck).uncheck();
+  else if ('select' in step) await frame.locator(step.select.selector).selectOption(step.select.value as any);
+  else if ('key' in step) await frame.locator('body').press(step.key);
 }
 
 function emptyA11y(url: string, e: unknown): A11yResult {

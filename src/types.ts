@@ -25,6 +25,15 @@ export interface InspectConfig {
     genericWebhook?: string;
     onlyOnFail?: boolean;
   };
+  mocks?: RouteMock[];
+  debug?: boolean;
+  slowMo?: number;
+}
+
+export interface RouteMock {
+  pattern: string;
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS';
+  action: 'abort' | { status?: number; headers?: Record<string, string>; body?: string; contentType?: string };
 }
 
 export interface Flow {
@@ -39,7 +48,29 @@ export type Step =
   | { fill: { selector: string; text: string } }
   | { waitFor: string }
   | { screenshot: string }
-  | { ai: string };
+  | { ai: string }
+  | { drag: { from: string; to: string } }
+  | { upload: { selector: string; files: string | string[] } }
+  | { dialog: 'accept' | 'dismiss' | { accept?: boolean; text?: string } }
+  | { scroll: { selector?: string; x?: number; y?: number } }
+  | { select: { selector: string; value: string | string[] } }
+  | { key: string }
+  | { eval: string }
+  | { waitForResponse: string | { url: string; status?: number } }
+  | { waitForRequest: string }
+  | { hover: string }
+  | { check: string }
+  | { uncheck: string }
+  | { focus: string }
+  | { blur: string }
+  | { reload: true }
+  | { back: true }
+  | { forward: true }
+  | { newTab: string }
+  | { switchTab: number | string }
+  | { closeTab: true }
+  | { iframe: { selector: string; steps: Step[] } }
+  | { sleep: number };
 
 export interface Viewport {
   name: string;

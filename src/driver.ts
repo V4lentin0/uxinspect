@@ -27,6 +27,8 @@ export interface DriverOptions {
   recordVideo?: string;
   recordHar?: string;
   trace?: string;
+  slowMo?: number;
+  mocks?: import('./types.js').RouteMock[];
 }
 
 async function freePort(): Promise<number> {
@@ -60,6 +62,7 @@ export class Driver {
     const launchArgs = name === 'chromium' ? [`--remote-debugging-port=${this.port}`] : undefined;
     this.browser = await browserType(name).launch({
       headless: opts.headless ?? true,
+      slowMo: opts.slowMo,
       ...(launchArgs ? { args: launchArgs } : {}),
     });
 
@@ -80,6 +83,22 @@ export class Driver {
 
     if (opts.trace) {
       await this.context.tracing.start({ screenshots: true, snapshots: true, sources: true });
+    }
+
+    if (opts.mocks?.length) {
+      for (const m of opts.mocks) {
+        await this.context.route(m.pattern, async (route, request) => {
+          if (m.method && request.method() !== m.method) return route.continue();
+          if (m.action === 'abort') return route.abort();
+          const a = m.action;
+          await route.fulfill({
+            status: a.status ?? 200,
+            headers: a.headers,
+            contentType: a.contentType ?? 'application/json',
+            body: a.body ?? '',
+          });
+        });
+      }
     }
 
     if (opts.throttle && name === 'chromium') {
