@@ -5,6 +5,52 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-04-14
+
+### Added
+
+- New audit: `auditErrorPages` — detects broken or misconfigured error pages (404/500).
+- New audit: `auditSri` — verifies Subresource Integrity hashes on third-party scripts and styles.
+- New audit: `auditWebWorkers` — inspects Web Worker lifecycle, errors, and resource usage.
+- New audit: `detectOrphanAssets` — flags loaded assets with no referencing DOM element.
+- New helpers: `parseHar`, `renderWaterfallHtml`, `writeWaterfallHtml` — HAR waterfall visualization.
+
+### Changed
+
+- All 5 modules exported from `src/index.ts` and available via public API.
+
+## [0.9.0] - 2026-04-14
+
+### Added
+
+- 16 keyless audits: INP, LCP element, CLS culprit, hreflang, cookie flags, focus trap, favicon, clickjacking, critical CSS, sourcemap scan, secret scan, tracker sniff, z-index, hydration, storage, CSRF.
+
+## [0.8.0] - 2026-04-14
+
+### Added
+
+- 13 keyless modules: PR comments, CSV export, assertions DSL, flaky detector, badges, sitemap flows, bisect, a11y impact filter, reporter plugin, page object generator, retry, cron schedule, budget file.
+
+## [0.7.0] - 2026-04-14
+
+### Added
+
+- 14 keyless modules: notifications (Slack/Discord/Teams), chaos testing, cross-browser runner, codegen converter, CI tools (precommit, init wizard, worker runtime, metrics exporter).
+
+## [0.6.0] - 2026-04-14
+
+### Added
+
+- 17 priority UX features: SSIM visual diff, visual masks, dark-mode audit, tables, SVGs, media, reading level, dead images, pagination, print, canonical, CPU throttle, Storybook, AI triage, AI codegen, baseline drift, autofix.
+
+## [0.5.0] - 2026-04-14
+
+### Added
+
+- 12 page-level checks: JS/CSS coverage, DOM size, ARIA, heading hierarchy, lang, protocols, font loading, prerender, headless detect, animations, event listeners.
+- 4 helpers: OpenAPI contract, A/B compare, watch mode, webhook reporter.
+- GitHub Action workflow template.
+
 ## [0.4.0] - 2026-04-14
 
 ### Added
@@ -63,4 +109,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Minor stabilization and consistency fixes across the expanded check set uncovered during the v0.4.0 cycle.
 
+[0.9.1]: https://github.com/uxinspect/uxinspect/releases/tag/v0.9.1
+[0.9.0]: https://github.com/uxinspect/uxinspect/releases/tag/v0.9.0
+[0.8.0]: https://github.com/uxinspect/uxinspect/releases/tag/v0.8.0
+[0.7.0]: https://github.com/uxinspect/uxinspect/releases/tag/v0.7.0
+[0.6.0]: https://github.com/uxinspect/uxinspect/releases/tag/v0.6.0
+[0.5.0]: https://github.com/uxinspect/uxinspect/releases/tag/v0.5.0
 [0.4.0]: https://github.com/uxinspect/uxinspect/releases/tag/v0.4.0

@@ -246,6 +246,11 @@ export { auditZIndex } from './zindex-audit.js';
 export { auditHydration } from './hydration-audit.js';
 export { auditStorage } from './storage-audit.js';
 export { auditCsrf } from './csrf-audit.js';
+export { auditErrorPages } from './error-page-audit.js';
+export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfall.js';
+export { detectOrphanAssets } from './orphan-assets.js';
+export { auditSri } from './sri-audit.js';
+export { auditWebWorkers } from './web-worker-audit.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
