@@ -256,7 +256,7 @@ export { extractMetrics, toPrometheusText, toOtlpJson, pushOtlp } from './metric
 export { generateConfigSchema, writeSchemaFile } from './json-schema.js';
 export { parseShardArg, shardFlows, shardConfig, shardSummary } from './shard.js';
 export { diffReports, formatDiff, loadReport, diffReportFiles } from './budget-diff.js';
-export { loadHistory, renderHistoryHtml, writeHistoryHtml } from './history-timeline.js';
+export { loadHistory, renderHistoryHtml, writeHistoryHtml, appendHistoryEntry, migrateJsonDirToSqlite } from './history-timeline.js';
 export { toPrComment, renderGithubComment, renderGitlabComment, renderBitbucketComment } from './pr-comment.js';
 export { flowsToCsv, a11yToCsv, perfToCsv, visualToCsv, linksToCsv, consoleErrorsToCsv, summaryToCsv, writeAllCsvs } from './csv-exporter.js';
 export { parseAssertion, resolveMetric, evaluateAssertions, formatAssertionFailures } from './assertions.js';

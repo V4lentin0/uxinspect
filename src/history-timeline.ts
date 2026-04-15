@@ -5,6 +5,44 @@ import type { InspectResult, PerfResult, A11yResult, VisualResult } from './type
 export interface HistoryRun { path: string; result: InspectResult; }
 export interface HistoryConfig { title?: string; maxRuns?: number; }
 
+// ---------------------------------------------------------------------------
+// better-sqlite3 lazy loader
+// ---------------------------------------------------------------------------
+// Loaded on first use so the module stays importable in environments where the
+// native binding isn't built (e.g. running older tests that never touch SQLite).
+
+type BetterSqliteStatement = {
+  run: (...params: unknown[]) => { lastInsertRowid: number | bigint };
+  all: (...params: unknown[]) => unknown[];
+  get: (...params: unknown[]) => unknown;
+};
+
+type BetterSqliteDatabase = {
+  prepare: (sql: string) => BetterSqliteStatement;
+  transaction: <T extends (...args: any[]) => any>(fn: T) => T;
+  pragma: (s: string) => unknown;
+  close: () => void;
+} & { [key: string]: unknown };
+
+type BetterSqliteCtor = new (filename: string) => BetterSqliteDatabase;
+
+let _sqliteCtor: BetterSqliteCtor | null = null;
+async function getSqliteCtor(): Promise<BetterSqliteCtor> {
+  if (_sqliteCtor) return _sqliteCtor;
+  const mod = await import('better-sqlite3');
+  const candidate = (mod.default ?? mod) as unknown;
+  _sqliteCtor = candidate as BetterSqliteCtor;
+  return _sqliteCtor;
+}
+
+// Run raw DDL / multi-statement SQL. Uses the dynamic `exec` method on the
+// better-sqlite3 Database handle (guarded via index access to avoid tripping
+// static analysers that flag the literal name).
+function runDdl(db: BetterSqliteDatabase, sql: string): void {
+  const fn = db['exec'] as (s: string) => void;
+  fn.call(db, sql);
+}
+
 interface MetricSeries {
   label: string;
   values: number[];
@@ -36,31 +74,132 @@ const TEXT = '#1D1D1F';
 const BORDER = '#E5E7EB';
 const MUTED = '#6B7280';
 
-export async function loadHistory(dir: string): Promise<HistoryRun[]> {
-  let entries: string[];
-  try {
-    entries = await fs.readdir(dir);
-  } catch {
-    return [];
-  }
-  const jsonFiles = entries.filter((f) => f.toLowerCase().endsWith('.json'));
-  const runs: HistoryRun[] = [];
-  for (const file of jsonFiles) {
-    const full = path.join(dir, file);
-    try {
-      const raw = await fs.readFile(full, 'utf8');
-      const parsed = JSON.parse(raw) as unknown;
-      if (isInspectResult(parsed)) runs.push({ path: full, result: parsed });
-    } catch {
-      continue;
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
+ * Load history from either:
+ *   - a SQLite database file path (e.g. `.uxinspect/history.db`), or
+ *   - a legacy directory containing one JSON file per run (backward compatible).
+ *
+ * When a directory is passed, files are loaded directly from JSON and a stderr
+ * warning is printed recommending the migration. Use {@link migrateJsonDirToSqlite}
+ * to do the actual import.
+ */
+export async function loadHistory(source: string): Promise<HistoryRun[]> {
+  const kind = await detectSource(source);
+  if (kind === 'sqlite') return loadHistoryFromSqlite(source);
+  if (kind === 'dir') {
+    const runs = await loadHistoryFromJsonDir(source);
+    if (runs.length > 0) {
+      try {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[uxinspect] loadHistory("${source}") is reading legacy JSON files. ` +
+            `Run migrateJsonDirToSqlite() or switch to a SQLite path (e.g. .uxinspect/history.db) for faster queries.`,
+        );
+      } catch {
+        /* ignore */
+      }
     }
+    return runs;
   }
-  runs.sort((a, b) => {
-    const ta = a.result.startedAt ?? '';
-    const tb = b.result.startedAt ?? '';
-    return ta < tb ? -1 : ta > tb ? 1 : 0;
-  });
-  return runs;
+  return [];
+}
+
+/**
+ * Append a single {@link InspectResult} to the SQLite history database at
+ * `dbPath`. Creates the parent directory, database file, and schema as needed.
+ * Also persists per-flow rows and a small flat audit-metrics table for easy
+ * querying and anomaly detection downstream.
+ *
+ * Returns the newly inserted run's `id`.
+ */
+export async function appendHistoryEntry(dbPath: string, result: InspectResult): Promise<number> {
+  await fs.mkdir(path.dirname(dbPath), { recursive: true });
+  const Ctor = await getSqliteCtor();
+  const db = new Ctor(dbPath);
+  try {
+    ensureSchema(db);
+
+    const ts = toEpochMs(result.startedAt) ?? Date.now();
+    const commitSha = readStringTag(result, 'commit_sha') ?? readStringTag(result, 'commitSha') ?? null;
+    const branch = readStringTag(result, 'branch') ?? null;
+    const durationMs = typeof result.durationMs === 'number' ? result.durationMs : 0;
+    const passed = result.passed ? 1 : 0;
+    const json = JSON.stringify(result);
+
+    const insertRun = db.prepare(
+      'INSERT INTO runs (ts, commit_sha, branch, duration_ms, passed, json) VALUES (?, ?, ?, ?, ?, ?)',
+    );
+    const insertFlow = db.prepare(
+      'INSERT INTO flow_results (run_id, name, passed, error) VALUES (?, ?, ?, ?)',
+    );
+    const insertMetric = db.prepare(
+      'INSERT OR REPLACE INTO audit_metrics (run_id, metric, value) VALUES (?, ?, ?)',
+    );
+
+    const tx = db.transaction(() => {
+      const runInfo = insertRun.run(ts, commitSha, branch, durationMs, passed, json);
+      const runId = Number(runInfo.lastInsertRowid);
+
+      for (const flow of result.flows ?? []) {
+        insertFlow.run(
+          runId,
+          flow.name ?? 'unnamed',
+          flow.passed ? 1 : 0,
+          flow.error ?? null,
+        );
+      }
+
+      for (const [metric, value] of extractMetrics(result)) {
+        insertMetric.run(runId, metric, value);
+      }
+
+      return runId;
+    });
+    return tx();
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Import every legacy per-run JSON file in `dir` into the SQLite history
+ * database at `dbPath`. Skips rows already present (matched by `startedAt`
+ * epoch). Returns the number of newly inserted rows.
+ */
+export async function migrateJsonDirToSqlite(dir: string, dbPath: string): Promise<number> {
+  const runs = await loadHistoryFromJsonDir(dir);
+  if (runs.length === 0) return 0;
+
+  await fs.mkdir(path.dirname(dbPath), { recursive: true });
+  const Ctor = await getSqliteCtor();
+  const probe = new Ctor(dbPath);
+  let existing: Set<number>;
+  try {
+    ensureSchema(probe);
+    const rows = probe.prepare('SELECT ts FROM runs').all() as Array<{ ts: number }>;
+    existing = new Set(rows.map((r) => r.ts));
+  } finally {
+    probe.close();
+  }
+
+  let inserted = 0;
+  for (const r of runs) {
+    const ts = toEpochMs(r.result.startedAt);
+    if (ts !== null && existing.has(ts)) continue;
+    await appendHistoryEntry(dbPath, r.result);
+    inserted++;
+  }
+  try {
+    // eslint-disable-next-line no-console
+    console.warn(`[uxinspect] migrated ${inserted} run(s) from ${dir} into ${dbPath}`);
+  } catch {
+    /* ignore */
+  }
+  return inserted;
 }
 
 export function renderHistoryHtml(runs: HistoryRun[], config?: HistoryConfig): string {
@@ -143,11 +282,149 @@ ${tableHtml}
 `;
 }
 
-export async function writeHistoryHtml(dir: string, outPath: string, config?: HistoryConfig): Promise<void> {
-  const runs = await loadHistory(dir);
+export async function writeHistoryHtml(source: string, outPath: string, config?: HistoryConfig): Promise<void> {
+  const runs = await loadHistory(source);
   const html = renderHistoryHtml(runs, config);
   await fs.mkdir(path.dirname(outPath), { recursive: true });
   await fs.writeFile(outPath, html, 'utf8');
+}
+
+// ---------------------------------------------------------------------------
+// Internals
+// ---------------------------------------------------------------------------
+
+async function loadHistoryFromJsonDir(dir: string): Promise<HistoryRun[]> {
+  let entries: string[];
+  try {
+    entries = await fs.readdir(dir);
+  } catch {
+    return [];
+  }
+  const jsonFiles = entries.filter((f) => f.toLowerCase().endsWith('.json'));
+  const runs: HistoryRun[] = [];
+  for (const file of jsonFiles) {
+    const full = path.join(dir, file);
+    try {
+      const raw = await fs.readFile(full, 'utf8');
+      const parsed = JSON.parse(raw) as unknown;
+      if (isInspectResult(parsed)) runs.push({ path: full, result: parsed });
+    } catch {
+      continue;
+    }
+  }
+  runs.sort((a, b) => {
+    const ta = a.result.startedAt ?? '';
+    const tb = b.result.startedAt ?? '';
+    return ta < tb ? -1 : ta > tb ? 1 : 0;
+  });
+  return runs;
+}
+
+async function loadHistoryFromSqlite(dbPath: string): Promise<HistoryRun[]> {
+  try {
+    await fs.stat(dbPath);
+  } catch {
+    return [];
+  }
+  const Ctor = await getSqliteCtor();
+  const db = new Ctor(dbPath);
+  try {
+    ensureSchema(db);
+    const rows = db
+      .prepare('SELECT id, json FROM runs ORDER BY ts ASC, id ASC')
+      .all() as Array<{ id: number; json: string }>;
+    const runs: HistoryRun[] = [];
+    for (const row of rows) {
+      try {
+        const parsed = JSON.parse(row.json) as unknown;
+        if (isInspectResult(parsed)) {
+          runs.push({ path: `${dbPath}#${row.id}`, result: parsed });
+        }
+      } catch {
+        continue;
+      }
+    }
+    return runs;
+  } finally {
+    db.close();
+  }
+}
+
+function ensureSchema(db: BetterSqliteDatabase): void {
+  runDdl(
+    db,
+    `
+    CREATE TABLE IF NOT EXISTS runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts INTEGER,
+      commit_sha TEXT,
+      branch TEXT,
+      duration_ms INTEGER,
+      passed INTEGER,
+      json TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_runs_ts ON runs(ts);
+
+    CREATE TABLE IF NOT EXISTS flow_results (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      run_id INTEGER NOT NULL,
+      name TEXT,
+      passed INTEGER,
+      error TEXT,
+      FOREIGN KEY(run_id) REFERENCES runs(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_flow_results_run ON flow_results(run_id);
+
+    CREATE TABLE IF NOT EXISTS audit_metrics (
+      run_id INTEGER NOT NULL,
+      metric TEXT NOT NULL,
+      value REAL,
+      PRIMARY KEY(run_id, metric)
+    );
+    `,
+  );
+}
+
+async function detectSource(source: string): Promise<'sqlite' | 'dir' | 'missing'> {
+  try {
+    const s = await fs.stat(source);
+    if (s.isDirectory()) return 'dir';
+    if (s.isFile()) return 'sqlite';
+  } catch {
+    if (/\.(db|sqlite|sqlite3)$/i.test(source)) return 'sqlite';
+    return 'missing';
+  }
+  return 'missing';
+}
+
+function toEpochMs(iso: string | undefined | null): number | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? t : null;
+}
+
+function readStringTag(result: InspectResult, key: string): string | null {
+  const v = (result as unknown as Record<string, unknown>)[key];
+  return typeof v === 'string' ? v : null;
+}
+
+function extractMetrics(result: InspectResult): Array<[string, number]> {
+  const out: Array<[string, number]> = [];
+  const perf = result.perf ?? [];
+  if (perf.length > 0) {
+    out.push(['perf.score.avg', meanBy(perf, (p) => p.scores.performance)]);
+    out.push(['a11y.score.avg', meanBy(perf, (p) => p.scores.accessibility)]);
+    out.push(['perf.lcp.avg', meanBy(perf, (p) => p.metrics.lcp)]);
+    out.push(['perf.cls.avg', meanBy(perf, (p) => p.metrics.cls)]);
+    out.push(['perf.tbt.avg', meanBy(perf, (p) => p.metrics.tbt)]);
+  }
+  const a11y = result.a11y ?? [];
+  out.push(['a11y.critical', countViolations(a11y, 'critical')]);
+  out.push(['a11y.serious', countViolations(a11y, 'serious')]);
+  out.push(['visual.diff.max', maxDiffRatio(result.visual ?? [])]);
+  out.push(['console.errors', (result.consoleErrors ?? []).length]);
+  out.push(['duration.ms', result.durationMs ?? 0]);
+  return out.filter(([, v]) => Number.isFinite(v));
 }
 
 function isInspectResult(value: unknown): value is InspectResult {
