@@ -10,6 +10,7 @@ import os from 'node:os';
 import { inspect } from './index.js';
 import { writeReplayViewer } from './replay-viewer.js';
 import { diffResults, formatDiff, loadResult, saveLastRun, LAST_RUN_FILE } from './diff-run.js';
+import { getChangedFiles, matchFilesToRoutes } from './git-diff-mode.js';
 import type { InspectConfig } from './types.js';
 
 const STARTER_CONFIG = `import type { InspectConfig } from 'uxinspect';
@@ -166,7 +167,9 @@ const argv = await yargs(hideBin(process.argv))
       .option('slack', { type: 'string', describe: 'Slack webhook URL for notifications' })
       .option('discord', { type: 'string', describe: 'Discord webhook URL for notifications' })
       .option('webhook', { type: 'string', describe: 'Generic JSON webhook URL' })
-      .option('notify-on-fail', { type: 'boolean', default: true, describe: 'Only notify on failure' }),
+      .option('notify-on-fail', { type: 'boolean', default: true, describe: 'Only notify on failure' })
+      .option('changed', { type: 'boolean', default: false, describe: 'Run only flows whose routes are affected by files changed since HEAD~1' })
+      .option('since', { type: 'string', describe: 'Like --changed, but diff against the given git ref (e.g. main, HEAD~5, a commit SHA)' }),
   )
   .command('report <dir>', 'Serve a generated report on localhost', (y) =>
     y
@@ -341,6 +344,21 @@ async function runCmd(): Promise<void> {
   const config: InspectConfig = (argv as any).config
     ? { ...(await loadConfig((argv as any).config)), ...cliConfig }
     : cliConfig;
+
+  // P3 #30 — Git-diff mode: derive route filter from changed files.
+  const sinceRef = (argv as any).since as string | undefined;
+  const changedFlag = Boolean((argv as any).changed);
+  if (changedFlag || sinceRef) {
+    const ref = sinceRef ?? 'HEAD~1';
+    try {
+      const files = await getChangedFiles(ref);
+      const routes = matchFilesToRoutes(files, config.routeMap);
+      console.log(`git diff ${ref}: ${files.length} file(s), ${routes.length} route pattern(s)`);
+      config.changedRoutes = routes;
+    } catch (e) {
+      console.error(`warn: ${(e as Error).message} — running all flows`);
+    }
+  }
 
   console.log(`Inspecting ${config.url}...`);
   const result = await inspect(config);

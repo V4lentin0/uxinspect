@@ -38,6 +38,15 @@ export interface InspectConfig {
   };
   /** Visual diff algorithm + ignore-region DSL (P2 #23). */
   visualDiff?: VisualDiffConfig;
+  /** Map of changed-file glob patterns → route patterns (P3 #30 — git-diff mode). */
+  routeMap?: import('./git-diff-mode.js').RouteMap;
+  /**
+   * Internal (P3 #30): explicit list of route patterns to filter flows by.
+   * Populated by the CLI when `--changed` / `--since` is passed. When set,
+   * only flows whose `goto` URLs match at least one pattern run. Callers
+   * outside the CLI can set this manually to scope a run.
+   */
+  changedRoutes?: string[];
 }
 
 export interface RouteMock {

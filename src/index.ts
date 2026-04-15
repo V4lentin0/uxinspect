@@ -96,6 +96,7 @@ import { auditStuckSpinners } from './stuck-spinner-audit.js';
 import { auditErrorStateAppearance } from './error-state-audit.js';
 import { walkAuthGatedRoutes } from './auth-walker.js';
 import { attachFrustrationSignals } from './frustration-signals.js';
+import { filterFlowsByRoutes, summarizeChangedRun } from './git-diff-mode.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -301,6 +302,15 @@ export { detectFlakiness, formatFlakyReport } from './flaky-detector.js';
 export { renderBadge, statusBadge, a11yBadge, perfBadge, lcpBadge, visualBadge, writeBadges } from './badge.js';
 export { fetchSitemapUrls, urlsToFlows, sitemapToFlows } from './sitemap-flows.js';
 export { bisect, defaultRegressionOracle } from './bisect.js';
+export {
+  getChangedFiles,
+  matchFilesToRoutes,
+  filterFlowsByRoutes,
+  summarizeChangedRun,
+  globToRegex,
+  ALL_ROUTES,
+  type RouteMap,
+} from './git-diff-mode.js';
 export { runFilteredA11y, filterViolationsByImpact, WCAG_TAG_GROUPS } from './a11y-filter.js';
 export { ReporterRegistry, defaultReporterRegistry, runReporters, loadReporterFromPath, jsonFileReporter } from './reporter-plugin.js';
 export { scanPageObject, renderPageObjectClass, generatePageObject } from './page-object.js';
@@ -340,7 +350,14 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const outputDir = config.output?.dir ?? './uxinspect-report';
   const baselineDir = config.output?.baselineDir ?? './uxinspect-baselines';
   const store = r2StoreFromEnv();
-  const flows = config.flows ?? [{ name: 'load', steps: [{ goto: config.url }] }];
+  const allFlows = config.flows ?? [{ name: 'load', steps: [{ goto: config.url }] }];
+  const flows =
+    config.changedRoutes !== undefined
+      ? filterFlowsByRoutes(allFlows, config.changedRoutes)
+      : allFlows;
+  if (config.changedRoutes !== undefined && allFlows.length > 0) {
+    console.log(summarizeChangedRun(flows.length, allFlows.length));
+  }
 
   const driver = new Driver();
   const flowResults: FlowResult[] = [];
