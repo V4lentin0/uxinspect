@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { inspect } from './index.js';
+import { generateReplayViewerHtml, openInBrowser } from './replay-viewer.js';
 import type { InspectConfig } from './types.js';
 
 const STARTER_CONFIG = `import type { InspectConfig } from 'uxinspect';
@@ -181,6 +182,12 @@ const argv = await yargs(hideBin(process.argv))
       .option('config', { type: 'string', demandOption: true })
       .option('path', { type: 'string', default: '.', describe: 'Directory to watch' }),
   )
+  .command('replay <path>', 'Open a static HTML viewer for a replay JSON file', (y) =>
+    y
+      .positional('path', { type: 'string', demandOption: true, describe: 'Path to a replay .json file' })
+      .option('out', { type: 'string', describe: 'Write HTML to this path instead of opening it' })
+      .option('port', { type: 'number', describe: 'Serve the HTML on this local port instead of opening it' }),
+  )
   .demandCommand(1)
   .strict()
   .help()
@@ -194,6 +201,7 @@ if (cmd === 'init') await initCmd();
 if (cmd === 'record') await recordCmd();
 if (cmd === 'accept') await acceptCmd();
 if (cmd === 'watch') await watchCmd();
+if (cmd === 'replay') await replayCmd();
 
 async function runCmd(): Promise<void> {
   const reporters = String((argv as any).reporters)
@@ -544,6 +552,55 @@ async function loadConfig(p: string): Promise<InspectConfig> {
   }
   const mod = await import(pathToFileURL(abs).href);
   return mod.default ?? mod.config;
+}
+
+async function replayCmd(): Promise<void> {
+  const a = argv as any;
+  const replayPath = path.resolve(a.path as string);
+  const outPath = a.out as string | undefined;
+  const port = a.port as number | undefined;
+
+  const stat = await fs.stat(replayPath).catch(() => null);
+  if (!stat || !stat.isFile()) {
+    console.error(`Not a file: ${replayPath}`);
+    process.exit(1);
+  }
+
+  const html = await generateReplayViewerHtml(replayPath);
+
+  if (typeof port === 'number') {
+    const server = http.createServer((_req, res) => {
+      res.setHeader('content-type', 'text/html; charset=utf-8');
+      res.end(html);
+    });
+    server.listen(port, () => {
+      console.log(`uxinspect replay viewer: http://localhost:${port}`);
+    });
+    return;
+  }
+
+  if (outPath) {
+    const target = path.resolve(outPath);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, html);
+    console.log(`Wrote replay viewer: ${target}`);
+    return;
+  }
+
+  const tmpDir = path.join(process.cwd(), '.uxinspect');
+  await fs.mkdir(tmpDir, { recursive: true });
+  const tmpFile = path.join(
+    tmpDir,
+    `replay-${path.basename(replayPath, '.json')}-${Date.now()}.html`,
+  );
+  await fs.writeFile(tmpFile, html);
+  const opened = await openInBrowser(tmpFile);
+  if (opened) {
+    console.log(`Opened replay viewer: ${tmpFile}`);
+  } else {
+    console.log(`Wrote replay viewer: ${tmpFile}`);
+    console.log('Open it manually in your browser, or rerun with --port.');
+  }
 }
 
 function mime(p: string): string {

@@ -291,6 +291,8 @@ export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfa
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
 export { auditWebWorkers } from './web-worker-audit.js';
+export { generateReplayViewerHtml, openInBrowser } from './replay-viewer.js';
+export type { ReplayFile, ReplayViewerOptions } from './replay-viewer.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
