@@ -80,6 +80,12 @@ function buildChecksSchema(): JsonSchema {
     security: boolOrOpts(),
     retire: boolOrOpts(),
     deadClicks: boolOrOpts({ maxElements: num(), waitAfterClickMs: num() }),
+    disabledButtons: boolOrOpts({
+      selectors: arr(str()),
+      maxButtons: num(),
+      waitAfterClickMs: num(),
+      screenshotDir: str(),
+    }),
     touchTargets: boolOrOpts({ minSize: num(), onlyViewport: bool() }),
     keyboard: boolOrOpts({ maxTabs: num(), requireFocusRing: bool() }),
     longTasks: boolOrOpts({ durationMs: num() }),
