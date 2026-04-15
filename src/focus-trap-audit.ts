@@ -9,6 +9,8 @@ export type FocusTrapIssueKind =
   | 'dialog-not-focusable'
   | 'first-focus-missing'
   | 'close-on-esc-missing'
+  | 'close-on-backdrop-missing'
+  | 'close-completely-blocked'
   | 'tab-exits-dialog';
 
 export interface FocusTrapIssue {
@@ -26,6 +28,7 @@ export interface FocusTrapDialogReport {
   tabTrapped: boolean;
   shiftTabTrapped: boolean;
   escClosedIt: boolean;
+  backdropClosedIt: boolean;
 }
 
 export interface FocusTrapResult {
@@ -142,6 +145,7 @@ export async function auditFocusTrap(
         tabTrapped: false,
         shiftTabTrapped: false,
         escClosedIt: false,
+        backdropClosedIt: false,
       });
       continue;
     }
@@ -282,24 +286,38 @@ export async function auditFocusTrap(
       });
     }
 
-    await page.keyboard.press('Escape');
-    const afterEsc = await page.evaluate((sel: string): boolean => {
-      const el = document.querySelector(sel);
-      if (!el) return false;
-      const rect = (el as HTMLElement).getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return false;
-      const style = getComputedStyle(el as HTMLElement);
-      if (style.display === 'none' || style.visibility === 'hidden') return false;
-      if (el.getAttribute('aria-hidden') === 'true') return false;
-      return true;
-    }, descriptor.selector);
+    // Backdrop-close probe: try common backdrop selectors first, then fall back
+    // to clicking a point outside the dialog's bounding box. We attempt the
+    // backdrop BEFORE Esc so that, if backdrop closes the dialog, we don't
+    // need to reopen it to test Esc. Modal MUST close on either Esc OR
+    // backdrop (we flag only when BOTH fail).
+    const backdropAttempt = await tryBackdropClose(page, descriptor.selector);
+    const backdropClosedIt = backdropAttempt.closed;
 
-    const escClosedIt = !afterEsc;
-    if (!escClosedIt) {
+    let escClosedIt = false;
+    if (!backdropClosedIt) {
+      await page.keyboard.press('Escape');
+      const afterEsc = await isStillVisible(page, descriptor.selector);
+      escClosedIt = !afterEsc;
+    }
+
+    if (!backdropClosedIt && !escClosedIt) {
       issues.push({
         kind: 'close-on-esc-missing',
         dialogSelector: descriptor.selector,
         detail: 'dialog did not close when Escape was pressed',
+      });
+      issues.push({
+        kind: 'close-on-backdrop-missing',
+        dialogSelector: descriptor.selector,
+        detail: backdropAttempt.detail
+          ? `dialog did not close on backdrop/outside click (${backdropAttempt.detail})`
+          : 'dialog did not close on backdrop/outside click',
+      });
+      issues.push({
+        kind: 'close-completely-blocked',
+        dialogSelector: descriptor.selector,
+        detail: 'dialog cannot be dismissed by either Escape or a backdrop click',
       });
     }
 
@@ -312,6 +330,7 @@ export async function auditFocusTrap(
       tabTrapped: tabTrapped && !tabExit,
       shiftTabTrapped: shiftTrapped && !shiftExit,
       escClosedIt,
+      backdropClosedIt,
     });
   }
 
@@ -380,4 +399,174 @@ async function readFocusState(
     },
     { selector, focusableSelector: FOCUSABLE_SELECTOR }
   );
+}
+
+async function isStillVisible(page: Page, selector: string): Promise<boolean> {
+  return page.evaluate((sel: string): boolean => {
+    const el = document.querySelector(sel);
+    if (!el) return false;
+    const rect = (el as HTMLElement).getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return false;
+    const style = getComputedStyle(el as HTMLElement);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+    if (el.getAttribute('aria-hidden') === 'true') return false;
+    return true;
+  }, selector);
+}
+
+interface BackdropAttempt {
+  closed: boolean;
+  detail: string;
+}
+
+const BACKDROP_SELECTORS = [
+  '.modal-backdrop',
+  '.overlay',
+  '.modal-overlay',
+  '[data-backdrop]',
+  '[data-overlay]',
+  '[data-modal-backdrop]',
+];
+
+async function tryBackdropClose(
+  page: Page,
+  dialogSelector: string
+): Promise<BackdropAttempt> {
+  // 1) Try known backdrop selectors first — these are the semantic way sites
+  // implement click-outside-to-close.
+  const backdropInfo = await page.evaluate(
+    (args: { dialogSelector: string; backdropSelectors: string[] }): {
+      found: boolean;
+      x: number;
+      y: number;
+      selector: string;
+    } => {
+      const dialog = document.querySelector(args.dialogSelector);
+      const dialogRect = dialog
+        ? (dialog as HTMLElement).getBoundingClientRect()
+        : null;
+      const overlaps = (r: DOMRect): boolean => {
+        if (!dialogRect) return false;
+        return !(
+          r.right <= dialogRect.left ||
+          r.left >= dialogRect.right ||
+          r.bottom <= dialogRect.top ||
+          r.top >= dialogRect.bottom
+        );
+      };
+      for (const sel of args.backdropSelectors) {
+        let nodes: NodeListOf<Element>;
+        try {
+          nodes = document.querySelectorAll(sel);
+        } catch {
+          continue;
+        }
+        for (const el of Array.from(nodes)) {
+          const rect = (el as HTMLElement).getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) continue;
+          const style = getComputedStyle(el as HTMLElement);
+          if (style.display === 'none' || style.visibility === 'hidden') continue;
+          // Pick a point on the backdrop that is NOT inside the dialog.
+          const candidates: Array<[number, number]> = [
+            [rect.left + 2, rect.top + 2],
+            [rect.right - 2, rect.top + 2],
+            [rect.left + 2, rect.bottom - 2],
+            [rect.right - 2, rect.bottom - 2],
+            [rect.left + rect.width / 2, rect.top + 2],
+          ];
+          for (const [x, y] of candidates) {
+            if (!dialogRect) {
+              return { found: true, x, y, selector: sel };
+            }
+            // Skip points inside the dialog's bbox.
+            if (
+              x >= dialogRect.left &&
+              x <= dialogRect.right &&
+              y >= dialogRect.top &&
+              y <= dialogRect.bottom
+            ) {
+              continue;
+            }
+            return { found: true, x, y, selector: sel };
+          }
+          // Fallback: if backdrop fully overlaps dialog, click a corner anyway.
+          if (overlaps(rect)) {
+            return {
+              found: true,
+              x: rect.left + 2,
+              y: rect.top + 2,
+              selector: sel,
+            };
+          }
+        }
+      }
+      return { found: false, x: 0, y: 0, selector: '' };
+    },
+    { dialogSelector, backdropSelectors: BACKDROP_SELECTORS }
+  );
+
+  if (backdropInfo.found) {
+    try {
+      await page.mouse.click(backdropInfo.x, backdropInfo.y);
+    } catch {
+      // ignore click errors; we'll still check visibility
+    }
+    const stillVisible = await isStillVisible(page, dialogSelector);
+    if (!stillVisible) {
+      return { closed: true, detail: `matched ${backdropInfo.selector}` };
+    }
+  }
+
+  // 2) Fallback: click a point outside the dialog's bounding box. We try the
+  // top-left corner (10,10) first, then hunt for a viewport corner that is
+  // not covered by the dialog.
+  const outsidePoint = await page.evaluate((sel: string): {
+    x: number;
+    y: number;
+  } | null => {
+    const el = document.querySelector(sel);
+    if (!el) return { x: 10, y: 10 };
+    const r = (el as HTMLElement).getBoundingClientRect();
+    const vw = Math.max(
+      document.documentElement.clientWidth || 0,
+      window.innerWidth || 0
+    );
+    const vh = Math.max(
+      document.documentElement.clientHeight || 0,
+      window.innerHeight || 0
+    );
+    const candidates: Array<[number, number]> = [
+      [10, 10],
+      [vw - 10, 10],
+      [10, vh - 10],
+      [vw - 10, vh - 10],
+    ];
+    for (const [x, y] of candidates) {
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) continue;
+      return { x, y };
+    }
+    return { x: 5, y: 5 };
+  }, dialogSelector);
+
+  if (outsidePoint) {
+    try {
+      await page.mouse.click(outsidePoint.x, outsidePoint.y);
+    } catch {
+      // ignore
+    }
+    const stillVisible = await isStillVisible(page, dialogSelector);
+    if (!stillVisible) {
+      return {
+        closed: true,
+        detail: `outside click at (${outsidePoint.x},${outsidePoint.y})`,
+      };
+    }
+  }
+
+  return {
+    closed: false,
+    detail: backdropInfo.found
+      ? `backdrop ${backdropInfo.selector} did not dismiss dialog`
+      : 'no backdrop element found and outside click did not dismiss dialog',
+  };
 }
