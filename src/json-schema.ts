@@ -72,7 +72,21 @@ function buildChecksSchema(): JsonSchema {
   const properties: Record<string, JsonSchema> = {
     a11y: boolOrOpts(),
     perf: boolOrOpts(),
-    visual: boolOrOpts(),
+    visual: boolOrOpts({
+      stabilize: {
+        oneOf: [
+          obj({
+            freezeAnimations: bool(),
+            waitForFonts: bool(),
+            scrollLazyLoad: bool(),
+            stitchFullPage: bool(),
+          }),
+          { const: false },
+        ],
+      },
+      threshold: num({ minimum: 0, maximum: 1 }),
+      failRatio: num({ minimum: 0, maximum: 1 }),
+    }),
     explore: boolOrOpts({ maxClicks: num() }),
     seo: boolOrOpts(),
     links: boolOrOpts({ maxLinks: num(), sameOriginOnly: bool() }),

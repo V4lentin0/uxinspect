@@ -5,6 +5,11 @@ import pixelmatch from 'pixelmatch';
 import type { Page } from 'playwright';
 import type { VisualResult } from './types.js';
 import type { BaselineStore } from './store.js';
+import {
+  stabilizePageForCapture,
+  captureStitchedScreenshot,
+  type StabilizeOptions,
+} from './visual-stabilize.js';
 
 export interface VisualOptions {
   baselineDir: string;
@@ -12,6 +17,7 @@ export interface VisualOptions {
   threshold?: number;
   failRatio?: number;
   store?: BaselineStore;
+  stabilize?: StabilizeOptions | false;
 }
 
 export async function checkVisual(
@@ -28,8 +34,23 @@ export async function checkVisual(
   await fs.mkdir(path.dirname(diffPath), { recursive: true });
   await fs.mkdir(opts.baselineDir, { recursive: true });
 
-  await page.screenshot({ path: currentPath, fullPage: true });
-  const currentBytes = await fs.readFile(currentPath);
+  const stabilize: StabilizeOptions | false = opts.stabilize ?? {
+    freezeAnimations: true,
+    waitForFonts: true,
+    scrollLazyLoad: true,
+    stitchFullPage: false,
+  };
+  if (stabilize !== false) {
+    await stabilizePageForCapture(page, stabilize).catch(() => {});
+  }
+
+  let currentBytes: Buffer;
+  if (stabilize !== false && stabilize.stitchFullPage) {
+    currentBytes = await captureStitchedScreenshot(page, { path: currentPath });
+  } else {
+    await page.screenshot({ path: currentPath, fullPage: true });
+    currentBytes = await fs.readFile(currentPath);
+  }
   const storeKey = `${name}-${viewport}.png`;
 
   let baselineBytes: Buffer | null = null;

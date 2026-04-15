@@ -481,8 +481,16 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (a11y && a11y.violations.length > 0) {
           await annotateA11y(page, a11y, path.join(outputDir, 'a11y', `${flow.name}-${vp.name}.png`)).catch(() => {});
         }
+        const visualOpts = typeof checks.visual === 'object' ? checks.visual : {};
         const visual = checks.visual
-          ? await checkVisual(page, flow.name, vp.name, { baselineDir, outputDir, store: store ?? undefined }).catch((e) => emptyVisual(page.url(), vp.name, e))
+          ? await checkVisual(page, flow.name, vp.name, {
+              baselineDir,
+              outputDir,
+              store: store ?? undefined,
+              threshold: visualOpts.threshold,
+              failRatio: visualOpts.failRatio,
+              stabilize: visualOpts.stabilize,
+            }).catch((e) => emptyVisual(page.url(), vp.name, e))
           : undefined;
         const seoR = checks.seo ? await checkSeo(page).catch(() => undefined) : undefined;
         const linksR = checks.links

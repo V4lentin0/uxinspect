@@ -102,7 +102,16 @@ export interface Viewport {
 export interface ChecksConfig {
   a11y?: boolean;
   perf?: boolean;
-  visual?: boolean;
+  visual?: boolean | {
+    stabilize?: {
+      freezeAnimations?: boolean;
+      waitForFonts?: boolean;
+      scrollLazyLoad?: boolean;
+      stitchFullPage?: boolean;
+    } | false;
+    threshold?: number;
+    failRatio?: number;
+  };
   explore?: boolean | { maxClicks?: number };
   seo?: boolean;
   links?: boolean | { maxLinks?: number; sameOriginOnly?: boolean };
