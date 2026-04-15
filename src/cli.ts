@@ -139,6 +139,8 @@ const argv = await yargs(hideBin(process.argv))
       .option('debug', { type: 'boolean', default: false, describe: 'Headed + slowMo (step-by-step)' })
       .option('slow-mo', { type: 'number', describe: 'Slow each action by N ms' })
       .option('parallel', { type: 'boolean', default: false, describe: 'Run flows in parallel' })
+      .option('fast', { type: 'boolean', default: false, describe: 'Fast inner-loop mode (<30s): skip perf/visual/links/crossBrowser, force parallel, 20s flow timeout' })
+      .option('concurrency', { type: 'number', describe: 'Max concurrent flows when --parallel or --fast' })
       .option('browser', { type: 'string', choices: ['chromium', 'firefox', 'webkit'], default: 'chromium' })
       .option('device', { type: 'string', describe: 'Device preset name (e.g. "iPhone 13", "Pixel 5")' })
       .option('locale', { type: 'string', describe: 'Locale override (e.g. en-US, ja-JP)' })
@@ -179,7 +181,8 @@ const argv = await yargs(hideBin(process.argv))
   .command('watch', 'Re-run inspection on file changes', (y) =>
     y
       .option('config', { type: 'string', demandOption: true })
-      .option('path', { type: 'string', default: '.', describe: 'Directory to watch' }),
+      .option('path', { type: 'string', default: '.', describe: 'Directory to watch' })
+      .option('fast', { type: 'boolean', default: true, describe: 'Fast inner-loop mode (default in watch)' }),
   )
   .demandCommand(1)
   .strict()
@@ -276,6 +279,8 @@ async function runCmd(): Promise<void> {
     debug: (argv as any).debug,
     slowMo: (argv as any)['slow-mo'],
     parallel: (argv as any).parallel,
+    concurrency: (argv as any).concurrency,
+    fast: (argv as any).fast,
     browser: (argv as any).browser,
     device: (argv as any).device,
     locale: (argv as any).locale,
@@ -484,6 +489,7 @@ async function appendFlowToConfig(configPath: string, name: string, steps: any[]
 async function watchCmd(): Promise<void> {
   const configPath = (argv as any).config as string;
   const watchPath = path.resolve((argv as any).path as string);
+  const fast = (argv as any).fast !== false; // default true in watch
   let running = false;
   let queued = false;
 
@@ -494,7 +500,8 @@ async function watchCmd(): Promise<void> {
     }
     running = true;
     try {
-      const config = await loadConfig(configPath);
+      const loaded = await loadConfig(configPath);
+      const config: InspectConfig = { ...loaded, fast: fast || loaded.fast === true };
       console.log(`[${new Date().toLocaleTimeString()}] running…`);
       const result = await inspect(config);
       const status = result.passed ? 'PASS' : 'FAIL';

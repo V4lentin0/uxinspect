@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { cpus } from 'node:os';
 import { Driver, networkPresets } from './driver.js';
 import { checkA11y, annotateA11y } from './a11y.js';
 import { checkPerf } from './perf.js';
@@ -292,8 +293,82 @@ export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
 export { auditWebWorkers } from './web-worker-audit.js';
 
+/**
+ * Audits skipped in fast mode. perf (Lighthouse) and visual (baseline diff)
+ * are the two slowest; links (broken-link crawl) fans out many HTTP requests;
+ * crossBrowser launches every engine. `crossBrowser` is not part of
+ * ChecksConfig — it's a separate runner — but it's listed here so the
+ * skip contract is visible to callers.
+ */
+export const FAST_MODE_SKIPPED_AUDITS = ['perf', 'visual', 'links', 'crossBrowser'] as const;
+
+/** Per-flow hard cap in fast mode. */
+export const FAST_MODE_FLOW_TIMEOUT_MS = 20_000;
+
+/** True when fast mode should be applied. */
+export function isFastMode(config: Pick<InspectConfig, 'fast'>): boolean {
+  return config.fast === true;
+}
+
+/** Concurrency picked for fast mode: max(8, cpus()), overridable. */
+export function fastConcurrency(requested?: number): number {
+  if (typeof requested === 'number' && requested > 0) return requested;
+  const cores = cpus().length || 1;
+  return Math.max(8, cores);
+}
+
+export interface FastModeOverrides {
+  checks: import('./types.js').ChecksConfig;
+  parallel: true;
+  concurrency: number;
+  flowTimeoutMs: number;
+  skipped: readonly string[];
+}
+
+/**
+ * Return the config mutation for fast mode without actually calling inspect().
+ * Exposed so watch-mode / tests can verify the contract.
+ *
+ * Overrides:
+ *   - Force off: perf, visual, links
+ *   - Force on : a11y, consoleErrors, forms
+ *   - parallel = true, concurrency = max(8, cpus()), flowTimeoutMs = 20_000
+ */
+export function applyFastMode(config: InspectConfig): FastModeOverrides {
+  const base: import('./types.js').ChecksConfig = { ...(config.checks ?? {}) };
+  base.perf = false;
+  base.visual = false;
+  base.links = false;
+  base.a11y = true;
+  base.consoleErrors = true;
+  base.forms = true;
+  return {
+    checks: base,
+    parallel: true,
+    concurrency: fastConcurrency(config.concurrency),
+    flowTimeoutMs: config.flowTimeoutMs ?? FAST_MODE_FLOW_TIMEOUT_MS,
+    skipped: FAST_MODE_SKIPPED_AUDITS,
+  };
+}
+
+/** Banner printed at inspect() start when fast mode is active. */
+export function fastModeBanner(): string {
+  return `[fast mode] skipping ${FAST_MODE_SKIPPED_AUDITS.join('/')}`;
+}
+
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
+  if (isFastMode(config)) {
+    const overrides = applyFastMode(config);
+    config = {
+      ...config,
+      checks: overrides.checks,
+      parallel: overrides.parallel,
+      concurrency: overrides.concurrency,
+      flowTimeoutMs: overrides.flowTimeoutMs,
+    };
+    console.log(fastModeBanner());
+  }
   const viewports = config.viewports ?? [{ name: 'desktop', width: 1280, height: 800 }];
   const checks = config.checks ?? { a11y: true, perf: false, visual: true, explore: false };
   const outputDir = config.output?.dir ?? './uxinspect-report';
@@ -476,7 +551,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
         if (config.ai?.enabled) await ai.init(page);
-        const flowResult = await runFlow(page, flow.name, flow.steps, ai);
+        const flowResult = await runFlow(page, flow.name, flow.steps, ai, config.flowTimeoutMs);
         const a11y = checks.a11y ? await checkA11y(page).catch((e) => emptyA11y(page.url(), e)) : undefined;
         if (a11y && a11y.violations.length > 0) {
           await annotateA11y(page, a11y, path.join(outputDir, 'a11y', `${flow.name}-${vp.name}.png`)).catch(() => {});
@@ -621,8 +696,21 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         };
       };
 
-      const results = config.parallel ? await Promise.all(flows.map(runOne)) : [];
-      if (!config.parallel) for (const flow of flows) results.push(await runOne(flow));
+      const results: Awaited<ReturnType<typeof runOne>>[] = [];
+      if (config.parallel) {
+        const limit = Math.max(1, config.concurrency ?? flows.length);
+        let cursor = 0;
+        const workers = Array.from({ length: Math.min(limit, flows.length) }, async () => {
+          while (true) {
+            const i = cursor++;
+            if (i >= flows.length) return;
+            results[i] = await runOne(flows[i]!);
+          }
+        });
+        await Promise.all(workers);
+      } else {
+        for (const flow of flows) results.push(await runOne(flow));
+      }
       for (const r of results) {
         flowResults.push(r.flow);
         if (r.a11y) a11yResults.push(r.a11y);
@@ -933,16 +1021,34 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   return result;
 }
 
-async function runFlow(page: Page, name: string, steps: Step[], ai: AIHelper): Promise<FlowResult> {
+async function runFlow(
+  page: Page,
+  name: string,
+  steps: Step[],
+  ai: AIHelper,
+  timeoutMs?: number,
+): Promise<FlowResult> {
   const stepResults: StepResult[] = [];
   const screenshots: string[] = [];
   let passed = true;
   let error: string | undefined;
+  const deadline = timeoutMs && timeoutMs > 0 ? Date.now() + timeoutMs : undefined;
 
   for (const step of steps) {
     const start = Date.now();
     try {
-      await runStep(page, step, ai);
+      if (deadline !== undefined) {
+        const remaining = deadline - start;
+        if (remaining <= 0) throw new Error(`flow timeout exceeded (${timeoutMs}ms)`);
+        await Promise.race([
+          runStep(page, step, ai),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`flow timeout exceeded (${timeoutMs}ms)`)), remaining).unref(),
+          ),
+        ]);
+      } else {
+        await runStep(page, step, ai);
+      }
       stepResults.push({ step, passed: true, durationMs: Date.now() - start });
     } catch (e: any) {
       passed = false;

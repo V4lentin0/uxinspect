@@ -367,6 +367,8 @@ Every check has a matching flag. Use `--all` to turn them all on, or pick indivi
 | `--baselines` | `./uxinspect-baselines` | Visual baseline directory |
 | `--headed` | `false` | Run with visible browser |
 | `--parallel` | `false` | Run flows in parallel |
+| `--fast` | `false` | Fast inner-loop mode (sub-30s) — see below |
+| `--concurrency` | — | Max concurrent flows under `--parallel` / `--fast` |
 | `--storage-state` | — | Path to auth storageState JSON |
 | `--reporters` | `html,json` | Comma list: `html`, `json`, `junit`, `sarif`, `allure`, `tap` |
 | `--publish` | — | Dashboard URL to upload report |
@@ -392,6 +394,24 @@ Example:
 uxinspect run --url https://example.com --all
 uxinspect run --url https://example.com --a11y --perf --retire --seo --visual
 ```
+
+## Fast inner-loop mode
+
+Full audits take minutes. `--fast` gives you a sub-30s answer while you iterate.
+
+```bash
+uxinspect run --url https://example.com --config ./uxinspect.config.ts --fast
+uxinspect watch --config ./uxinspect.config.ts   # fast mode is ON by default
+```
+
+What `--fast` does:
+
+- **Skips** `perf` (Lighthouse), `visual` (baseline diff), `links` (broken-link crawl), and `crossBrowser` — the four slowest audits.
+- **Forces on** `a11y` (axe is sub-second), `consoleErrors`, and `forms` (structural checks) so flows still get the high-signal sanity checks.
+- **Parallelizes** flows with `concurrency = max(8, cpus())` and a **20s per-flow timeout**.
+- Prints `[fast mode] skipping perf/visual/links/crossBrowser` at start.
+
+`uxinspect watch` uses fast mode by default. Opt out with `--no-fast`. Opt in explicitly on `run` with `--fast`. In `uxinspect.config.ts` set `fast: true`, or fine-tune with `concurrency` and `flowTimeoutMs`.
 
 ## Reporters
 

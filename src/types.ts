@@ -7,6 +7,9 @@ export interface InspectConfig {
   ai?: AIConfig;
   headed?: boolean;
   parallel?: boolean;
+  concurrency?: number;
+  flowTimeoutMs?: number;
+  fast?: boolean;
   storageState?: string;
   reporters?: ('html' | 'json' | 'junit' | 'sarif' | 'allure' | 'tap')[];
   browser?: 'chromium' | 'firefox' | 'webkit';
