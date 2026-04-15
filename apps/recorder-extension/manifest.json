@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "uxinspect Recorder",
+  "version": "0.1.0",
+  "description": "Record user flows in Chrome and export as uxinspect Step[] code. Click, type, navigate — get a runnable .ts file.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "downloads"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "uxinspect Recorder"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["lib/converter.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
