@@ -1,6 +1,6 @@
 {
   "name": "uxinspect",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "All-in-one UI/UX testing — browser automation, AI-powered exploration, accessibility audit, performance scores, visual diff. Tests like a real human.",
   "type": "module",
   "main": "dist/index.js",
