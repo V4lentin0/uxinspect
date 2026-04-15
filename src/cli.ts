@@ -86,6 +86,7 @@ const argv = await yargs(hideBin(process.argv))
       .option('security', { type: 'boolean', describe: 'Security headers audit' })
       .option('retire', { type: 'boolean', describe: 'Detect outdated JS libraries with known vulnerabilities' })
       .option('dead-clicks', { type: 'boolean', describe: 'Detect non-interactive elements that appear clickable' })
+      .option('disabled-buttons', { type: 'boolean', describe: 'Verify disabled buttons do not respond to clicks' })
       .option('touch-targets', { type: 'boolean', describe: 'Audit touch target sizes for mobile usability' })
       .option('keyboard', { type: 'boolean', describe: 'Keyboard navigation and focus trap audit' })
       .option('long-tasks', { type: 'boolean', describe: 'Detect long-running main-thread tasks' })
@@ -220,6 +221,7 @@ async function runCmd(): Promise<void> {
     security: pick(a.security),
     retire: pick(a.retire),
     deadClicks: pick(a['dead-clicks']),
+    disabledButtons: pick(a['disabled-buttons']),
     touchTargets: pick(a['touch-targets']),
     keyboard: pick(a.keyboard),
     longTasks: pick(a['long-tasks']),

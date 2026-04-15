@@ -110,6 +110,7 @@ export interface ChecksConfig {
   security?: boolean;
   retire?: boolean;
   deadClicks?: boolean | { maxElements?: number; waitAfterClickMs?: number };
+  disabledButtons?: boolean | { selectors?: string[]; maxButtons?: number; waitAfterClickMs?: number; screenshotDir?: string };
   touchTargets?: boolean | { minSize?: number; onlyViewport?: boolean };
   keyboard?: boolean | { maxTabs?: number; requireFocusRing?: boolean };
   longTasks?: boolean | { durationMs?: number };
@@ -211,6 +212,7 @@ export interface InspectResult {
   apiFlows?: ApiFlowResult[];
   retire?: import('./retire.js').RetireResult[];
   deadClicks?: import('./deadclicks.js').DeadClickResult[];
+  disabledButtons?: import('./disabled-buttons-audit.js').DisabledButtonsResult[];
   touchTargets?: import('./touchtargets.js').TouchTargetResult[];
   keyboard?: import('./keyboard.js').KeyboardAuditResult[];
   longTasks?: import('./longtasks.js').LongTasksResult[];

@@ -16,6 +16,7 @@ import { r2StoreFromEnv } from './store.js';
 import { runApiFlows } from './api.js';
 import { checkRetireJs } from './retire.js';
 import { checkDeadClicks } from './deadclicks.js';
+import { auditDisabledButtons } from './disabled-buttons-audit.js';
 import { auditTouchTargets } from './touchtargets.js';
 import { auditKeyboard } from './keyboard.js';
 import { captureLongTasks } from './longtasks.js';
@@ -99,6 +100,7 @@ import type {
 import type { Page } from 'playwright';
 import type { RetireResult } from './retire.js';
 import type { DeadClickResult } from './deadclicks.js';
+import type { DisabledButtonsResult } from './disabled-buttons-audit.js';
 import type { TouchTargetResult } from './touchtargets.js';
 import type { KeyboardAuditResult } from './keyboard.js';
 import type { LongTasksResult } from './longtasks.js';
@@ -175,6 +177,7 @@ export { notify } from './notify.js';
 export { runApiFlows } from './api.js';
 export { checkRetireJs } from './retire.js';
 export { checkDeadClicks } from './deadclicks.js';
+export { auditDisabledButtons } from './disabled-buttons-audit.js';
 export { auditTouchTargets } from './touchtargets.js';
 export { auditKeyboard } from './keyboard.js';
 export { captureLongTasks } from './longtasks.js';
@@ -311,6 +314,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const pwaResults: InspectResult['pwa'] = [];
   const retireResults: RetireResult[] = [];
   const deadClickResults: DeadClickResult[] = [];
+  const disabledButtonsResults: DisabledButtonsResult[] = [];
   const touchTargetResults: TouchTargetResult[] = [];
   const keyboardResults: KeyboardAuditResult[] = [];
   const longTasksResults: LongTasksResult[] = [];
@@ -409,6 +413,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         pwa?: InspectResult['pwa'] extends Array<infer T> | undefined ? T : never;
         retire?: RetireResult;
         deadClicks?: DeadClickResult;
+        disabledButtons?: DisabledButtonsResult;
         touchTargets?: TouchTargetResult;
         keyboard?: KeyboardAuditResult;
         longTasks?: LongTasksResult;
@@ -511,6 +516,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const deadR = checks.deadClicks
           ? await checkDeadClicks(page, typeof checks.deadClicks === 'object' ? checks.deadClicks : {}).catch(() => undefined)
           : undefined;
+        const disabledBtnR = checks.disabledButtons
+          ? await auditDisabledButtons(page, typeof checks.disabledButtons === 'object' ? checks.disabledButtons : {}).catch(() => undefined)
+          : undefined;
         const resourceHintsR = checks.resourceHints ? await auditResourceHints(page).catch(() => undefined) : undefined;
         const mixedContentR = checks.mixedContent ? await checkMixedContent(page).catch(() => undefined) : undefined;
         const cacheHeadersR = checks.cacheHeaders ? await auditCacheHeaders(page).catch(() => undefined) : undefined;
@@ -593,7 +601,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         return {
           flow: flowResult, a11y, visual,
           seo: seoR as any, links: linksR as any, pwa: pwaR as any,
-          retire: retireR, deadClicks: deadR, touchTargets: touchR, keyboard: keyboardR,
+          retire: retireR, deadClicks: deadR, disabledButtons: disabledBtnR, touchTargets: touchR, keyboard: keyboardR,
           longTasks: longTasksR, clsTimeline: clsR, forms: formsR,
           structuredData: structuredR, passiveSecurity: passiveSecR, consoleErrors: consoleR,
           contentInfo: contentR,
@@ -632,6 +640,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.pwa) pwaResults!.push(r.pwa as any);
         if (r.retire) retireResults.push(r.retire);
         if (r.deadClicks) deadClickResults.push(r.deadClicks);
+        if (r.disabledButtons) disabledButtonsResults.push(r.disabledButtons);
         if (r.touchTargets) touchTargetResults.push(r.touchTargets);
         if (r.keyboard) keyboardResults.push(r.keyboard);
         if (r.longTasks) longTasksResults.push(r.longTasks);
@@ -769,6 +778,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     (!checks.security || securityResult?.passed !== false) &&
     retireResults.every((r) => (r as any).passed !== false) &&
     deadClickResults.every((r) => (r as any).passed !== false) &&
+    disabledButtonsResults.every((r) => (r as any).passed !== false) &&
     touchTargetResults.every((r) => (r as any).passed !== false) &&
     keyboardResults.every((r) => (r as any).passed !== false) &&
     longTasksResults.every((r) => (r as any).passed !== false) &&
@@ -836,6 +846,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     security: securityResult,
     retire: checks.retire ? retireResults : undefined,
     deadClicks: checks.deadClicks ? deadClickResults : undefined,
+    disabledButtons: checks.disabledButtons ? disabledButtonsResults : undefined,
     touchTargets: checks.touchTargets ? touchTargetResults : undefined,
     keyboard: checks.keyboard ? keyboardResults : undefined,
     longTasks: checks.longTasks ? longTasksResults : undefined,
