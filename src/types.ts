@@ -180,6 +180,7 @@ export interface ChecksConfig {
   storage?: boolean;
   csrf?: boolean;
   errorPages?: boolean;
+  contrastStates?: boolean | { states?: ('hover' | 'focus' | 'active' | 'disabled' | 'visited')[]; selectors?: string[]; minRatio?: number; maxElements?: number };
 }
 
 export interface OutputConfig {
@@ -281,6 +282,7 @@ export interface InspectResult {
   storage?: import('./storage-audit.js').StorageAuditResult[];
   csrf?: import('./csrf-audit.js').CsrfAuditResult[];
   errorPages?: import('./error-page-audit.js').ErrorPageAuditResult[];
+  contrastStates?: import('./contrast-states-audit.js').ContrastStatesResult[];
   passed: boolean;
 }
 

@@ -132,6 +132,7 @@ const argv = await yargs(hideBin(process.argv))
       .option('storage', { type: 'boolean', describe: 'Audit localStorage/sessionStorage/IndexedDB usage' })
       .option('csrf', { type: 'boolean', describe: 'CSRF defence audit (tokens + SameSite cookies)' })
       .option('error-pages', { type: 'boolean', describe: 'Detect broken/misconfigured 404 and 500 pages' })
+      .option('contrast-states', { type: 'boolean', describe: 'WCAG contrast at hover/focus/disabled states (1.4.3 + 1.4.11)' })
       .option('out', { type: 'string', default: './uxinspect-report', describe: 'Output directory' })
       .option('baselines', { type: 'string', default: './uxinspect-baselines', describe: 'Visual baseline directory' })
       .option('ai', { type: 'boolean', default: false, describe: 'Enable keyless AI flow steps' })
@@ -266,6 +267,7 @@ async function runCmd(): Promise<void> {
     storage: pick(a.storage),
     csrf: pick(a.csrf),
     errorPages: pick(a['error-pages']),
+    contrastStates: pick(a['contrast-states']),
   };
   const cliConfig: InspectConfig = {
     url: a.url,

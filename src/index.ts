@@ -86,6 +86,7 @@ import { auditHydration } from './hydration-audit.js';
 import { auditStorage } from './storage-audit.js';
 import { auditCsrf } from './csrf-audit.js';
 import { auditErrorPages } from './error-page-audit.js';
+import { auditContrastStates } from './contrast-states-audit.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -162,6 +163,7 @@ import type { HydrationAuditResult } from './hydration-audit.js';
 import type { StorageAuditResult } from './storage-audit.js';
 import type { CsrfAuditResult } from './csrf-audit.js';
 import type { ErrorPageAuditResult } from './error-page-audit.js';
+import type { ContrastStatesResult } from './contrast-states-audit.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -287,6 +289,7 @@ export { auditHydration } from './hydration-audit.js';
 export { auditStorage } from './storage-audit.js';
 export { auditCsrf } from './csrf-audit.js';
 export { auditErrorPages } from './error-page-audit.js';
+export { auditContrastStates } from './contrast-states-audit.js';
 export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfall.js';
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
@@ -374,6 +377,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const storageResults: StorageAuditResult[] = [];
   const csrfResults: CsrfAuditResult[] = [];
   const errorPagesResults: ErrorPageAuditResult[] = [];
+  const contrastStatesResults: ContrastStatesResult[] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
 
@@ -472,6 +476,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         storage?: StorageAuditResult;
         csrf?: CsrfAuditResult;
         errorPages?: ErrorPageAuditResult;
+        contrastStates?: ContrastStatesResult;
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
@@ -587,6 +592,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const storageR = checks.storage ? await auditStorage(page).catch(() => undefined) : undefined;
         const csrfR = checks.csrf ? await auditCsrf(page, page.context()).catch(() => undefined) : undefined;
         const errorPagesR = checks.errorPages ? await auditErrorPages(page.context(), config.url).catch(() => undefined) : undefined;
+        const contrastStatesR = checks.contrastStates
+          ? await auditContrastStates(page, typeof checks.contrastStates === 'object' ? checks.contrastStates : {}).catch(() => undefined)
+          : undefined;
         const consoleR = console ? console.result() : undefined;
         if (console) console.detach();
         if (!config.parallel) await page.close();
@@ -618,6 +626,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           sourcemapScan: sourcemapScanR, secretScan: secretScanR, trackerSniff: trackerSniffR,
           zIndex: zIndexR, hydration: hydrationR, storage: storageR,
           csrf: csrfR, errorPages: errorPagesR,
+          contrastStates: contrastStatesR,
         };
       };
 
@@ -695,6 +704,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.storage) storageResults.push(r.storage);
         if (r.csrf) csrfResults.push(r.csrf);
         if (r.errorPages) errorPagesResults.push(r.errorPages);
+        if (r.contrastStates) contrastStatesResults.push(r.contrastStates);
       }
 
       if (checks.perf) {
@@ -809,6 +819,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     animationsResults.every((r) => (r as any).passed !== false) &&
     eventListenersResults.every((r) => (r as any).passed !== false) &&
     darkModeResults.every((r) => (r as any).passed !== false) &&
+    contrastStatesResults.every((r) => (r as any).passed !== false) &&
     tablesResults.every((r) => (r as any).passed !== false) &&
     svgsResults.every((r) => (r as any).passed !== false) &&
     mediaResults.every((r) => (r as any).passed !== false) &&
@@ -906,6 +917,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     storage: checks.storage ? storageResults : undefined,
     csrf: checks.csrf ? csrfResults : undefined,
     errorPages: checks.errorPages ? errorPagesResults : undefined,
+    contrastStates: checks.contrastStates ? contrastStatesResults : undefined,
     passed: baselinePassed,
   };
 
