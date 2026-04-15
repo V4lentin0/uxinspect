@@ -130,6 +130,24 @@ function buildChecksSchema(): JsonSchema {
     pagination: boolOrOpts({ scrollProbes: num() }),
     print: boolOrOpts({ screenshotPath: str() }),
     canonical: boolOrOpts({ followChain: bool() }),
+    authEdge: boolOrOpts({
+      storageStatePath: str(),
+      loginUrl: str(),
+      protectedUrl: str(),
+      logoutUrl: str(),
+      csrfTokenSelector: str(),
+      refreshUrlPattern: str(),
+      sessionCookieName: str(),
+      actionSelector: str(),
+      timeoutMs: num(),
+      loginCredentials: obj({
+        usernameSelector: str(),
+        username: str(),
+        passwordSelector: str(),
+        password: str(),
+        submitSelector: str(),
+      }, ['usernameSelector', 'username', 'passwordSelector', 'password', 'submitSelector']),
+    }),
   };
   return obj(properties);
 }

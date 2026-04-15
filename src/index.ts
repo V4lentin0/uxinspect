@@ -85,6 +85,7 @@ import { auditZIndex } from './zindex-audit.js';
 import { auditHydration } from './hydration-audit.js';
 import { auditStorage } from './storage-audit.js';
 import { auditCsrf } from './csrf-audit.js';
+import { auditAuthEdge } from './auth-edge-audit.js';
 import { auditErrorPages } from './error-page-audit.js';
 import type {
   InspectConfig,
@@ -161,6 +162,7 @@ import type { ZIndexAuditResult } from './zindex-audit.js';
 import type { HydrationAuditResult } from './hydration-audit.js';
 import type { StorageAuditResult } from './storage-audit.js';
 import type { CsrfAuditResult } from './csrf-audit.js';
+import type { AuthEdgeResult, AuthEdgeOptions } from './auth-edge-audit.js';
 import type { ErrorPageAuditResult } from './error-page-audit.js';
 
 export * from './types.js';
@@ -286,6 +288,7 @@ export { auditZIndex } from './zindex-audit.js';
 export { auditHydration } from './hydration-audit.js';
 export { auditStorage } from './storage-audit.js';
 export { auditCsrf } from './csrf-audit.js';
+export { auditAuthEdge } from './auth-edge-audit.js';
 export { auditErrorPages } from './error-page-audit.js';
 export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfall.js';
 export { detectOrphanAssets } from './orphan-assets.js';
@@ -374,6 +377,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const storageResults: StorageAuditResult[] = [];
   const csrfResults: CsrfAuditResult[] = [];
   const errorPagesResults: ErrorPageAuditResult[] = [];
+  const authEdgeResults: AuthEdgeResult[] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
 
@@ -472,6 +476,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         storage?: StorageAuditResult;
         csrf?: CsrfAuditResult;
         errorPages?: ErrorPageAuditResult;
+        authEdge?: AuthEdgeResult;
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
@@ -587,6 +592,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const storageR = checks.storage ? await auditStorage(page).catch(() => undefined) : undefined;
         const csrfR = checks.csrf ? await auditCsrf(page, page.context()).catch(() => undefined) : undefined;
         const errorPagesR = checks.errorPages ? await auditErrorPages(page.context(), config.url).catch(() => undefined) : undefined;
+        const authEdgeR = checks.authEdge && typeof checks.authEdge === 'object'
+          ? await auditAuthEdge(page, checks.authEdge as AuthEdgeOptions).catch(() => undefined)
+          : undefined;
         const consoleR = console ? console.result() : undefined;
         if (console) console.detach();
         if (!config.parallel) await page.close();
@@ -617,7 +625,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           favicon: faviconR, clickjacking: clickjackingR, criticalCss: criticalCssR,
           sourcemapScan: sourcemapScanR, secretScan: secretScanR, trackerSniff: trackerSniffR,
           zIndex: zIndexR, hydration: hydrationR, storage: storageR,
-          csrf: csrfR, errorPages: errorPagesR,
+          csrf: csrfR, errorPages: errorPagesR, authEdge: authEdgeR,
         };
       };
 
@@ -695,6 +703,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.storage) storageResults.push(r.storage);
         if (r.csrf) csrfResults.push(r.csrf);
         if (r.errorPages) errorPagesResults.push(r.errorPages);
+        if (r.authEdge) authEdgeResults.push(r.authEdge);
       }
 
       if (checks.perf) {
@@ -906,6 +915,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     storage: checks.storage ? storageResults : undefined,
     csrf: checks.csrf ? csrfResults : undefined,
     errorPages: checks.errorPages ? errorPagesResults : undefined,
+    authEdge: checks.authEdge ? authEdgeResults : undefined,
     passed: baselinePassed,
   };
 

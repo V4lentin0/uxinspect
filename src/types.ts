@@ -180,6 +180,7 @@ export interface ChecksConfig {
   storage?: boolean;
   csrf?: boolean;
   errorPages?: boolean;
+  authEdge?: boolean | import('./auth-edge-audit.js').AuthEdgeOptions;
 }
 
 export interface OutputConfig {
@@ -281,6 +282,7 @@ export interface InspectResult {
   storage?: import('./storage-audit.js').StorageAuditResult[];
   csrf?: import('./csrf-audit.js').CsrfAuditResult[];
   errorPages?: import('./error-page-audit.js').ErrorPageAuditResult[];
+  authEdge?: import('./auth-edge-audit.js').AuthEdgeResult[];
   passed: boolean;
 }
 
