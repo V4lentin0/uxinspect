@@ -10,6 +10,7 @@ import os from 'node:os';
 import { inspect } from './index.js';
 import { writeReplayViewer } from './replay-viewer.js';
 import { diffResults, formatDiff, loadResult, saveLastRun, LAST_RUN_FILE } from './diff-run.js';
+import { installHook, uninstallHook, type HookType } from './precommit.js';
 import type { InspectConfig } from './types.js';
 
 const STARTER_CONFIG = `import type { InspectConfig } from 'uxinspect';
@@ -216,6 +217,22 @@ const argv = await yargs(hideBin(process.argv))
       .option('db', { type: 'string', default: path.join('.uxinspect', 'history.db'), describe: 'SQLite database path' })
       .option('json', { type: 'boolean', default: false, describe: 'Emit machine-readable JSON (stats only)' }),
   )
+  .command('install-hook <type>', 'Install a uxinspect git hook (pre-commit = fast subset, pre-push = full audit) (P3 #32)', (y) =>
+    y
+      .positional('type', { type: 'string', demandOption: true, choices: ['pre-commit', 'pre-push'], describe: 'Hook type to install' })
+      .option('url', { type: 'string', describe: 'URL to inspect when the hook runs' })
+      .option('config', { type: 'string', describe: 'Path to uxinspect config file' })
+      .option('audits', { type: 'string', describe: 'Comma-separated audits to limit scope (e.g. perf,a11y). Maps to --checks.' })
+      .option('since', { type: 'string', describe: 'Pre-push only: git ref to diff against (default origin/HEAD)' })
+      .option('full', { type: 'boolean', default: true, describe: 'Pre-push only: run full audit (--all). Disable with --no-full.' })
+      .option('only-if-paths-match', { type: 'string', describe: 'Comma list of globs; hook exits 0 unless changed files match' })
+      .option('blocking', { type: 'boolean', default: true, describe: 'Block the git operation on failure (default true)' })
+      .option('timeout-ms', { type: 'number', describe: 'Hook timeout in ms (pre-commit: 60000, pre-push: 300000)' })
+      .option('force', { type: 'boolean', default: false, describe: 'Overwrite an existing non-managed hook (backs it up first)' }),
+  )
+  .command('uninstall-hook <type>', 'Remove a uxinspect-managed git hook and restore the most recent backup', (y) =>
+    y.positional('type', { type: 'string', demandOption: true, choices: ['pre-commit', 'pre-push'], describe: 'Hook type to uninstall' }),
+  )
   .demandCommand(1)
   .strict()
   .help()
@@ -232,6 +249,8 @@ if (cmd === 'watch') await watchCmd();
 if (cmd === 'replay') await replayCmd();
 if (cmd === 'diff') await diffCmd();
 if (cmd === 'cache') await cacheCmd();
+if (cmd === 'install-hook') await installHookCmd();
+if (cmd === 'uninstall-hook') await uninstallHookCmd();
 
 async function runCmd(): Promise<void> {
   const reporters = String((argv as any).reporters)
@@ -739,5 +758,54 @@ function mime(p: string): string {
   if (p.endsWith('.webm')) return 'video/webm';
   if (p.endsWith('.zip')) return 'application/zip';
   return 'application/octet-stream';
+}
+
+async function installHookCmd(): Promise<void> {
+  const a = argv as any;
+  const hookType = a.type as HookType;
+  const auditsRaw = typeof a.audits === 'string' ? a.audits.trim() : '';
+  const checks = auditsRaw ? auditsRaw.split(',').map((s: string) => s.trim()).filter(Boolean) : undefined;
+  const onlyIfRaw = typeof a['only-if-paths-match'] === 'string' ? a['only-if-paths-match'].trim() : '';
+  const onlyIfPathsMatch = onlyIfRaw ? onlyIfRaw.split(',').map((s: string) => s.trim()).filter(Boolean) : undefined;
+  const since = hookType === 'pre-push' ? ((a.since as string | undefined) ?? 'origin/HEAD') : undefined;
+  const result = await installHook({
+    hookType,
+    url: a.url,
+    configPath: a.config,
+    checks,
+    since,
+    full: hookType === 'pre-push' ? a.full !== false : undefined,
+    onlyIfPathsMatch,
+    blocking: a.blocking !== false,
+    timeoutMs: typeof a['timeout-ms'] === 'number' ? a['timeout-ms'] : undefined,
+    force: a.force === true,
+  });
+  if (!result.installed) {
+    console.error(`install-hook ${hookType} failed: ${result.error ?? 'unknown error'}`);
+    process.exit(1);
+  }
+  if (result.backupPath) {
+    console.log(`Existing hook backed up to ${result.backupPath}`);
+  }
+  if (result.alreadyManaged) {
+    console.log(`Updated existing uxinspect-managed ${hookType} hook at ${result.hookPath}`);
+  } else {
+    console.log(`Installed ${hookType} hook at ${result.hookPath}`);
+  }
+}
+
+async function uninstallHookCmd(): Promise<void> {
+  const a = argv as any;
+  const hookType = a.type as HookType;
+  const result = await uninstallHook(hookType);
+  if (result.error) {
+    console.error(`uninstall-hook ${hookType} failed: ${result.error}`);
+    process.exit(1);
+  }
+  if (result.removed) {
+    console.log(`Removed uxinspect ${hookType} hook (restored previous backup if any)`);
+  } else {
+    console.log(`No uxinspect-managed ${hookType} hook to remove`);
+  }
 }
 
