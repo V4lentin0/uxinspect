@@ -154,6 +154,8 @@ const argv = await yargs(hideBin(process.argv))
       .option('har', { type: 'boolean', default: false, describe: 'Export HAR file' })
       .option('trace', { type: 'boolean', default: false, describe: 'Export Playwright trace' })
       .option('storage-state', { type: 'string', describe: 'Path to playwright storageState JSON for auth' })
+      .option('gated-routes', { type: 'string', describe: 'Path to file with one URL per line, sitemap.xml URL, or glob pattern. Combined with --storage-state triggers auth-gated route walker.' })
+      .option('gated-concurrency', { type: 'number', describe: 'Concurrency for auth-gated route walker (default 4)' })
       .option('reporters', { type: 'string', default: 'html,json', describe: 'Comma list: html,json,junit,sarif' })
       .option('publish', { type: 'string', describe: 'Dashboard URL to upload report' })
       .option('publish-token', { type: 'string', describe: 'Bearer token for dashboard upload' })
@@ -306,6 +308,11 @@ async function runCmd(): Promise<void> {
     har: (argv as any).har,
     trace: (argv as any).trace,
     storageState: (argv as any)['storage-state'],
+    gatedRoutes: (argv as any)['gated-routes'],
+    gatedRoutesOptions:
+      (argv as any)['gated-concurrency'] !== undefined
+        ? { concurrency: (argv as any)['gated-concurrency'] }
+        : undefined,
     reporters,
     budget,
     notify: notifyCfg(),

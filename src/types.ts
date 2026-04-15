@@ -29,6 +29,13 @@ export interface InspectConfig {
   debug?: boolean;
   slowMo?: number;
   apiFlows?: ApiFlow[];
+  gatedRoutes?: string[] | string;
+  gatedRoutesOptions?: {
+    concurrency?: number;
+    explore?: boolean | import('./explore.js').ExploreOptions;
+    navigationTimeoutMs?: number;
+    checkErrorStates?: boolean;
+  };
 }
 
 export interface RouteMock {
@@ -308,6 +315,7 @@ export interface InspectResult {
   errorPages?: import('./error-page-audit.js').ErrorPageAuditResult[];
   stuckSpinners?: import('./stuck-spinner-audit.js').StuckSpinnerResult[];
   errorState?: import('./error-state-audit.js').ErrorStateResult;
+  authWalk?: import('./auth-walker.js').AuthWalkResult;
   passed: boolean;
 }
 

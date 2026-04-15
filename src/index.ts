@@ -94,6 +94,7 @@ import { auditErrorPages } from './error-page-audit.js';
 import { startReplay, stopReplay } from './replay.js';
 import { auditStuckSpinners } from './stuck-spinner-audit.js';
 import { auditErrorStateAppearance } from './error-state-audit.js';
+import { walkAuthGatedRoutes } from './auth-walker.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -305,6 +306,7 @@ export { auditCsrf } from './csrf-audit.js';
 export { auditErrorPages } from './error-page-audit.js';
 export { auditStuckSpinners, DEFAULT_STUCK_SPINNER_SELECTORS } from './stuck-spinner-audit.js';
 export { auditErrorStateAppearance, snapshotErrorState, diffErrorStateAppearance, DEFAULT_ERROR_STATE_SELECTORS } from './error-state-audit.js';
+export { walkAuthGatedRoutes, resolveRoutes } from './auth-walker.js';
 export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfall.js';
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
@@ -835,6 +837,21 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     robotsAuditResult = await auditRobots(config.url).catch(() => undefined);
   }
 
+  let authWalkResult: InspectResult['authWalk'];
+  if (config.storageState && config.gatedRoutes !== undefined) {
+    authWalkResult = await walkAuthGatedRoutes({
+      storageStatePath: config.storageState,
+      routes: config.gatedRoutes,
+      baseUrl: config.url,
+      browser: config.browser,
+      headless: !config.headed && !config.debug,
+      concurrency: config.gatedRoutesOptions?.concurrency,
+      explore: config.gatedRoutesOptions?.explore,
+      navigationTimeoutMs: config.gatedRoutesOptions?.navigationTimeoutMs,
+      checkErrorStates: config.gatedRoutesOptions?.checkErrorStates,
+    }).catch(() => undefined);
+  }
+
   const finishedAt = new Date();
   const baselinePassed =
     flowResults.every((f) => f.passed) &&
@@ -988,8 +1005,13 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     errorPages: checks.errorPages ? errorPagesResults : undefined,
     stuckSpinners: checks.stuckSpinners ? stuckSpinnerResults : undefined,
     errorState: checks.errorState ? errorStateResult : undefined,
+    authWalk: authWalkResult,
     passed: baselinePassed,
   };
+
+  if (authWalkResult && authWalkResult.failed.length > 0) {
+    result.passed = false;
+  }
 
   if (config.apiFlows?.length) {
     const apiResults = await runApiFlows(config.apiFlows).catch(() => []);

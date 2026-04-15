@@ -348,6 +348,16 @@ export function generateConfigSchema(): JsonSchema {
     headed: bool(),
     parallel: bool(),
     storageState: str(),
+    gatedRoutes: {
+      oneOf: [arr(str()), str()],
+      description: 'Routes to walk while authenticated. Array of URLs/paths, file path, sitemap URL, or glob.',
+    },
+    gatedRoutesOptions: obj({
+      concurrency: num({ minimum: 1 }),
+      explore: { oneOf: [bool(), obj({ maxClicks: num(), maxPages: num(), sameOrigin: bool(), submitForms: bool() })] },
+      navigationTimeoutMs: num({ minimum: 0 }),
+      checkErrorStates: bool(),
+    }),
     reporters: arr(enumStr(['html', 'json', 'junit', 'sarif', 'allure', 'tap'])),
     browser: enumStr(['chromium', 'firefox', 'webkit']),
     device: str(),
