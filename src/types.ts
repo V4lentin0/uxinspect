@@ -180,6 +180,16 @@ export interface ChecksConfig {
   storage?: boolean;
   csrf?: boolean;
   errorPages?: boolean;
+  email?: boolean | {
+    mailpitUrl?: string;
+    mailhogUrl?: string;
+    expectedSubject?: string;
+    to?: string;
+    clients?: ('gmail-web' | 'apple-mail-web' | 'outlook-web')[];
+    timeoutMs?: number;
+    pollMs?: number;
+    outputDir?: string;
+  };
 }
 
 export interface OutputConfig {
@@ -281,6 +291,7 @@ export interface InspectResult {
   storage?: import('./storage-audit.js').StorageAuditResult[];
   csrf?: import('./csrf-audit.js').CsrfAuditResult[];
   errorPages?: import('./error-page-audit.js').ErrorPageAuditResult[];
+  email?: import('./email-audit.js').EmailAuditResult[];
   passed: boolean;
 }
 

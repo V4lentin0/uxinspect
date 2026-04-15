@@ -130,6 +130,16 @@ function buildChecksSchema(): JsonSchema {
     pagination: boolOrOpts({ scrollProbes: num() }),
     print: boolOrOpts({ screenshotPath: str() }),
     canonical: boolOrOpts({ followChain: bool() }),
+    email: boolOrOpts({
+      mailpitUrl: str({ format: 'uri' }),
+      mailhogUrl: str({ format: 'uri' }),
+      expectedSubject: str(),
+      to: str(),
+      clients: arr(enumStr(['gmail-web', 'apple-mail-web', 'outlook-web'])),
+      timeoutMs: num({ minimum: 0 }),
+      pollMs: num({ minimum: 0 }),
+      outputDir: str(),
+    }),
   };
   return obj(properties);
 }
