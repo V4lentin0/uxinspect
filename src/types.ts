@@ -36,6 +36,8 @@ export interface InspectConfig {
     navigationTimeoutMs?: number;
     checkErrorStates?: boolean;
   };
+  /** Visual diff algorithm + ignore-region DSL (P2 #23). */
+  visualDiff?: VisualDiffConfig;
 }
 
 export interface RouteMock {
@@ -397,6 +399,51 @@ export interface VisualResult {
   diffPixels: number;
   diffRatio: number;
   passed: boolean;
+  /** Algorithm used for this comparison (P2 #23). Omitted when pixelmatch is used to preserve backwards compatibility. */
+  algorithm?: 'pixelmatch' | 'ssim';
+  /** Mean SSIM score across windows when `algorithm === 'ssim'`. 1.0 == identical. */
+  ssim?: number;
+  /** Count of SSIM windows whose score fell below the region threshold. */
+  changedRegions?: number;
+}
+
+/**
+ * Ignore-region DSL (P2 #23). Either an absolute rectangle or a selector to resolve at runtime.
+ * Both baseline and current images are masked with the same regions before diffing.
+ */
+export type VisualIgnoreRegion =
+  | { x: number; y: number; w: number; h: number }
+  | { x: number; y: number; width: number; height: number }
+  | { selector: string };
+
+/**
+ * Visual diff configuration (P2 #23).
+ * Backwards compatible: when omitted, the default algorithm is `pixelmatch` with the
+ * same threshold / failRatio semantics as before.
+ */
+export interface VisualDiffConfig {
+  /** Algorithm to run. Defaults to `pixelmatch`. */
+  algorithm?: 'pixelmatch' | 'ssim';
+  /**
+   * Anti-alias tolerance.
+   * - pixelmatch: passed through as the `threshold` option (higher = more tolerant).
+   * - ssim: passed as the Gaussian window size (higher = more tolerant to small shifts). Defaults
+   *   to 11 which matches the Wang et al. SSIM paper.
+   */
+  antialiasTolerance?: number;
+  /** Regions to mask with a solid fill on both baseline and current before diffing. */
+  ignoreRegions?: VisualIgnoreRegion[];
+  /** Pixelmatch colour-distance threshold (0..1). Ignored for SSIM. */
+  threshold?: number;
+  /** Ratio of differing pixels (pixelmatch) above which the result fails. Ignored for SSIM. */
+  failRatio?: number;
+  /**
+   * SSIM pass threshold (0..1). Ignored for pixelmatch.
+   * A mean SSIM >= this value passes. Defaults to 0.98.
+   */
+  ssimThreshold?: number;
+  /** Fill colour used when masking ignore regions (hex `#rrggbb` or `rgb(r,g,b)`). Defaults to black. */
+  maskColor?: string;
 }
 
 export interface BrokenInteraction {
