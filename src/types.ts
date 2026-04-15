@@ -405,4 +405,11 @@ export interface ExploreResult {
   replayPath?: string;
   stuckSpinners?: import('./stuck-spinner-audit.js').StuckSpinnerFinding[];
   brokenInteractions?: BrokenInteraction[];
+  coverage?: {
+    clicked: number;
+    total: number;
+    percent: number;
+    byTag: Record<string, number>;
+    missed: Array<{ selector: string; snippet: string }>;
+  };
 }
