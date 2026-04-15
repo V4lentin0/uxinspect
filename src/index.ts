@@ -86,6 +86,7 @@ import { auditHydration } from './hydration-audit.js';
 import { auditStorage } from './storage-audit.js';
 import { auditCsrf } from './csrf-audit.js';
 import { auditErrorPages } from './error-page-audit.js';
+import { auditGdprConsent } from './gdpr-audit.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -162,6 +163,7 @@ import type { HydrationAuditResult } from './hydration-audit.js';
 import type { StorageAuditResult } from './storage-audit.js';
 import type { CsrfAuditResult } from './csrf-audit.js';
 import type { ErrorPageAuditResult } from './error-page-audit.js';
+import type { GdprResult } from './gdpr-audit.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -287,6 +289,7 @@ export { auditHydration } from './hydration-audit.js';
 export { auditStorage } from './storage-audit.js';
 export { auditCsrf } from './csrf-audit.js';
 export { auditErrorPages } from './error-page-audit.js';
+export { auditGdprConsent } from './gdpr-audit.js';
 export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfall.js';
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
@@ -374,6 +377,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const storageResults: StorageAuditResult[] = [];
   const csrfResults: CsrfAuditResult[] = [];
   const errorPagesResults: ErrorPageAuditResult[] = [];
+  const gdprResults: GdprResult[] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
 
@@ -472,6 +476,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         storage?: StorageAuditResult;
         csrf?: CsrfAuditResult;
         errorPages?: ErrorPageAuditResult;
+        gdpr?: GdprResult;
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
@@ -587,6 +592,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const storageR = checks.storage ? await auditStorage(page).catch(() => undefined) : undefined;
         const csrfR = checks.csrf ? await auditCsrf(page, page.context()).catch(() => undefined) : undefined;
         const errorPagesR = checks.errorPages ? await auditErrorPages(page.context(), config.url).catch(() => undefined) : undefined;
+        const gdprR = checks.gdpr ? await auditGdprConsent(page, typeof checks.gdpr === 'object' ? checks.gdpr : {}).catch(() => undefined) : undefined;
         const consoleR = console ? console.result() : undefined;
         if (console) console.detach();
         if (!config.parallel) await page.close();
@@ -618,6 +624,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           sourcemapScan: sourcemapScanR, secretScan: secretScanR, trackerSniff: trackerSniffR,
           zIndex: zIndexR, hydration: hydrationR, storage: storageR,
           csrf: csrfR, errorPages: errorPagesR,
+          gdpr: gdprR,
         };
       };
 
@@ -695,6 +702,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.storage) storageResults.push(r.storage);
         if (r.csrf) csrfResults.push(r.csrf);
         if (r.errorPages) errorPagesResults.push(r.errorPages);
+        if (r.gdpr) gdprResults.push(r.gdpr);
       }
 
       if (checks.perf) {
@@ -818,7 +826,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     printResults.every((r) => (r as any).passed !== false) &&
     canonicalResults.every((r) => (r as any).passed !== false) &&
     (compressionResult === undefined || (compressionResult as any).passed !== false) &&
-    (robotsAuditResult === undefined || (robotsAuditResult as any).passed !== false);
+    (robotsAuditResult === undefined || (robotsAuditResult as any).passed !== false) &&
+    gdprResults.every((r) => (r as any).passed !== false);
 
   const result: InspectResult = {
     url: config.url,
@@ -906,6 +915,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     storage: checks.storage ? storageResults : undefined,
     csrf: checks.csrf ? csrfResults : undefined,
     errorPages: checks.errorPages ? errorPagesResults : undefined,
+    gdpr: checks.gdpr ? gdprResults : undefined,
     passed: baselinePassed,
   };
 

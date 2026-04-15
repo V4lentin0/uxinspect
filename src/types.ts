@@ -180,6 +180,7 @@ export interface ChecksConfig {
   storage?: boolean;
   csrf?: boolean;
   errorPages?: boolean;
+  gdpr?: boolean | { acceptSelectors?: string[]; rejectSelectors?: string[]; consentDeclarationUrl?: string; consentTimeoutMs?: number };
 }
 
 export interface OutputConfig {
@@ -281,6 +282,7 @@ export interface InspectResult {
   storage?: import('./storage-audit.js').StorageAuditResult[];
   csrf?: import('./csrf-audit.js').CsrfAuditResult[];
   errorPages?: import('./error-page-audit.js').ErrorPageAuditResult[];
+  gdpr?: import('./gdpr-audit.js').GdprResult[];
   passed: boolean;
 }
 
