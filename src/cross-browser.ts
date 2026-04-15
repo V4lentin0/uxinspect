@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs';
+import { promises as fs, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
 import pixelmatch from 'pixelmatch';
@@ -383,4 +383,294 @@ export async function runCrossBrowser(
     passed,
     outDir,
   };
+}
+
+function xbEscape(s: string): string {
+  return (s ?? '').toString()
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function readPngDataUri(filePath: string): string | null {
+  try {
+    if (!existsSync(filePath)) return null;
+    const bytes = readFileSync(filePath);
+    return `data:image/png;base64,${bytes.toString('base64')}`;
+  } catch {
+    return null;
+  }
+}
+
+function collectFlowViewportsFromReport(report: CrossBrowserReport): Array<{ flow: string; viewport: string }> {
+  const seen = new Set<string>();
+  const out: Array<{ flow: string; viewport: string }> = [];
+  for (const d of report.screenshotDiffs) {
+    const key = `${d.flow}\u0000${d.viewport}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ flow: d.flow, viewport: d.viewport });
+  }
+  if (out.length === 0) {
+    out.push({ flow: 'load', viewport: 'desktop' });
+  }
+  return out;
+}
+
+function renderOutcomeSummary(report: CrossBrowserReport): string {
+  const rows = report.outcomes.map((o) => {
+    const statusClass = o.passed ? 'xb-pass' : 'xb-fail';
+    const statusLabel = o.passed ? 'PASS' : 'FAIL';
+    const lcp = typeof o.perfLcp === 'number' ? `${o.perfLcp}ms` : '—';
+    const cls = typeof o.perfCls === 'number' ? o.perfCls.toFixed(3) : '—';
+    return `<tr>
+      <td><strong>${xbEscape(o.engine)}</strong></td>
+      <td><span class="xb-pill ${statusClass}">${statusLabel}</span></td>
+      <td>${(o.durationMs / 1000).toFixed(1)}s</td>
+      <td>${lcp}</td>
+      <td>${cls}</td>
+      <td>${o.a11yCriticals}</td>
+      <td>${o.visualDiffs}</td>
+      <td>${o.consoleErrorCount}</td>
+      ${o.error ? `<td class="xb-err">${xbEscape(o.error)}</td>` : '<td></td>'}
+    </tr>`;
+  }).join('');
+  return `<table class="xb-table">
+    <thead>
+      <tr>
+        <th>Engine</th>
+        <th>Status</th>
+        <th>Duration</th>
+        <th>LCP</th>
+        <th>CLS</th>
+        <th>A11y crit</th>
+        <th>Visual diffs</th>
+        <th>Console err</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderMatrixRow(
+  report: CrossBrowserReport,
+  outDir: string,
+  flow: string,
+  viewport: string,
+  index: number,
+): string {
+  const engines = report.engines;
+  const cellId = (engine: BrowserEngine): string => `xb-cell-${index}-${engine}`;
+  const cells = engines.map((engine) => {
+    const shotPath = path.join(outDir, engine, 'report', 'current', `${flow}-${viewport}.png`);
+    const shotUri = readPngDataUri(shotPath);
+    const baseLabel = `${engine}`;
+    if (!shotUri) {
+      return `<td class="xb-cell">
+        <div class="xb-cell-head">${xbEscape(baseLabel)}</div>
+        <div class="xb-empty">screenshot unavailable</div>
+      </td>`;
+    }
+    return `<td class="xb-cell" id="${cellId(engine)}">
+      <div class="xb-cell-head">${xbEscape(baseLabel)}</div>
+      <div class="xb-stack">
+        <img class="xb-base" src="${shotUri}" alt="${xbEscape(`${engine} ${flow} ${viewport}`)}" />
+        <img class="xb-diff" data-cell="${cellId(engine)}" src="" alt="" style="display:none" />
+      </div>
+    </td>`;
+  }).join('');
+
+  // Build diff toggle buttons: one button per (engineA-vs-engineB) pair for this flow/viewport
+  const pairs = report.screenshotDiffs.filter((d) => d.flow === flow && d.viewport === viewport);
+  const toggleButtons = pairs.map((p) => {
+    const diffUri = readPngDataUri(p.diffPath);
+    if (!diffUri) return '';
+    const targetA = cellId(p.engineA);
+    const targetB = cellId(p.engineB);
+    const pct = (p.diffRatio * 100).toFixed(2);
+    return `<button type="button" class="xb-btn xb-diff-btn"
+      data-diff="${diffUri}"
+      data-target-a="${targetA}"
+      data-target-b="${targetB}">
+      ${xbEscape(p.engineA)} vs ${xbEscape(p.engineB)}
+      <span class="xb-meta">${pct}%</span>
+    </button>`;
+  }).join('');
+
+  const sliderId = `xb-slider-${index}`;
+  const hasDiffs = pairs.length > 0;
+  const controls = hasDiffs ? `
+    <div class="xb-controls">
+      <div class="xb-btn-row">
+        <button type="button" class="xb-btn xb-btn-clear" data-row="${index}">clear</button>
+        ${toggleButtons}
+      </div>
+      <label class="xb-slider-label" for="${sliderId}">overlay opacity
+        <input type="range" id="${sliderId}" class="xb-slider" data-row="${index}" min="0" max="100" value="60" />
+        <span class="xb-slider-val" data-for="${sliderId}">60%</span>
+      </label>
+    </div>
+  ` : '';
+
+  return `<section class="xb-flow" data-row="${index}">
+    <h4 class="xb-flow-title">${xbEscape(flow)} <span class="xb-vp">· ${xbEscape(viewport)}</span></h4>
+    <table class="xb-matrix">
+      <thead>
+        <tr>${engines.map((e) => `<th>${xbEscape(e)}</th>`).join('')}</tr>
+      </thead>
+      <tbody><tr>${cells}</tr></tbody>
+    </table>
+    ${controls}
+  </section>`;
+}
+
+function renderDivergence(report: CrossBrowserReport): string {
+  if (!report.divergent.length) {
+    return '<p class="xb-empty">No divergences detected across engines.</p>';
+  }
+  const items = report.divergent.map((d) => `<li>${xbEscape(d)}</li>`).join('');
+  return `<ul class="xb-divergent">${items}</ul>`;
+}
+
+const CROSS_BROWSER_STYLES = `
+<style>
+  .xb-root { --xb-bg:#FAFAFA; --xb-card:#FFFFFF; --xb-border:#E5E7EB; --xb-text:#1D1D1F;
+             --xb-muted:#6B7280; --xb-green:#10B981; --xb-green-bg:#ECFDF5;
+             --xb-blue:#3B82F6; --xb-blue-bg:#EFF6FF; --xb-red:#EF4444;
+             background: var(--xb-card); border: 1px solid var(--xb-border); border-radius: 8px;
+             padding: 16px; margin-bottom: 16px; font-family: 'Inter', system-ui, sans-serif;
+             color: var(--xb-text); }
+  .xb-root h3 { font-size: 16px; margin: 0 0 12px; }
+  .xb-root h4 { font-size: 14px; margin: 12px 0 8px; }
+  .xb-root .xb-vp { color: var(--xb-muted); font-weight: 400; font-size: 13px; }
+  .xb-root .xb-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 12px; }
+  .xb-root .xb-table th, .xb-root .xb-table td { text-align: left; padding: 6px 8px;
+    border-bottom: 1px solid var(--xb-border); vertical-align: top; }
+  .xb-root .xb-table th { color: var(--xb-muted); font-weight: 600; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.04em; background: #F9FAFB; }
+  .xb-root .xb-matrix { width: 100%; border-collapse: separate; border-spacing: 8px;
+    table-layout: fixed; margin-top: 6px; }
+  .xb-root .xb-matrix th { color: var(--xb-muted); font-weight: 600; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.04em; text-align: left; padding: 4px 8px; }
+  .xb-root .xb-cell { background: #F9FAFB; border: 1px solid var(--xb-border); border-radius: 6px;
+    padding: 8px; vertical-align: top; }
+  .xb-root .xb-cell-head { font-size: 11px; color: var(--xb-muted); text-transform: uppercase;
+    letter-spacing: 0.04em; margin-bottom: 6px; font-weight: 600; }
+  .xb-root .xb-stack { position: relative; line-height: 0; }
+  .xb-root .xb-stack img { width: 100%; height: auto; border-radius: 4px; display: block; }
+  .xb-root .xb-diff { position: absolute; top: 0; left: 0; pointer-events: none;
+    mix-blend-mode: normal; }
+  .xb-root .xb-empty { color: var(--xb-muted); font-style: italic; font-size: 13px;
+    padding: 12px; background: #F9FAFB; border-radius: 4px; text-align: center; }
+  .xb-root .xb-controls { margin-top: 8px; display: flex; flex-direction: column; gap: 6px;
+    padding: 8px; background: #F9FAFB; border: 1px solid var(--xb-border); border-radius: 6px; }
+  .xb-root .xb-btn-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .xb-root .xb-btn { font-family: inherit; font-size: 12px; padding: 4px 10px;
+    background: var(--xb-card); border: 1px solid var(--xb-border); border-radius: 6px;
+    cursor: pointer; color: var(--xb-text); display: inline-flex; align-items: center; gap: 6px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+  .xb-root .xb-btn:hover { background: var(--xb-green-bg); border-color: var(--xb-green); }
+  .xb-root .xb-btn.active { background: var(--xb-green-bg); border-color: var(--xb-green);
+    color: var(--xb-green); }
+  .xb-root .xb-btn-clear { background: var(--xb-card); }
+  .xb-root .xb-meta { font-size: 11px; color: var(--xb-muted); }
+  .xb-root .xb-slider-label { display: flex; align-items: center; gap: 8px; font-size: 12px;
+    color: var(--xb-muted); }
+  .xb-root .xb-slider { flex: 1; max-width: 280px; accent-color: var(--xb-green); }
+  .xb-root .xb-slider-val { font-variant-numeric: tabular-nums; color: var(--xb-text);
+    font-weight: 600; min-width: 38px; text-align: right; }
+  .xb-root .xb-pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px;
+    font-weight: 600; }
+  .xb-root .xb-pass { background: var(--xb-green-bg); color: var(--xb-green); }
+  .xb-root .xb-fail { background: #FEF2F2; color: #991B1B; }
+  .xb-root .xb-err { color: var(--xb-red); font-size: 11px; max-width: 240px; word-break: break-word; }
+  .xb-root .xb-divergent { margin: 8px 0; padding-left: 20px; font-size: 13px; }
+  .xb-root .xb-divergent li { margin-bottom: 4px; }
+  .xb-root .xb-header-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px;
+    color: var(--xb-muted); margin-bottom: 8px; }
+</style>`;
+
+const CROSS_BROWSER_SCRIPT = `
+<script>
+(function(){
+  var root = document.currentScript && document.currentScript.parentElement;
+  if (!root) root = document.querySelector('.xb-root');
+  if (!root) return;
+  var sliders = root.querySelectorAll('.xb-slider');
+  sliders.forEach(function(s){
+    s.addEventListener('input', function(){
+      var val = parseInt(s.value, 10);
+      var row = s.getAttribute('data-row');
+      var labelSel = '.xb-slider-val[data-for="' + s.id + '"]';
+      var lbl = root.querySelector(labelSel);
+      if (lbl) lbl.textContent = val + '%';
+      var imgs = root.querySelectorAll('.xb-flow[data-row="' + row + '"] .xb-diff');
+      imgs.forEach(function(img){ img.style.opacity = String(val/100); });
+    });
+  });
+  var btns = root.querySelectorAll('.xb-diff-btn');
+  btns.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var diff = btn.getAttribute('data-diff');
+      var ta = btn.getAttribute('data-target-a');
+      var tb = btn.getAttribute('data-target-b');
+      var section = btn.closest('.xb-flow');
+      if (!section) return;
+      var allBtns = section.querySelectorAll('.xb-diff-btn');
+      allBtns.forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      var allDiffs = section.querySelectorAll('.xb-diff');
+      allDiffs.forEach(function(img){
+        var cell = img.getAttribute('data-cell');
+        if (cell === ta || cell === tb) {
+          img.src = diff;
+          img.style.display = 'block';
+          var slider = section.querySelector('.xb-slider');
+          img.style.opacity = slider ? String(parseInt(slider.value, 10)/100) : '0.6';
+        } else {
+          img.src = '';
+          img.style.display = 'none';
+        }
+      });
+    });
+  });
+  var clears = root.querySelectorAll('.xb-btn-clear');
+  clears.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var section = btn.closest('.xb-flow');
+      if (!section) return;
+      section.querySelectorAll('.xb-diff-btn').forEach(function(b){ b.classList.remove('active'); });
+      section.querySelectorAll('.xb-diff').forEach(function(img){
+        img.src = '';
+        img.style.display = 'none';
+      });
+    });
+  });
+})();
+</script>`;
+
+export function renderCrossBrowserHtml(report: CrossBrowserReport, outDir: string): string {
+  const baseDir = path.resolve(outDir);
+  const pairs = collectFlowViewportsFromReport(report);
+  const matrixRows = pairs
+    .map((p, idx) => renderMatrixRow(report, baseDir, p.flow, p.viewport, idx))
+    .join('');
+  const overallStatus = report.passed ? 'PASS' : 'FAIL';
+  const overallClass = report.passed ? 'xb-pass' : 'xb-fail';
+  return `<section class="xb-root">
+  ${CROSS_BROWSER_STYLES}
+  <h3>Cross-browser matrix <span class="xb-pill ${overallClass}">${overallStatus}</span></h3>
+  <div class="xb-header-meta">
+    <span><strong>URL:</strong> ${xbEscape(report.url)}</span>
+    <span><strong>Engines:</strong> ${report.engines.map(xbEscape).join(' / ')}</span>
+  </div>
+  ${renderOutcomeSummary(report)}
+  <h4>Divergences</h4>
+  ${renderDivergence(report)}
+  <h4>Screenshots</h4>
+  ${matrixRows}
+  ${CROSS_BROWSER_SCRIPT}
+</section>`;
 }

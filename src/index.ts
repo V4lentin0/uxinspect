@@ -247,7 +247,7 @@ export { toSlackBlocks, postSlackBlocks } from './slack-formatter.js';
 export { toDiscordEmbed, postDiscordEmbed } from './discord-formatter.js';
 export { toTeamsCard, postTeamsCard } from './teams-formatter.js';
 export { runChaos } from './chaos.js';
-export { runCrossBrowser } from './cross-browser.js';
+export { runCrossBrowser, renderCrossBrowserHtml } from './cross-browser.js';
 export { convertCodegen, convertCodegenFile, flowToPlaywrightSnippet } from './codegen-converter.js';
 export { installPrecommit, uninstallPrecommit, generateHookScript } from './precommit.js';
 export { runInitWizard, generateConfigFile, generateWorkflowFile } from './init-wizard.js';

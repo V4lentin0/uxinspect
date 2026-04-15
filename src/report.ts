@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import type { InspectResult } from './types.js';
+import { renderCrossBrowserHtml } from './cross-browser.js';
 
 const _pathRef = path;
 
@@ -476,6 +477,7 @@ function renderHTML(r: InspectResult): string {
   ${(r as any).webfonts?.length ? `<h2>Webfonts</h2>${(r as any).webfonts.map(renderWebfonts).join('')}` : ''}
   ${(r as any).motionPrefs?.length ? `<h2>Motion preferences</h2>${(r as any).motionPrefs.map(renderMotionPrefs).join('')}` : ''}
   ${r.explore ? `<h2>Exploration</h2>${renderExplore(r.explore)}` : ''}
+  ${r.crossBrowser ? `<h2>Cross-browser</h2>${renderCrossBrowserHtml(r.crossBrowser, r.crossBrowser.outDir)}` : ''}
   ${renderUnknownSections(r)}
 </body>
 </html>`;
@@ -489,7 +491,7 @@ const KNOWN_RESULT_KEYS = new Set([
   'exposedPaths', 'tls', 'crawl', 'contentQuality', 'resourceHints', 'mixedContent',
   'compression', 'cacheHeaders', 'cookieBanner', 'thirdParty', 'bundleSize',
   'openGraph', 'robotsAudit', 'imageAudit', 'webfonts', 'motionPrefs', 'explore',
-  'apiFlows', 'passed',
+  'apiFlows', 'crossBrowser', 'passed',
 ]);
 
 function renderUnknownSections(r: any): string {

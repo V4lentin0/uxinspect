@@ -281,6 +281,7 @@ export interface InspectResult {
   storage?: import('./storage-audit.js').StorageAuditResult[];
   csrf?: import('./csrf-audit.js').CsrfAuditResult[];
   errorPages?: import('./error-page-audit.js').ErrorPageAuditResult[];
+  crossBrowser?: import('./cross-browser.js').CrossBrowserReport;
   passed: boolean;
 }
 
