@@ -7,6 +7,12 @@ import type { VisualDiffConfig, VisualIgnoreRegion, VisualResult } from './types
 import type { BaselineStore } from './store.js';
 import { ssimFromBuffers } from './visual-ssim.js';
 import { applyMaskToPng, resolveMaskRegions, type MaskRegion, type Rect } from './visual-mask.js';
+import {
+  prepareCapture,
+  stitchFullPage,
+  resolveCaptureOptions,
+  type CaptureOptions,
+} from './visual-capture.js';
 
 export interface VisualOptions {
   baselineDir: string;
@@ -18,6 +24,8 @@ export interface VisualOptions {
   store?: BaselineStore;
   /** Visual diff configuration (P2 #23). Backwards compatible when omitted. */
   diff?: VisualDiffConfig;
+  /** P2 #24 — freeze animations / wait fonts / auto-scroll / stitch. */
+  captureOptions?: CaptureOptions;
 }
 
 function normaliseRegion(r: VisualIgnoreRegion): MaskRegion {
@@ -82,7 +90,18 @@ export async function checkVisual(
   const diffCfg: VisualDiffConfig = opts.diff ?? {};
   const algorithm = diffCfg.algorithm ?? 'pixelmatch';
 
-  const rawCurrent = await page.screenshot({ fullPage: true });
+  // P2 #24 — stabilise capture (freeze animations / wait fonts / auto-scroll / stitch)
+  // before we snapshot so the diff is deterministic.
+  const resolved = resolveCaptureOptions(opts.captureOptions);
+  await prepareCapture(page, resolved);
+  let rawCurrent: Buffer;
+  if (resolved.stitch) {
+    rawCurrent = await stitchFullPage(page);
+  } else {
+    rawCurrent = await page.screenshot({ fullPage: true });
+  }
+
+  // P2 #23 — apply ignore-region masks before writing current + before diffing.
   const ignoreRects = await resolveIgnoreRects(page, diffCfg.ignoreRegions);
   const maskColor = parseColor(diffCfg.maskColor);
   const currentBytes = ignoreRects.length > 0

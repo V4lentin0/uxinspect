@@ -84,7 +84,14 @@ export interface AssertionFailure {
   details?: unknown;
 }
 
-export type Step = StepAction & { assert?: AssertConfig };
+export type Step = StepAction & {
+  assert?: AssertConfig;
+  /** P2 #24 — Apply stable-capture options (freeze animations, wait fonts,
+   *  lazy-load auto-scroll, scroll-and-stitch) to screenshot-taking steps
+   *  and to the visual-assertion screenshot. Has no effect on non-capturing
+   *  steps. Defaults: freezeAnimations + waitFonts ON, autoScrollLazy + stitch OFF. */
+  captureOptions?: import('./visual-capture.js').CaptureOptions;
+};
 
 export type StepAction =
   | { goto: string }
@@ -227,6 +234,10 @@ export interface OutputConfig {
   dir?: string;
   baselineDir?: string;
   reportFormat?: 'html' | 'json' | 'both';
+  /** P2 #24 — Apply stable-capture options (freeze animations, wait fonts,
+   *  lazy-load auto-scroll, scroll-and-stitch) to visual diff screenshots.
+   *  Defaults: freezeAnimations + waitFonts ON, autoScrollLazy + stitch OFF. */
+  captureOptions?: import('./visual-capture.js').CaptureOptions;
 }
 
 export interface AIConfig {
