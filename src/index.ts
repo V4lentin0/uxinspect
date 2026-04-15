@@ -86,6 +86,7 @@ import { auditHydration } from './hydration-audit.js';
 import { auditStorage } from './storage-audit.js';
 import { auditCsrf } from './csrf-audit.js';
 import { auditErrorPages } from './error-page-audit.js';
+import { auditErrorStateAppearance } from './error-state-audit.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -162,6 +163,7 @@ import type { HydrationAuditResult } from './hydration-audit.js';
 import type { StorageAuditResult } from './storage-audit.js';
 import type { CsrfAuditResult } from './csrf-audit.js';
 import type { ErrorPageAuditResult } from './error-page-audit.js';
+import type { ErrorStateResult } from './error-state-audit.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -287,6 +289,7 @@ export { auditHydration } from './hydration-audit.js';
 export { auditStorage } from './storage-audit.js';
 export { auditCsrf } from './csrf-audit.js';
 export { auditErrorPages } from './error-page-audit.js';
+export { auditErrorStateAppearance, snapshotErrorState, diffErrorStateAppearance, DEFAULT_ERROR_STATE_SELECTORS } from './error-state-audit.js';
 export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfall.js';
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
@@ -376,6 +379,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const errorPagesResults: ErrorPageAuditResult[] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
+  let errorStateResult: ErrorStateResult | undefined;
 
   try {
     for (const vp of viewports) {
@@ -710,8 +714,24 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const opts = typeof checks.explore === 'object' ? checks.explore : {};
         const ePage = await driver.newPage();
         await ePage.goto(config.url);
-        exploreResult = await explore(ePage, opts);
+        const errorStateOpts = typeof checks.errorState === 'object' ? checks.errorState : undefined;
+        exploreResult = await explore(ePage, {
+          ...opts,
+          errorState: Boolean(checks.errorState),
+          errorStateSelectors: errorStateOpts?.selectors,
+        });
         await ePage.close();
+      }
+
+      if (checks.errorState && !errorStateResult) {
+        const esOpts = typeof checks.errorState === 'object' ? checks.errorState : {};
+        const esPage = await driver.newPage();
+        try {
+          await esPage.goto(config.url);
+          errorStateResult = await auditErrorStateAppearance(esPage, esOpts).catch(() => undefined);
+        } finally {
+          await esPage.close();
+        }
       }
 
       if (checks.security) {
@@ -906,6 +926,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     storage: checks.storage ? storageResults : undefined,
     csrf: checks.csrf ? csrfResults : undefined,
     errorPages: checks.errorPages ? errorPagesResults : undefined,
+    errorState: checks.errorState ? errorStateResult : undefined,
     passed: baselinePassed,
   };
 

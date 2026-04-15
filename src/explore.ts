@@ -1,11 +1,18 @@
 import type { Page } from 'playwright';
-import type { ExploreResult } from './types.js';
+import type { ExploreResult, BrokenInteraction } from './types.js';
+import {
+  snapshotErrorState,
+  diffErrorStateAppearance,
+  DEFAULT_ERROR_STATE_SELECTORS,
+} from './error-state-audit.js';
 
 export interface ExploreOptions {
   maxClicks?: number;
   maxPages?: number;
   sameOrigin?: boolean;
   submitForms?: boolean;
+  errorState?: boolean;
+  errorStateSelectors?: string[];
 }
 
 export async function explore(page: Page, opts: ExploreOptions = {}): Promise<ExploreResult> {
@@ -13,11 +20,14 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
   const maxPages = opts.maxPages ?? 20;
   const sameOrigin = opts.sameOrigin ?? true;
   const submitForms = opts.submitForms ?? true;
+  const errorStateOn = opts.errorState ?? false;
+  const errorStateSelectors = opts.errorStateSelectors ?? [...DEFAULT_ERROR_STATE_SELECTORS];
   const startOrigin = new URL(page.url()).origin;
 
   const consoleErrors: string[] = [];
   const networkErrors: string[] = [];
   const errors: string[] = [];
+  const brokenInteractions: BrokenInteraction[] = [];
   let buttonsClicked = 0;
   let formsSubmitted = 0;
   const pagesVisited = new Set<string>([page.url()]);
@@ -42,11 +52,24 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
     tried.add(target.key);
     try {
       const before = page.url();
+      const errBefore = errorStateOn
+        ? await snapshotErrorState(page, { selectors: errorStateSelectors }).catch(() => null)
+        : null;
       await target.locator.click({ timeout: 5000, noWaitAfter: true });
       buttonsClicked++;
       await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
       await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
       const after = page.url();
+      if (errBefore && after === before) {
+        const diff = await diffErrorStateAppearance(page, errBefore).catch(() => null);
+        if (diff && diff.newErrors.length) {
+          brokenInteractions.push({
+            key: target.key,
+            reason: 'error-state-appeared',
+            newErrors: diff.newErrors,
+          });
+        }
+      }
       if (after !== before) {
         if (sameOrigin && new URL(after).origin !== startOrigin) {
           await page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => {});
@@ -67,6 +90,7 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
     errors,
     consoleErrors,
     networkErrors,
+    brokenInteractions,
   };
 }
 

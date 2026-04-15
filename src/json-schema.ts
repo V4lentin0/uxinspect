@@ -130,6 +130,7 @@ function buildChecksSchema(): JsonSchema {
     pagination: boolOrOpts({ scrollProbes: num() }),
     print: boolOrOpts({ screenshotPath: str() }),
     canonical: boolOrOpts({ followChain: bool() }),
+    errorState: boolOrOpts({ selectors: arr(str()), allowExisting: bool() }),
   };
   return obj(properties);
 }

@@ -180,6 +180,7 @@ export interface ChecksConfig {
   storage?: boolean;
   csrf?: boolean;
   errorPages?: boolean;
+  errorState?: boolean | { selectors?: string[]; allowExisting?: boolean };
 }
 
 export interface OutputConfig {
@@ -281,6 +282,7 @@ export interface InspectResult {
   storage?: import('./storage-audit.js').StorageAuditResult[];
   csrf?: import('./csrf-audit.js').CsrfAuditResult[];
   errorPages?: import('./error-page-audit.js').ErrorPageAuditResult[];
+  errorState?: import('./error-state-audit.js').ErrorStateResult;
   passed: boolean;
 }
 
@@ -342,6 +344,12 @@ export interface VisualResult {
   passed: boolean;
 }
 
+export interface BrokenInteraction {
+  key: string;
+  reason: 'error-state-appeared';
+  newErrors: { selector: string; snippet: string; text: string }[];
+}
+
 export interface ExploreResult {
   pagesVisited: number;
   buttonsClicked: number;
@@ -349,4 +357,5 @@ export interface ExploreResult {
   errors: string[];
   consoleErrors: string[];
   networkErrors: string[];
+  brokenInteractions?: BrokenInteraction[];
 }
