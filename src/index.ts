@@ -256,6 +256,16 @@ export { auditPrint } from './print-audit.js';
 export { auditCanonical } from './canonical-audit.js';
 export { compareSsim, ssimFromBuffers } from './visual-ssim.js';
 export { resolveMaskRegions, takeMaskedScreenshot, applyMaskToPng, screenshotWithPlaywrightMask } from './visual-mask.js';
+export {
+  freezeAnimations,
+  waitFonts,
+  autoScrollLazyLoad,
+  stitchFullPage,
+  prepareCapture,
+  stableScreenshot,
+  resolveCaptureOptions,
+} from './visual-capture.js';
+export type { CaptureOptions, ResolvedCaptureOptions } from './visual-capture.js';
 export { setCpuThrottling, clearCpuThrottling, applyCpuPreset, measureUnderThrottle } from './cpu-throttle.js';
 export { listStories, captureStorybook } from './storybook.js';
 export { triageFailure, triageBatch, TRIAGE_RULES } from './ai-triage.js';
@@ -523,7 +533,12 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           await annotateA11y(page, a11y, path.join(outputDir, 'a11y', `${flow.name}-${vp.name}.png`)).catch(() => {});
         }
         const visual = checks.visual
-          ? await checkVisual(page, flow.name, vp.name, { baselineDir, outputDir, store: store ?? undefined }).catch((e) => emptyVisual(page.url(), vp.name, e))
+          ? await checkVisual(page, flow.name, vp.name, {
+              baselineDir,
+              outputDir,
+              store: store ?? undefined,
+              captureOptions: config.output?.captureOptions,
+            }).catch((e) => emptyVisual(page.url(), vp.name, e))
           : undefined;
         const seoR = checks.seo ? await checkSeo(page).catch(() => undefined) : undefined;
         const linksR = checks.links
@@ -1117,6 +1132,7 @@ async function runFlow(
           baselineDir: opts.baselineDir ?? './uxinspect-baselines',
           flowName: name,
           stepIndex: index,
+          captureOptions: step.captureOptions,
         });
       }
       const stepPassed = !assertions || assertions.length === 0;
@@ -1217,7 +1233,12 @@ async function evaluateStepAssertions(
   page: Page,
   cfg: AssertConfig,
   tracker: StepAssertionTracker,
-  opts: { baselineDir: string; flowName: string; stepIndex: number },
+  opts: {
+    baselineDir: string;
+    flowName: string;
+    stepIndex: number;
+    captureOptions?: import('./visual-capture.js').CaptureOptions;
+  },
 ): Promise<AssertionFailure[]> {
   const failures: AssertionFailure[] = [];
 
@@ -1252,7 +1273,12 @@ async function evaluateStepAssertions(
   }
 
   if (cfg.visual === 'matches') {
-    const visualFailure = await assertVisualMatches(page, opts);
+    const visualFailure = await assertVisualMatches(page, {
+      baselineDir: opts.baselineDir,
+      flowName: opts.flowName,
+      stepIndex: opts.stepIndex,
+      captureOptions: opts.captureOptions,
+    });
     if (visualFailure) failures.push(visualFailure);
   }
 
@@ -1261,12 +1287,22 @@ async function evaluateStepAssertions(
 
 async function assertVisualMatches(
   page: Page,
-  opts: { baselineDir: string; flowName: string; stepIndex: number },
+  opts: {
+    baselineDir: string;
+    flowName: string;
+    stepIndex: number;
+    captureOptions?: import('./visual-capture.js').CaptureOptions;
+  },
 ): Promise<AssertionFailure | null> {
   const safeFlow = opts.flowName.replace(/[^a-zA-Z0-9._-]+/g, '_');
   const baselinePath = path.join(opts.baselineDir, 'steps', `${safeFlow}-step${opts.stepIndex}.png`);
   await fs.mkdir(path.dirname(baselinePath), { recursive: true });
-  const currentBytes = await page.screenshot({ fullPage: true });
+  const { prepareCapture, stitchFullPage, resolveCaptureOptions } = await import('./visual-capture.js');
+  const resolved = resolveCaptureOptions(opts.captureOptions);
+  await prepareCapture(page, resolved);
+  const currentBytes = resolved.stitch
+    ? await stitchFullPage(page)
+    : await page.screenshot({ fullPage: true });
 
   let baselineBytes: Buffer | null = null;
   try {
@@ -1336,7 +1372,12 @@ async function runStep(page: Page, step: Step, ai: AIHelper): Promise<void> {
   } else if ('waitFor' in step) {
     await page.waitForSelector(step.waitFor);
   } else if ('screenshot' in step) {
-    await page.screenshot({ path: step.screenshot, fullPage: true });
+    const { stableScreenshot } = await import('./visual-capture.js');
+    await stableScreenshot(page, {
+      ...(step.captureOptions ?? {}),
+      path: step.screenshot,
+      fullPage: true,
+    });
   } else if ('ai' in step) {
     if (!ai.isAvailable()) throw new Error('AI step requested but AI helper not initialized');
     const ok = await ai.act(step.ai);

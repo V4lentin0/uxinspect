@@ -1,5 +1,11 @@
 import { PNG } from 'pngjs';
 import type { Page } from 'playwright';
+import {
+  prepareCapture,
+  stitchFullPage,
+  resolveCaptureOptions,
+  type CaptureOptions,
+} from './visual-capture.js';
 
 export type MaskRegion =
   | { selector: string }
@@ -9,6 +15,8 @@ export interface MaskedScreenshotOptions {
   fullPage?: boolean;
   regions: MaskRegion[];
   color?: string;
+  /** P2 #24 — stabilize visuals before capture. */
+  captureOptions?: CaptureOptions;
 }
 
 export interface Rect {
@@ -124,7 +132,11 @@ export async function takeMaskedScreenshot(
   page: Page,
   opts: MaskedScreenshotOptions,
 ): Promise<Buffer> {
-  const raw = await page.screenshot({ fullPage: opts.fullPage ?? false });
+  const resolved = resolveCaptureOptions(opts.captureOptions);
+  await prepareCapture(page, resolved);
+  const raw = resolved.stitch
+    ? await stitchFullPage(page)
+    : await page.screenshot({ fullPage: opts.fullPage ?? false });
   const rects = await resolveMaskRegions(page, opts.regions);
   const color = parseColor(opts.color);
   return applyMaskToPng(raw, rects, color);
