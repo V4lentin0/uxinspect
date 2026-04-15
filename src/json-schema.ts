@@ -85,6 +85,7 @@ function buildChecksSchema(): JsonSchema {
     longTasks: boolOrOpts({ durationMs: num() }),
     clsTimeline: boolOrOpts({ durationMs: num() }),
     forms: boolOrOpts(),
+    formBehavior: boolOrOpts({ formSelector: str() }),
     structuredData: boolOrOpts(),
     passiveSecurity: boolOrOpts(),
     consoleErrors: boolOrOpts(),
