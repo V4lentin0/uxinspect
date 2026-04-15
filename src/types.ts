@@ -201,6 +201,7 @@ export interface ChecksConfig {
   csrf?: boolean;
   errorPages?: boolean;
   stuckSpinners?: boolean | { timeoutMs?: number; selectors?: string[]; pollIntervalMs?: number; captureScreenshot?: boolean; screenshotDir?: string };
+  errorState?: boolean | { selectors?: string[]; allowExisting?: boolean };
 }
 
 export interface OutputConfig {
@@ -304,6 +305,7 @@ export interface InspectResult {
   csrf?: import('./csrf-audit.js').CsrfAuditResult[];
   errorPages?: import('./error-page-audit.js').ErrorPageAuditResult[];
   stuckSpinners?: import('./stuck-spinner-audit.js').StuckSpinnerResult[];
+  errorState?: import('./error-state-audit.js').ErrorStateResult;
   passed: boolean;
 }
 
@@ -377,6 +379,12 @@ export interface VisualResult {
   passed: boolean;
 }
 
+export interface BrokenInteraction {
+  key: string;
+  reason: 'error-state-appeared';
+  newErrors: { selector: string; snippet: string; text: string }[];
+}
+
 export interface ExploreResult {
   pagesVisited: number;
   buttonsClicked: number;
@@ -386,4 +394,5 @@ export interface ExploreResult {
   networkErrors: string[];
   replayPath?: string;
   stuckSpinners?: import('./stuck-spinner-audit.js').StuckSpinnerFinding[];
+  brokenInteractions?: BrokenInteraction[];
 }

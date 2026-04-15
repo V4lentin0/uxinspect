@@ -143,6 +143,7 @@ function buildChecksSchema(): JsonSchema {
       captureScreenshot: bool(),
       screenshotDir: str(),
     }),
+    errorState: boolOrOpts({ selectors: arr(str()), allowExisting: bool() }),
   };
   return obj(properties);
 }

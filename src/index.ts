@@ -93,6 +93,7 @@ import { auditCsrf } from './csrf-audit.js';
 import { auditErrorPages } from './error-page-audit.js';
 import { startReplay, stopReplay } from './replay.js';
 import { auditStuckSpinners } from './stuck-spinner-audit.js';
+import { auditErrorStateAppearance } from './error-state-audit.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -173,6 +174,7 @@ import type { StorageAuditResult } from './storage-audit.js';
 import type { CsrfAuditResult } from './csrf-audit.js';
 import type { ErrorPageAuditResult } from './error-page-audit.js';
 import type { StuckSpinnerResult } from './stuck-spinner-audit.js';
+import type { ErrorStateResult } from './error-state-audit.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -302,6 +304,7 @@ export { auditStorage } from './storage-audit.js';
 export { auditCsrf } from './csrf-audit.js';
 export { auditErrorPages } from './error-page-audit.js';
 export { auditStuckSpinners, DEFAULT_STUCK_SPINNER_SELECTORS } from './stuck-spinner-audit.js';
+export { auditErrorStateAppearance, snapshotErrorState, diffErrorStateAppearance, DEFAULT_ERROR_STATE_SELECTORS } from './error-state-audit.js';
 export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfall.js';
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
@@ -393,6 +396,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const stuckSpinnerResults: StuckSpinnerResult[] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
+  let errorStateResult: ErrorStateResult | undefined;
 
   try {
     for (const vp of viewports) {
@@ -738,10 +742,13 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const ePage = await driver.newPage();
         const exploreReplay = await startReplay(ePage, `explore-${vp.name}`).catch(() => null);
         await ePage.goto(config.url);
+        const errorStateOpts = typeof checks.errorState === 'object' ? checks.errorState : undefined;
         exploreResult = await explore(ePage, {
           ...opts,
           skipStuckSpinner: !checks.stuckSpinners,
           stuckSpinner: typeof checks.stuckSpinners === 'object' ? checks.stuckSpinners : undefined,
+          errorState: Boolean(checks.errorState),
+          errorStateSelectors: errorStateOpts?.selectors,
         });
         const exploreReplayPath = await stopReplay(exploreReplay).catch(() => null);
         if (exploreResult && exploreReplayPath) exploreResult.replayPath = exploreReplayPath;
@@ -758,6 +765,17 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           // best effort
         } finally {
           await sPage.close();
+        }
+      }
+
+      if (checks.errorState && !errorStateResult) {
+        const esOpts = typeof checks.errorState === 'object' ? checks.errorState : {};
+        const esPage = await driver.newPage();
+        try {
+          await esPage.goto(config.url);
+          errorStateResult = await auditErrorStateAppearance(esPage, esOpts).catch(() => undefined);
+        } finally {
+          await esPage.close();
         }
       }
 
@@ -957,6 +975,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     csrf: checks.csrf ? csrfResults : undefined,
     errorPages: checks.errorPages ? errorPagesResults : undefined,
     stuckSpinners: checks.stuckSpinners ? stuckSpinnerResults : undefined,
+    errorState: checks.errorState ? errorStateResult : undefined,
     passed: baselinePassed,
   };
 
