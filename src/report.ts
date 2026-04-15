@@ -605,6 +605,7 @@ function renderExplore(e: any): string {
     </div>
     ${e.consoleErrors.length ? `<h3>Console errors</h3><pre>${e.consoleErrors.map((s: string) => escape(s)).join('\n')}</pre>` : ''}
     ${e.networkErrors.length ? `<h3>Network errors</h3><pre>${e.networkErrors.map((s: string) => escape(s)).join('\n')}</pre>` : ''}
+    ${e.heatmaps?.length ? `<h3>Coverage heatmaps</h3><ul>${e.heatmaps.map((h: any) => `<li><a href="${escape(h.svgPath)}">${escape(h.url)}</a> — ${h.percent}% clicked</li>`).join('')}</ul>` : ''}
   </div>`;
 }
 

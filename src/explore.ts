@@ -1,11 +1,14 @@
+import path from 'node:path';
 import type { Page } from 'playwright';
 import type { ExploreResult } from './types.js';
+import { generateExploreHeatmap } from './heatmap.js';
 
 export interface ExploreOptions {
   maxClicks?: number;
   maxPages?: number;
   sameOrigin?: boolean;
   submitForms?: boolean;
+  heatmap?: boolean | { outDir?: string };
 }
 
 export async function explore(page: Page, opts: ExploreOptions = {}): Promise<ExploreResult> {
@@ -13,6 +16,11 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
   const maxPages = opts.maxPages ?? 20;
   const sameOrigin = opts.sameOrigin ?? true;
   const submitForms = opts.submitForms ?? true;
+  const heatmapEnabled = Boolean(opts.heatmap);
+  const heatmapOutDir =
+    typeof opts.heatmap === 'object' && opts.heatmap?.outDir
+      ? opts.heatmap.outDir
+      : undefined;
   const startOrigin = new URL(page.url()).origin;
 
   const consoleErrors: string[] = [];
@@ -22,6 +30,16 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
   let formsSubmitted = 0;
   const pagesVisited = new Set<string>([page.url()]);
   const tried = new Set<string>();
+  // Track keys that were actually clicked (not just attempted), per visited URL.
+  const clickedByUrl = new Map<string, Set<string>>();
+  const ensureClickedSet = (url: string): Set<string> => {
+    let s = clickedByUrl.get(url);
+    if (!s) {
+      s = new Set<string>();
+      clickedByUrl.set(url, s);
+    }
+    return s;
+  };
 
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text());
@@ -44,6 +62,7 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
       const before = page.url();
       await target.locator.click({ timeout: 5000, noWaitAfter: true });
       buttonsClicked++;
+      ensureClickedSet(before).add(target.key);
       await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
       await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
       const after = page.url();
@@ -60,6 +79,26 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
     }
   }
 
+  let heatmaps: ExploreResult['heatmaps'];
+  if (heatmapEnabled) {
+    heatmaps = [];
+    const urls = Array.from(pagesVisited);
+    const outDir = heatmapOutDir ?? path.join(process.cwd(), '.uxinspect', 'heatmaps');
+    for (const url of urls) {
+      try {
+        if (page.url() !== url) {
+          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => {});
+        }
+        const clicked = clickedByUrl.get(url) ?? new Set<string>();
+        const shotPath = path.join(outDir, `${slugForShot(url)}.png`);
+        const result = await generateExploreHeatmap(page, clicked, shotPath, { outDir });
+        heatmaps.push({ url: result.url, svgPath: result.svgPath, percent: result.percent });
+      } catch (e) {
+        errors.push(`heatmap: ${(e as Error).message}`);
+      }
+    }
+  }
+
   return {
     pagesVisited: pagesVisited.size,
     buttonsClicked,
@@ -67,7 +106,18 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
     errors,
     consoleErrors,
     networkErrors,
+    ...(heatmaps ? { heatmaps } : {}),
   };
+}
+
+function slugForShot(url: string): string {
+  try {
+    const u = new URL(url);
+    const s = `${u.host}${u.pathname}`.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '');
+    return (s || 'page').slice(0, 120).toLowerCase();
+  } catch {
+    return 'page';
+  }
 }
 
 async function pickNextClickable(

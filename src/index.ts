@@ -706,8 +706,11 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         }
       }
 
-      if (checks.explore) {
-        const opts = typeof checks.explore === 'object' ? checks.explore : {};
+      if (checks.explore || checks.heatmap) {
+        const opts = typeof checks.explore === 'object' ? { ...checks.explore } : {};
+        if (checks.heatmap) {
+          (opts as any).heatmap = checks.heatmap;
+        }
         const ePage = await driver.newPage();
         await ePage.goto(config.url);
         exploreResult = await explore(ePage, opts);

@@ -180,6 +180,7 @@ export interface ChecksConfig {
   storage?: boolean;
   csrf?: boolean;
   errorPages?: boolean;
+  heatmap?: boolean | { outDir?: string };
 }
 
 export interface OutputConfig {
@@ -349,4 +350,5 @@ export interface ExploreResult {
   errors: string[];
   consoleErrors: string[];
   networkErrors: string[];
+  heatmaps?: Array<{ url: string; svgPath: string; percent: number }>;
 }
