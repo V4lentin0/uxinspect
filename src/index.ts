@@ -65,6 +65,7 @@ import { auditReadingLevel } from './reading-level.js';
 import { detectDeadImages } from './dead-images.js';
 import { auditPagination } from './pagination-audit.js';
 import { auditPrint } from './print-audit.js';
+import { auditPrintMedia } from './pdf-audit.js';
 import { auditCanonical } from './canonical-audit.js';
 import { auditSri } from './sri-audit.js';
 import { auditWebWorkers } from './web-worker-audit.js';
@@ -141,6 +142,7 @@ import type { ReadingLevelResult } from './reading-level.js';
 import type { DeadImageResult } from './dead-images.js';
 import type { PaginationResult } from './pagination-audit.js';
 import type { PrintAuditResult } from './print-audit.js';
+import type { PdfAuditResult } from './pdf-audit.js';
 import type { CanonicalAuditResult } from './canonical-audit.js';
 import type { SriAuditResult } from './sri-audit.js';
 import type { WebWorkerAuditResult } from './web-worker-audit.js';
@@ -234,6 +236,7 @@ export { auditReadingLevel } from './reading-level.js';
 export { detectDeadImages } from './dead-images.js';
 export { auditPagination } from './pagination-audit.js';
 export { auditPrint } from './print-audit.js';
+export { auditPrintMedia } from './pdf-audit.js';
 export { auditCanonical } from './canonical-audit.js';
 export { compareSsim, ssimFromBuffers } from './visual-ssim.js';
 export { resolveMaskRegions, takeMaskedScreenshot, applyMaskToPng, screenshotWithPlaywrightMask } from './visual-mask.js';
@@ -353,6 +356,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const deadImagesResults: DeadImageResult[] = [];
   const paginationResults: PaginationResult[] = [];
   const printResults: PrintAuditResult[] = [];
+  const pdfPrintResults: PdfAuditResult[] = [];
   const canonicalResults: CanonicalAuditResult[] = [];
   const sriResults: SriAuditResult[] = [];
   const webWorkersResults: WebWorkerAuditResult[] = [];
@@ -451,6 +455,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         deadImages?: DeadImageResult;
         pagination?: PaginationResult;
         print?: PrintAuditResult;
+        pdfPrint?: PdfAuditResult;
         canonical?: CanonicalAuditResult;
         sri?: SriAuditResult;
         webWorkers?: WebWorkerAuditResult;
@@ -560,6 +565,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const printR = checks.print
           ? await auditPrint(page, typeof checks.print === 'object' ? checks.print : {}).catch(() => undefined)
           : undefined;
+        const pdfPrintR = checks.pdfPrint
+          ? await auditPrintMedia(page, typeof checks.pdfPrint === 'object' ? checks.pdfPrint : {}).catch(() => undefined)
+          : undefined;
         const canonicalR = checks.canonical
           ? await auditCanonical(page, typeof checks.canonical === 'object' ? checks.canonical : {}).catch(() => undefined)
           : undefined;
@@ -610,7 +618,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           animations: animationsR, eventListeners: eventListenersR,
           darkMode: darkModeR, tables: tablesR, svgs: svgsR, media: mediaR,
           readingLevel: readingLevelR, deadImages: deadImagesR,
-          pagination: paginationR, print: printR, canonical: canonicalR,
+          pagination: paginationR, print: printR, pdfPrint: pdfPrintR, canonical: canonicalR,
           sri: sriR, webWorkers: webWorkersR, orphanAssets: orphanAssetsR,
           inp: inpR, lcpElement: lcpElementR, clsCulprit: clsCulpritR,
           hreflang: hreflangR, cookieFlags: cookieFlagsR, focusTrap: focusTrapR,
@@ -674,6 +682,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.deadImages) deadImagesResults.push(r.deadImages);
         if (r.pagination) paginationResults.push(r.pagination);
         if (r.print) printResults.push(r.print);
+        if (r.pdfPrint) pdfPrintResults.push(r.pdfPrint);
         if (r.canonical) canonicalResults.push(r.canonical);
         if (r.sri) sriResults.push(r.sri);
         if (r.webWorkers) webWorkersResults.push(r.webWorkers);
@@ -816,6 +825,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     deadImagesResults.every((r) => (r as any).passed !== false) &&
     paginationResults.every((r) => (r as any).passed !== false) &&
     printResults.every((r) => (r as any).passed !== false) &&
+    pdfPrintResults.every((r) => (r as any).passed !== false) &&
     canonicalResults.every((r) => (r as any).passed !== false) &&
     (compressionResult === undefined || (compressionResult as any).passed !== false) &&
     (robotsAuditResult === undefined || (robotsAuditResult as any).passed !== false);
@@ -885,6 +895,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     deadImages: checks.deadImages ? deadImagesResults : undefined,
     pagination: checks.pagination ? paginationResults : undefined,
     print: checks.print ? printResults : undefined,
+    pdfPrint: checks.pdfPrint ? pdfPrintResults : undefined,
     canonical: checks.canonical ? canonicalResults : undefined,
     sri: checks.sri ? sriResults : undefined,
     webWorkers: checks.webWorkers ? webWorkersResults : undefined,

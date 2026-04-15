@@ -159,6 +159,7 @@ export interface ChecksConfig {
   deadImages?: boolean;
   pagination?: boolean | { scrollProbes?: number };
   print?: boolean | { screenshotPath?: string };
+  pdfPrint?: boolean | { format?: 'A4' | 'Letter'; landscape?: boolean; outDir?: string; hideOnPrint?: string[]; showOnPrint?: string[] };
   canonical?: boolean | { followChain?: boolean };
   sri?: boolean;
   webWorkers?: boolean;
@@ -260,6 +261,7 @@ export interface InspectResult {
   deadImages?: import('./dead-images.js').DeadImageResult[];
   pagination?: import('./pagination-audit.js').PaginationResult[];
   print?: import('./print-audit.js').PrintAuditResult[];
+  pdfPrint?: import('./pdf-audit.js').PdfAuditResult[];
   canonical?: import('./canonical-audit.js').CanonicalAuditResult[];
   sri?: import('./sri-audit.js').SriAuditResult[];
   webWorkers?: import('./web-worker-audit.js').WebWorkerAuditResult[];

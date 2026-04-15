@@ -129,6 +129,13 @@ function buildChecksSchema(): JsonSchema {
     deadImages: boolOrOpts(),
     pagination: boolOrOpts({ scrollProbes: num() }),
     print: boolOrOpts({ screenshotPath: str() }),
+    pdfPrint: boolOrOpts({
+      format: enumStr(['A4', 'Letter']),
+      landscape: bool(),
+      outDir: str(),
+      hideOnPrint: arr(str()),
+      showOnPrint: arr(str()),
+    }),
     canonical: boolOrOpts({ followChain: bool() }),
   };
   return obj(properties);
