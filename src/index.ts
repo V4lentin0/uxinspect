@@ -96,6 +96,7 @@ import { auditStuckSpinners } from './stuck-spinner-audit.js';
 import { auditErrorStateAppearance } from './error-state-audit.js';
 import { walkAuthGatedRoutes } from './auth-walker.js';
 import { attachFrustrationSignals } from './frustration-signals.js';
+import { applyFastMode, fastModeWarning, FAST_MODE_TARGET_MS } from './fast-mode.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -252,6 +253,7 @@ export { auditEventListeners } from './event-listener-audit.js';
 export { runOpenApiContract } from './contract-openapi.js';
 export { compareInspect } from './ab-compare.js';
 export { runWatchMode } from './watch-mode.js';
+export { applyFastMode, fastModeWarning, FAST_MODE_TARGET_MS, FAST_MODE_SKIPPED_AUDITS } from './fast-mode.js';
 export { postWebhookReport } from './webhook-reporter.js';
 export { auditDarkMode } from './dark-mode-audit.js';
 export { auditTables } from './table-audit.js';
@@ -336,11 +338,25 @@ export { auditWebWorkers } from './web-worker-audit.js';
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
   const viewports = config.viewports ?? [{ name: 'desktop', width: 1280, height: 800 }];
-  const checks = config.checks ?? { a11y: true, perf: false, visual: true, explore: false };
+  let checks = config.checks ?? { a11y: true, perf: false, visual: true, explore: false };
   const outputDir = config.output?.dir ?? './uxinspect-report';
   const baselineDir = config.output?.baselineDir ?? './uxinspect-baselines';
   const store = r2StoreFromEnv();
   const flows = config.flows ?? [{ name: 'load', steps: [{ goto: config.url }] }];
+
+  // Fast inner-loop mode (P3 #31): strip slow audits + force parallel + pin to
+  // chromium before any network/browser work happens. We copy `config` so
+  // callers don't see their options mutated, and capture the skipped audits for
+  // fastMeta + the html report.
+  let fastModeSkipped: string[] | undefined;
+  if (config.fast) {
+    const applied = applyFastMode(checks);
+    checks = applied.checks;
+    fastModeSkipped = applied.skippedAudits;
+    // Force aggressive parallelization + single browser so we hit <30s.
+    config = { ...config, parallel: true, browser: 'chromium', checks };
+    process.stdout.write('[uxinspect] Running in fast mode (slow audits skipped)\n');
+  }
 
   const driver = new Driver();
   const flowResults: FlowResult[] = [];
@@ -1071,6 +1087,17 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     selfHealEvents: selfHealEvents && selfHealEvents.length ? selfHealEvents : undefined,
     passed: baselinePassed,
   };
+
+  // Fast mode (P3 #31): attach metadata + warn if we blew the 30s budget.
+  if (config.fast) {
+    const warning = fastModeWarning(result.durationMs);
+    result.fastMeta = {
+      skippedAudits: fastModeSkipped ?? [],
+      targetMs: FAST_MODE_TARGET_MS,
+      ...(warning ? { warning } : {}),
+    };
+    if (warning) process.stdout.write(`[uxinspect] ${warning}\n`);
+  }
 
   if (authWalkResult && authWalkResult.failed.length > 0) {
     result.passed = false;

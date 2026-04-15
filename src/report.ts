@@ -443,6 +443,7 @@ function renderHTML(r: InspectResult): string {
     ${r.explore ? `<div class="card"><div class="label">Pages explored</div><div class="stat">${r.explore.pagesVisited}</div></div>` : ''}
   </div>
 
+  ${r.fastMeta ? renderFastMeta(r.fastMeta) : ''}
   ${r.budget?.length ? `<h2>Budget violations</h2>${renderBudget(r.budget)}` : ''}
   ${r.flows.length ? `<h2>Flows</h2>${r.flows.map(renderFlow).join('')}` : ''}
   ${r.a11y?.length ? `<h2>Accessibility</h2>${r.a11y.map(renderA11y).join('')}` : ''}
@@ -674,6 +675,22 @@ function renderSecurity(s: any): string {
 function renderBudget(v: any[]): string {
   return `<div class="section">
     <ul>${v.map((b) => `<li><strong>${escape(b.category)}</strong> — ${escape(b.message)}</li>`).join('')}</ul>
+  </div>`;
+}
+
+/** P3 #31 — Fast-mode banner + skipped-audit list. */
+function renderFastMeta(m: NonNullable<InspectResult['fastMeta']>): string {
+  const skippedList = m.skippedAudits.length
+    ? `<ul>${m.skippedAudits.map((s) => `<li>${escape(s)} <span class="empty">(skipped — fast mode)</span></li>`).join('')}</ul>`
+    : '<div class="empty">No optional slow audits were enabled before fast mode applied.</div>';
+  const targetSec = (m.targetMs / 1000).toFixed(0);
+  const warn = m.warning
+    ? `<div class="row"><span class="pill pill-warn">target exceeded</span> <span>${escape(m.warning)}</span></div>`
+    : `<div class="row"><span class="pill pill-info">fast mode</span> <span>Target: under ${targetSec}s.</span></div>`;
+  return `<h2>Fast mode</h2>
+  <div class="section">
+    ${warn}
+    ${skippedList}
   </div>`;
 }
 
