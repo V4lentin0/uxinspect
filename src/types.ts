@@ -180,6 +180,14 @@ export interface ChecksConfig {
   storage?: boolean;
   csrf?: boolean;
   errorPages?: boolean;
+  i18n?:
+    | boolean
+    | {
+        locales?: string[];
+        checks?: { missingKeys?: boolean; rtlLayout?: boolean; overflow?: boolean };
+        maxTextNodes?: number;
+        maxOverflowPerLocale?: number;
+      };
 }
 
 export interface OutputConfig {
@@ -281,6 +289,7 @@ export interface InspectResult {
   storage?: import('./storage-audit.js').StorageAuditResult[];
   csrf?: import('./csrf-audit.js').CsrfAuditResult[];
   errorPages?: import('./error-page-audit.js').ErrorPageAuditResult[];
+  i18n?: import('./i18n-audit.js').I18nResult[];
   passed: boolean;
 }
 

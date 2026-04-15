@@ -86,6 +86,7 @@ import { auditHydration } from './hydration-audit.js';
 import { auditStorage } from './storage-audit.js';
 import { auditCsrf } from './csrf-audit.js';
 import { auditErrorPages } from './error-page-audit.js';
+import { auditI18n } from './i18n-audit.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -162,6 +163,7 @@ import type { HydrationAuditResult } from './hydration-audit.js';
 import type { StorageAuditResult } from './storage-audit.js';
 import type { CsrfAuditResult } from './csrf-audit.js';
 import type { ErrorPageAuditResult } from './error-page-audit.js';
+import type { I18nResult } from './i18n-audit.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -287,6 +289,7 @@ export { auditHydration } from './hydration-audit.js';
 export { auditStorage } from './storage-audit.js';
 export { auditCsrf } from './csrf-audit.js';
 export { auditErrorPages } from './error-page-audit.js';
+export { auditI18n } from './i18n-audit.js';
 export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfall.js';
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
@@ -374,6 +377,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const storageResults: StorageAuditResult[] = [];
   const csrfResults: CsrfAuditResult[] = [];
   const errorPagesResults: ErrorPageAuditResult[] = [];
+  const i18nResults: I18nResult[] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
 
@@ -472,6 +476,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         storage?: StorageAuditResult;
         csrf?: CsrfAuditResult;
         errorPages?: ErrorPageAuditResult;
+        i18n?: I18nResult;
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
