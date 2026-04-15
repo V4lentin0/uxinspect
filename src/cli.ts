@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 import { inspect } from './index.js';
 import { writeReplayViewer } from './replay-viewer.js';
+import { diffResults, formatDiff, loadResult, saveLastRun, LAST_RUN_FILE } from './diff-run.js';
 import type { InspectConfig } from './types.js';
 
 const STARTER_CONFIG = `import type { InspectConfig } from 'uxinspect';
@@ -201,6 +202,14 @@ const argv = await yargs(hideBin(process.argv))
       .option('no-autoplay', { type: 'boolean', describe: 'Do not auto-play the replay on load' })
       .option('title', { type: 'string', describe: 'Custom title for the viewer page' }),
   )
+  .command('diff <baseline> [current]', 'Diff two inspect JSON results (auto-uses .uxinspect/last.json when [current] omitted)', (y) =>
+    y
+      .positional('baseline', { type: 'string', demandOption: true, describe: 'Path to the baseline inspect result JSON' })
+      .positional('current', { type: 'string', describe: 'Path to the current inspect result JSON (defaults to .uxinspect/last.json)' })
+      .option('json', { type: 'boolean', default: false, describe: 'Emit machine-readable JSON instead of pretty output' })
+      .option('color', { type: 'boolean', describe: 'Force color output (default: auto-detect TTY)' })
+      .option('no-color', { type: 'boolean', describe: 'Disable color output' }),
+  )
   .demandCommand(1)
   .strict()
   .help()
@@ -215,6 +224,7 @@ if (cmd === 'record') await recordCmd();
 if (cmd === 'accept') await acceptCmd();
 if (cmd === 'watch') await watchCmd();
 if (cmd === 'replay') await replayCmd();
+if (cmd === 'diff') await diffCmd();
 
 async function runCmd(): Promise<void> {
   const reporters = String((argv as any).reporters)
@@ -330,6 +340,13 @@ async function runCmd(): Promise<void> {
   const status = result.passed ? 'PASS' : 'FAIL';
   console.log(`\n${status} — ${(result.durationMs / 1000).toFixed(1)}s`);
   console.log(`Report: ${path.resolve(config.output?.dir ?? './uxinspect-report', 'report.html')}`);
+
+  // Auto-save last run for `uxinspect diff` (P2 #19).
+  try {
+    await saveLastRun(result);
+  } catch (e) {
+    console.error(`warn: could not write ${LAST_RUN_FILE}: ${(e as Error).message}`);
+  }
 
   if (result.budget && result.budget.length) {
     console.log('\nBudget violations:');
@@ -623,6 +640,52 @@ async function replayCmd(): Promise<void> {
     console.error(`Open the file manually: ${htmlPath}`);
   });
   child.unref();
+}
+
+async function diffCmd(): Promise<void> {
+  const a = argv as any;
+  const baselinePath = path.resolve(String(a.baseline));
+  const currentArg = a.current as string | undefined;
+  const currentPath = currentArg
+    ? path.resolve(String(currentArg))
+    : path.resolve(process.cwd(), LAST_RUN_FILE);
+
+  const baselineStat = await fs.stat(baselinePath).catch(() => null);
+  if (!baselineStat?.isFile()) {
+    console.error(`Baseline not found: ${baselinePath}`);
+    process.exit(1);
+  }
+  const currentStat = await fs.stat(currentPath).catch(() => null);
+  if (!currentStat?.isFile()) {
+    console.error(
+      currentArg
+        ? `Current not found: ${currentPath}`
+        : `No current run to diff against. Run \`uxinspect run …\` first (auto-saves to ${LAST_RUN_FILE}) or pass a second JSON path.`,
+    );
+    process.exit(1);
+  }
+
+  let baseline, current;
+  try {
+    baseline = await loadResult(baselinePath);
+    current = await loadResult(currentPath);
+  } catch (e) {
+    console.error(`Failed to parse JSON: ${(e as Error).message}`);
+    process.exit(1);
+  }
+
+  const summary = diffResults(baseline, current);
+
+  if (a.json) {
+    console.log(JSON.stringify(summary, null, 2));
+  } else {
+    const forceColor = a.color === true;
+    const disableColor = a['no-color'] === true || a.color === false;
+    const color = forceColor || (!disableColor && Boolean(process.stdout.isTTY));
+    console.log(formatDiff(summary, { color }));
+  }
+
+  process.exit(summary.totalRegressions > 0 ? 1 : 0);
 }
 
 async function loadConfig(p: string): Promise<InspectConfig> {
