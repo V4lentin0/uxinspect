@@ -510,6 +510,7 @@ function renderFlow(f: { name: string; passed: boolean; steps: any[]; error?: st
     <div class="row"><strong>${escape(f.name)}</strong> <span class="${f.passed ? 'pass' : 'fail'}">${f.passed ? 'PASS' : 'FAIL'}</span></div>
     ${f.error ? `<pre>${escape(f.error)}</pre>` : ''}
     <div class="label">${f.steps.length} steps</div>
+    ${f.steps.filter((s: any) => Array.isArray(s.consoleErrors) && s.consoleErrors.length > 0).map((s: any) => `<div class="step-errors"><details><summary>[${s.consoleErrors.length} errors during ${escape(describeStep(s.step))}]</summary><pre>${escape(s.consoleErrors.map((e: any) => `${e.type}: ${e.message}`).join('\n'))}</pre></details></div>`).join('')}
   </div>`;
 }
 

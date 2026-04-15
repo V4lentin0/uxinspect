@@ -22,6 +22,26 @@ export interface ConsoleCapture {
   passed: boolean;
 }
 
+export interface StepConsoleError {
+  type: ConsoleIssue['type'];
+  message: string;
+  stack?: string;
+  url?: string;
+  lineNumber?: number;
+  columnNumber?: number;
+  atMs: number;
+}
+
+export interface StepCapture {
+  end(): { errors: StepConsoleError[]; step: string };
+}
+
+export interface ConsoleCaptureHandle {
+  result: () => ConsoleCapture;
+  detach: () => void;
+  markStepStart: (stepLabel: string) => StepCapture;
+}
+
 function normalize(message: string): string {
   return message
     .replace(/(?:[a-zA-Z]:)?(?:\/|\\)[^\s:'")]+/g, '<path>')
@@ -46,12 +66,10 @@ function fingerprintOf(
   return createHash('sha256').update(key).digest('hex');
 }
 
-export function attachConsoleCapture(page: Page): {
-  result: () => ConsoleCapture;
-  detach: () => void;
-} {
+export function attachConsoleCapture(page: Page): ConsoleCaptureHandle {
   const attachedAt = performance.now();
   const issues = new Map<string, ConsoleIssue>();
+  const timeline: StepConsoleError[] = [];
 
   const record = (
     type: ConsoleIssue['type'],
@@ -66,6 +84,16 @@ export function attachConsoleCapture(page: Page): {
     const normalized = normalize(message);
     const fp = fingerprintOf(type, normalized, extras.stack);
     const existing = issues.get(fp);
+    const atMs = performance.now() - attachedAt;
+    timeline.push({
+      type,
+      message,
+      stack: extras.stack,
+      url: extras.url,
+      lineNumber: extras.lineNumber,
+      columnNumber: extras.columnNumber,
+      atMs,
+    });
     if (existing) {
       existing.occurrences += 1;
       return;
@@ -79,7 +107,7 @@ export function attachConsoleCapture(page: Page): {
       columnNumber: extras.columnNumber,
       fingerprint: fp,
       occurrences: 1,
-      firstSeenMs: performance.now() - attachedAt,
+      firstSeenMs: atMs,
     });
   };
 
@@ -135,6 +163,18 @@ export function attachConsoleCapture(page: Page): {
       page.off('console', onConsole);
       page.off('pageerror', onPageError);
       page.off('requestfailed', onRequestFailed);
+    },
+    markStepStart: (stepLabel: string): StepCapture => {
+      const startMs = performance.now() - attachedAt;
+      return {
+        end: (): { errors: StepConsoleError[]; step: string } => {
+          const endMs = performance.now() - attachedAt;
+          const errors = timeline.filter(
+            (e) => e.atMs >= startMs && e.atMs <= endMs,
+          );
+          return { errors, step: stepLabel };
+        },
+      };
     },
   };
 }

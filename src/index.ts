@@ -476,7 +476,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
         if (config.ai?.enabled) await ai.init(page);
-        const flowResult = await runFlow(page, flow.name, flow.steps, ai);
+        const flowResult = await runFlow(page, flow.name, flow.steps, ai, console, config.debug);
         const a11y = checks.a11y ? await checkA11y(page).catch((e) => emptyA11y(page.url(), e)) : undefined;
         if (a11y && a11y.violations.length > 0) {
           await annotateA11y(page, a11y, path.join(outputDir, 'a11y', `${flow.name}-${vp.name}.png`)).catch(() => {});
@@ -933,7 +933,30 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   return result;
 }
 
-async function runFlow(page: Page, name: string, steps: Step[], ai: AIHelper): Promise<FlowResult> {
+function stepLabelFor(step: Step): string {
+  if (!step || typeof step !== 'object') return 'step';
+  const keys = Object.keys(step as Record<string, unknown>);
+  if (keys.length === 0) return 'step';
+  const key = keys[0];
+  const val = (step as Record<string, unknown>)[key];
+  if (typeof val === 'string') return `${key} "${val}"`;
+  if (typeof val === 'number' || typeof val === 'boolean') return `${key} ${String(val)}`;
+  if (val && typeof val === 'object') {
+    const inner = val as Record<string, unknown>;
+    if (typeof inner.selector === 'string') return `${key} "${inner.selector}"`;
+    if (typeof inner.url === 'string') return `${key} "${inner.url}"`;
+  }
+  return key;
+}
+
+async function runFlow(
+  page: Page,
+  name: string,
+  steps: Step[],
+  ai: AIHelper,
+  consoleHandle?: import('./console-errors.js').ConsoleCaptureHandle | null,
+  verbose?: boolean,
+): Promise<FlowResult> {
   const stepResults: StepResult[] = [];
   const screenshots: string[] = [];
   let passed = true;
@@ -941,13 +964,31 @@ async function runFlow(page: Page, name: string, steps: Step[], ai: AIHelper): P
 
   for (const step of steps) {
     const start = Date.now();
+    const label = stepLabelFor(step);
+    const stepCap = consoleHandle?.markStepStart(label);
     try {
       await runStep(page, step, ai);
-      stepResults.push({ step, passed: true, durationMs: Date.now() - start });
+      const capResult = stepCap?.end();
+      const stepResult: StepResult = { step, passed: true, durationMs: Date.now() - start };
+      if (capResult && capResult.errors.length > 0) {
+        stepResult.consoleErrors = capResult.errors;
+        if (verbose) {
+          for (const err of capResult.errors) {
+            // eslint-disable-next-line no-console
+            console.log(`[${label}] console ${err.type}: ${err.message}`);
+          }
+        }
+      }
+      stepResults.push(stepResult);
     } catch (e: any) {
       passed = false;
       error = e?.message ?? String(e);
-      stepResults.push({ step, passed: false, durationMs: Date.now() - start, error });
+      const capResult = stepCap?.end();
+      const stepResult: StepResult = { step, passed: false, durationMs: Date.now() - start, error };
+      if (capResult && capResult.errors.length > 0) {
+        stepResult.consoleErrors = capResult.errors;
+      }
+      stepResults.push(stepResult);
       break;
     }
   }

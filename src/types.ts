@@ -297,6 +297,7 @@ export interface StepResult {
   passed: boolean;
   durationMs: number;
   error?: string;
+  consoleErrors?: import('./console-errors.js').StepConsoleError[];
 }
 
 export interface A11yResult {
