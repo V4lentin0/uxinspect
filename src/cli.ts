@@ -210,6 +210,12 @@ const argv = await yargs(hideBin(process.argv))
       .option('color', { type: 'boolean', describe: 'Force color output (default: auto-detect TTY)' })
       .option('no-color', { type: 'boolean', describe: 'Disable color output' }),
   )
+  .command('cache <action>', 'Inspect or reset the persistent locator cache (P2 #25)', (y) =>
+    y
+      .positional('action', { type: 'string', demandOption: true, choices: ['stats', 'clear'], describe: 'stats | clear' })
+      .option('db', { type: 'string', default: path.join('.uxinspect', 'history.db'), describe: 'SQLite database path' })
+      .option('json', { type: 'boolean', default: false, describe: 'Emit machine-readable JSON (stats only)' }),
+  )
   .demandCommand(1)
   .strict()
   .help()
@@ -225,6 +231,7 @@ if (cmd === 'accept') await acceptCmd();
 if (cmd === 'watch') await watchCmd();
 if (cmd === 'replay') await replayCmd();
 if (cmd === 'diff') await diffCmd();
+if (cmd === 'cache') await cacheCmd();
 
 async function runCmd(): Promise<void> {
   const reporters = String((argv as any).reporters)
@@ -686,6 +693,31 @@ async function diffCmd(): Promise<void> {
   }
 
   process.exit(summary.totalRegressions > 0 ? 1 : 0);
+}
+
+async function cacheCmd(): Promise<void> {
+  const { readCacheStats, clearCache } = await import('./locator-cache.js');
+  const a = argv as any;
+  const db = path.resolve(String(a.db));
+  const action = String(a.action);
+  if (action === 'clear') {
+    await clearCache(db);
+    console.log(`Cleared locator cache at ${db}`);
+    return;
+  }
+  const stats = await readCacheStats(db);
+  if (a.json) {
+    console.log(JSON.stringify(stats, null, 2));
+    return;
+  }
+  const total = stats.hits + stats.misses;
+  const hitRate = total === 0 ? '—' : `${((stats.hits / total) * 100).toFixed(1)}%`;
+  console.log(`Locator cache at ${db}`);
+  console.log(`  entries:   ${stats.size}`);
+  console.log(`  hits:      ${stats.hits}`);
+  console.log(`  misses:    ${stats.misses}`);
+  console.log(`  evictions: ${stats.evictions}`);
+  console.log(`  hit rate:  ${hitRate}`);
 }
 
 async function loadConfig(p: string): Promise<InspectConfig> {

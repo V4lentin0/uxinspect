@@ -1,14 +1,37 @@
 import type { Page, Locator } from 'playwright';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import {
+  LocatorCache,
+  hashKey,
+  type CacheEntry,
+  type CacheStats,
+  type HashInput,
+} from './locator-cache.js';
 
 export interface AIHelperOptions {
   model?: string;
   headless?: boolean;
+  /**
+   * Legacy JSON cache path (e.g. `<outputDir>/ai-cache.json`). When set and
+   * `locatorCacheDbPath` is not, the cache falls back to a JSON file to stay
+   * compatible with older callers.
+   */
   cachePath?: string;
+  /**
+   * Preferred: absolute path to the shared SQLite history DB (e.g.
+   * `.uxinspect/history.db`). When provided the locator cache piggybacks on
+   * the same DB file the rest of the run history lives in.
+   */
+  locatorCacheDbPath?: string;
+  /** Max entries before LRU eviction. Defaults to 10_000. */
+  locatorCacheMaxEntries?: number;
+  /**
+   * Metadata fed into the cache key. Adding `url` + `viewport` makes the cache
+   * robust against selector collisions between routes / breakpoints.
+   */
+  keyContext?: { url?: string; viewport?: string };
 }
-
-type LocatorCache = Record<string, { strategy: string; value: string; verb: string }>;
 
 type Verb = 'click' | 'type' | 'fill' | 'check' | 'uncheck' | 'select' | 'hover' | 'press';
 
@@ -21,11 +44,16 @@ interface ParsedInstruction {
 export class AIHelper {
   private _page: Page | null = null;
   private opts: AIHelperOptions;
-  private cache: LocatorCache = {};
+  private cache: LocatorCache;
   private cacheLoaded = false;
 
   constructor(opts: AIHelperOptions = {}) {
     this.opts = opts;
+    this.cache = new LocatorCache({
+      dbPath: opts.locatorCacheDbPath,
+      jsonPath: opts.locatorCacheDbPath ? undefined : opts.cachePath,
+      maxEntries: opts.locatorCacheMaxEntries,
+    });
   }
 
   async init(page?: Page): Promise<Page | null> {
@@ -38,19 +66,34 @@ export class AIHelper {
     return this._page;
   }
 
+  /** Expose cache stats for the CLI / reporters. */
+  getCacheStats(): CacheStats {
+    return this.cache.getStats();
+  }
+
+  /** Update the URL/viewport used when hashing cache keys. Call per-page navigation. */
+  setKeyContext(ctx: { url?: string; viewport?: string }): void {
+    this.opts.keyContext = { ...this.opts.keyContext, ...ctx };
+  }
+
   async act(instruction: string): Promise<boolean> {
     if (!this._page) return false;
     const parsed = parseInstruction(instruction);
     if (!parsed) return false;
-    const cached = this.cache[instruction];
+    const key = this.buildKey(instruction);
+    const cached = this.cache.get(key);
     let loc: Locator | null = null;
     if (cached) {
       loc = locatorFromCache(this._page, cached);
-      if (loc && !(await loc.count().catch(() => 0))) loc = null;
+      // Validation: cached selector must still resolve on the live page.
+      if (loc && !(await loc.count().catch(() => 0))) {
+        this.cache.invalidate(key);
+        loc = null;
+      }
     }
     if (!loc) {
       loc = await resolveLocator(this._page, parsed.target, parsed.verb);
-      if (loc) await this.rememberLocator(instruction, loc, parsed.verb);
+      if (loc) await this.rememberLocator(key, loc, parsed.verb);
     }
     if (!loc) return false;
     try {
@@ -119,23 +162,70 @@ export class AIHelper {
     return this._page !== null;
   }
 
-  private async loadCache(): Promise<void> {
-    if (this.cacheLoaded || !this.opts.cachePath) return;
-    try {
-      this.cache = JSON.parse(await fs.readFile(this.opts.cachePath, 'utf8'));
-    } catch {
-      this.cache = {};
+  private buildKey(instruction: string): string {
+    const ctx: HashInput = { instruction };
+    if (this.opts.keyContext?.url) ctx.url = this.opts.keyContext.url;
+    else if (this._page) {
+      try { ctx.url = this._page.url(); } catch { /* ignore */ }
     }
+    if (this.opts.keyContext?.viewport) ctx.viewport = this.opts.keyContext.viewport;
+    else if (this._page) {
+      try {
+        const v = this._page.viewportSize();
+        if (v) ctx.viewport = `${v.width}x${v.height}`;
+      } catch { /* ignore */ }
+    }
+    return hashKey(ctx);
+  }
+
+  private async loadCache(): Promise<void> {
+    if (this.cacheLoaded) return;
+    // Legacy JSON path support: if the caller gave us `cachePath` only, we
+    // still attempt a raw read so previously-saved records (string-keyed) can
+    // be migrated silently. Unknown-shape files are ignored.
+    if (this.opts.cachePath && !this.opts.locatorCacheDbPath) {
+      await this.migrateLegacyJsonIfPresent();
+    }
+    await this.cache.load();
     this.cacheLoaded = true;
   }
 
   private async saveCache(): Promise<void> {
-    if (!this.opts.cachePath) return;
-    await fs.mkdir(path.dirname(this.opts.cachePath), { recursive: true });
-    await fs.writeFile(this.opts.cachePath, JSON.stringify(this.cache, null, 2));
+    await this.cache.save();
   }
 
-  private async rememberLocator(instruction: string, loc: Locator, verb: string): Promise<void> {
+  private async migrateLegacyJsonIfPresent(): Promise<void> {
+    if (!this.opts.cachePath) return;
+    try {
+      const raw = await fs.readFile(this.opts.cachePath, 'utf8');
+      const parsed = JSON.parse(raw) as unknown;
+      if (!parsed || typeof parsed !== 'object') return;
+      // New shape (written by LocatorCache.saveJson) already has `entries`.
+      if ('entries' in (parsed as Record<string, unknown>)) return;
+      // Old shape: Record<instruction, {strategy, value, verb}>.
+      const old = parsed as Record<string, { strategy?: string; value?: string; verb?: string }>;
+      const now = Date.now();
+      for (const [instr, v] of Object.entries(old)) {
+        if (!v || typeof v !== 'object' || !v.strategy || !v.value) continue;
+        const key = hashKey({ instruction: instr });
+        this.cache.put({
+          key,
+          resolvedSelector: v.value,
+          confidence: 0.5,
+          strategy: v.strategy as CacheEntry['strategy'],
+          verb: v.verb ?? 'click',
+          lastUsed: now,
+          hits: 0,
+        });
+      }
+      // Rewrite in the new format so subsequent loads are cheap.
+      await fs.mkdir(path.dirname(this.opts.cachePath), { recursive: true });
+    } catch {
+      /* missing or unreadable — fine */
+    }
+  }
+
+  private async rememberLocator(key: string, loc: Locator, verb: string): Promise<void> {
     try {
       const hint = await loc.evaluate(
         (el: Element) => ({
@@ -146,35 +236,50 @@ export class AIHelper {
           tag: el.tagName.toLowerCase(),
         }),
       );
-      let strategy = 'text';
+      let strategy: CacheEntry['strategy'] = 'text';
       let value = hint.name;
+      let confidence = 0.5;
       if (hint.dataTestId) {
         strategy = 'testid';
         value = hint.dataTestId;
+        confidence = 0.95;
       } else if (hint.id) {
         strategy = 'css';
         value = `#${hint.id}`;
+        confidence = 0.85;
       } else if (hint.role && hint.name) {
         strategy = 'role';
         value = `${hint.role}|${hint.name}`;
+        confidence = 0.75;
       }
-      this.cache[instruction] = { strategy, value, verb };
+      if (!value) return;
+      this.cache.put({
+        key,
+        resolvedSelector: value,
+        confidence,
+        strategy,
+        verb,
+      });
     } catch {
       /* ignore */
     }
   }
 }
 
-function locatorFromCache(page: Page, c: { strategy: string; value: string }): Locator | null {
+function locatorFromCache(page: Page, c: CacheEntry): Locator | null {
   try {
-    if (c.strategy === 'testid') return page.getByTestId(c.value).first();
-    if (c.strategy === 'css') return page.locator(c.value).first();
+    const value = c.resolvedSelector;
+    if (c.strategy === 'testid') return page.getByTestId(value).first();
+    if (c.strategy === 'css') return page.locator(value).first();
     if (c.strategy === 'role') {
-      const [role, ...rest] = c.value.split('|');
+      const [role, ...rest] = value.split('|');
       const name = rest.join('|');
       return page.getByRole(role as any, { name: new RegExp(escapeRegExp(name), 'i') }).first();
     }
-    if (c.strategy === 'text') return page.getByText(c.value, { exact: false }).first();
+    if (c.strategy === 'label') return page.getByLabel(value).first();
+    if (c.strategy === 'placeholder') return page.getByPlaceholder(value).first();
+    if (c.strategy === 'title') return page.getByTitle(value).first();
+    if (c.strategy === 'text') return page.getByText(value, { exact: false }).first();
   } catch {
     return null;
   }

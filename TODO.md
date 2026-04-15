@@ -119,9 +119,10 @@ Add SSIM algorithm option alongside pixelmatch. Anti-alias tolerance config, ign
 Auto-disable CSS animations, wait `document.fonts.ready`, lazy-load auto-scroll, scroll-and-stitch full-page.
 **Files:** extend visual capture modules.
 
-### 25. Locator caching 💎 — MISSING
+### 25. Locator caching 💎 — ✅ EXISTS
 Cache resolved locators by selector hash. Skip LLM/heuristic on cache hit (Stagehand pattern, 2x faster).
-**Files:** extend `src/ai.ts`.
+**Files:** `src/locator-cache.ts` (new), `src/ai.ts` (wired), `src/cli.ts` (`cache stats|clear`), `src/locator-cache.test.ts` (6 tests).
+Persistent cache in shared `.uxinspect/history.db`, SHA-256 key over (instruction + url + viewport), LRU eviction at 10k entries, stale entries revalidated via `page.locator(...).count()` on hit.
 
 ### 26. Self-healing locators 💎 — MISSING
 When locator fails, retry with neighboring strategies, update cache.
