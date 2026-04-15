@@ -72,7 +72,14 @@ function buildChecksSchema(): JsonSchema {
   const properties: Record<string, JsonSchema> = {
     a11y: boolOrOpts(),
     perf: boolOrOpts(),
-    visual: boolOrOpts(),
+    visual: boolOrOpts({
+      algorithm: enumStr(['pixelmatch', 'ssim']),
+      ssimThreshold: num({ minimum: 0, maximum: 1 }),
+      aaTolerance: num({ minimum: 0, maximum: 100 }),
+      threshold: num({ minimum: 0, maximum: 1 }),
+      failRatio: num({ minimum: 0, maximum: 1 }),
+      ignoreRegions: arr(obj({ x: num(), y: num(), w: num(), h: num() }, ['x', 'y', 'w', 'h'])),
+    }),
     explore: boolOrOpts({ maxClicks: num() }),
     seo: boolOrOpts(),
     links: boolOrOpts({ maxLinks: num(), sameOriginOnly: bool() }),

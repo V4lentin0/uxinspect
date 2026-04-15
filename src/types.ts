@@ -102,7 +102,14 @@ export interface Viewport {
 export interface ChecksConfig {
   a11y?: boolean;
   perf?: boolean;
-  visual?: boolean;
+  visual?: boolean | {
+    algorithm?: 'pixelmatch' | 'ssim';
+    ssimThreshold?: number;
+    aaTolerance?: number;
+    threshold?: number;
+    failRatio?: number;
+    ignoreRegions?: { x: number; y: number; w: number; h: number }[];
+  };
   explore?: boolean | { maxClicks?: number };
   seo?: boolean;
   links?: boolean | { maxLinks?: number; sameOriginOnly?: boolean };
@@ -340,6 +347,8 @@ export interface VisualResult {
   diffPixels: number;
   diffRatio: number;
   passed: boolean;
+  algorithm?: 'pixelmatch' | 'ssim';
+  ssim?: number;
 }
 
 export interface ExploreResult {

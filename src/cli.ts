@@ -79,6 +79,9 @@ const argv = await yargs(hideBin(process.argv))
       .option('a11y', { type: 'boolean', describe: 'Run accessibility checks' })
       .option('perf', { type: 'boolean', describe: 'Run performance audit' })
       .option('visual', { type: 'boolean', describe: 'Run visual diff' })
+      .option('visual-algorithm', { type: 'string', choices: ['pixelmatch', 'ssim'], describe: 'Visual diff algorithm (default pixelmatch)' })
+      .option('visual-ssim-threshold', { type: 'number', describe: 'SSIM pass threshold 0-1 (default 0.95)' })
+      .option('visual-aa-tolerance', { type: 'number', describe: 'Pixelmatch anti-alias tolerance 0-100' })
       .option('explore', { type: 'boolean', describe: 'Auto-explore by clicking everything' })
       .option('seo', { type: 'boolean', describe: 'SEO audit (meta, OG, canonical)' })
       .option('links', { type: 'boolean', describe: 'Broken link crawler' })
@@ -209,10 +212,21 @@ async function runCmd(): Promise<void> {
   const all: boolean | undefined = a.all === true ? true : undefined;
   const pick = (v: unknown): boolean | undefined =>
     v === undefined ? all : Boolean(v);
+  const visualAlgo = a['visual-algorithm'] as 'pixelmatch' | 'ssim' | undefined;
+  const visualSsimThreshold = a['visual-ssim-threshold'] as number | undefined;
+  const visualAaTolerance = a['visual-aa-tolerance'] as number | undefined;
+  const visualHasOptions = visualAlgo || visualSsimThreshold !== undefined || visualAaTolerance !== undefined;
+  const visualOpt: unknown = visualHasOptions
+    ? {
+        ...(visualAlgo ? { algorithm: visualAlgo } : {}),
+        ...(visualSsimThreshold !== undefined ? { ssimThreshold: visualSsimThreshold } : {}),
+        ...(visualAaTolerance !== undefined ? { aaTolerance: visualAaTolerance } : {}),
+      }
+    : pick(a.visual);
   const checks = {
     a11y: pick(a.a11y),
     perf: pick(a.perf),
-    visual: pick(a.visual),
+    visual: visualOpt,
     explore: pick(a.explore),
     seo: pick(a.seo),
     links: pick(a.links),
