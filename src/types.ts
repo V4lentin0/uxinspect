@@ -29,6 +29,7 @@ export interface InspectConfig {
   debug?: boolean;
   slowMo?: number;
   apiFlows?: ApiFlow[];
+  replay?: boolean;
 }
 
 export interface RouteMock {
@@ -290,6 +291,7 @@ export interface FlowResult {
   steps: StepResult[];
   screenshots: string[];
   error?: string;
+  replayPath?: string;
 }
 
 export interface StepResult {

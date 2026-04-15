@@ -86,6 +86,7 @@ import { auditHydration } from './hydration-audit.js';
 import { auditStorage } from './storage-audit.js';
 import { auditCsrf } from './csrf-audit.js';
 import { auditErrorPages } from './error-page-audit.js';
+import { attachReplayCapture, type ReplayHandle } from './replay.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -291,6 +292,7 @@ export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfa
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
 export { auditWebWorkers } from './web-worker-audit.js';
+export { attachReplayCapture } from './replay.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
@@ -475,8 +477,24 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
+        let replayHandle: ReplayHandle | undefined;
+        if (config.replay) {
+          try {
+            replayHandle = await attachReplayCapture(page, flow.name, outputDir);
+          } catch (_e) {
+            // Replay is best-effort — never block a flow on capture setup.
+          }
+        }
         if (config.ai?.enabled) await ai.init(page);
         const flowResult = await runFlow(page, flow.name, flow.steps, ai);
+        if (replayHandle) {
+          try {
+            const p = await replayHandle.flush();
+            flowResult.replayPath = p;
+          } catch (_e) {
+            // Failing to persist replay should not fail the flow result.
+          }
+        }
         const a11y = checks.a11y ? await checkA11y(page).catch((e) => emptyA11y(page.url(), e)) : undefined;
         if (a11y && a11y.violations.length > 0) {
           await annotateA11y(page, a11y, path.join(outputDir, 'a11y', `${flow.name}-${vp.name}.png`)).catch(() => {});

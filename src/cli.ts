@@ -147,6 +147,7 @@ const argv = await yargs(hideBin(process.argv))
       .option('video', { type: 'boolean', default: false, describe: 'Record video of flows' })
       .option('har', { type: 'boolean', default: false, describe: 'Export HAR file' })
       .option('trace', { type: 'boolean', default: false, describe: 'Export Playwright trace' })
+      .option('replay', { type: 'boolean', default: false, describe: 'Capture full DOM session via rrweb for later replay (.uxinspect/replays/)' })
       .option('storage-state', { type: 'string', describe: 'Path to playwright storageState JSON for auth' })
       .option('reporters', { type: 'string', default: 'html,json', describe: 'Comma list: html,json,junit,sarif' })
       .option('publish', { type: 'string', describe: 'Dashboard URL to upload report' })
@@ -284,6 +285,7 @@ async function runCmd(): Promise<void> {
     video: (argv as any).video,
     har: (argv as any).har,
     trace: (argv as any).trace,
+    replay: (argv as any).replay,
     storageState: (argv as any)['storage-state'],
     reporters,
     budget,

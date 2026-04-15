@@ -6,6 +6,8 @@ dist/
 *.log
 .DS_Store
 .uxinspect/
+.uxinspect/replays/
+**/replays/
 reports/
 baselines/
 diffs/
