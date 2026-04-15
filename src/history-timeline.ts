@@ -1,9 +1,200 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import type { InspectResult, PerfResult, A11yResult, VisualResult } from './types.js';
+import type { InspectResult, PerfResult, A11yResult, VisualResult, FlowResult, ExploreResult } from './types.js';
 
 export interface HistoryRun { path: string; result: InspectResult; }
-export interface HistoryConfig { title?: string; maxRuns?: number; }
+export interface HistoryConfig { title?: string; maxRuns?: number; anomalyThreshold?: number; anomalyWindow?: number; }
+
+// ---------------------------------------------------------------------------
+// Anomaly detection (P2 #20)
+// ---------------------------------------------------------------------------
+
+/**
+ * One of the metric axes tracked by {@link computeAnomalies}. Each axis has a
+ * known direction semantics — for "higherBetter" metrics a large negative
+ * z-score is a regression; for "lowerBetter" metrics a large positive z-score
+ * is a regression.
+ */
+export type AnomalyMetric =
+  | 'perf.score'
+  | 'a11y.score'
+  | 'click.count'
+  | 'console.errors'
+  | 'network.failures'
+  | 'visual.diff.total'
+  | 'flow.duration';
+
+export interface Anomaly {
+  /** Metric axis (see {@link AnomalyMetric}). */
+  metric: AnomalyMetric;
+  /** Run identifier (either a SQLite `db#id` pointer or the JSON file path). */
+  runId: string;
+  /** Zero-based position of the run within the evaluation window. */
+  runIndex: number;
+  /** Observed value. */
+  value: number;
+  /** Rolling-window mean (prior runs only, excluding the current one). */
+  mean: number;
+  /** Rolling-window sample standard deviation (prior runs only). */
+  stdDev: number;
+  /** Signed z-score: (value - mean) / stdDev. */
+  zScore: number;
+  /** Regression = metric got worse, improvement = metric got better. */
+  direction: 'regression' | 'improvement';
+}
+
+export interface ComputeAnomaliesOptions {
+  /** |z| above which a point is flagged. Default: 2.0. */
+  threshold?: number;
+  /** Rolling window size (prior runs used to establish baseline). Default: 20. */
+  window?: number;
+}
+
+const DEFAULT_ANOMALY_THRESHOLD = 2.0;
+const DEFAULT_ANOMALY_WINDOW = 20;
+// Minimum prior observations required before we trust the mean/std.
+// Two is the absolute floor for a non-zero sample std-dev; use three to avoid
+// chasing noise on tiny histories.
+const MIN_BASELINE_SAMPLES = 3;
+
+interface AnomalyAxis {
+  metric: AnomalyMetric;
+  higherBetter: boolean;
+  extract: (run: HistoryRun) => number | null;
+}
+
+const ANOMALY_AXES: AnomalyAxis[] = [
+  { metric: 'perf.score', higherBetter: true, extract: (r) => perfMean(r.result, (p) => p.scores.performance) },
+  { metric: 'a11y.score', higherBetter: true, extract: (r) => perfMean(r.result, (p) => p.scores.accessibility) },
+  { metric: 'click.count', higherBetter: true, extract: (r) => extractClickCount(r.result) },
+  { metric: 'console.errors', higherBetter: false, extract: (r) => (r.result.consoleErrors ?? []).length },
+  { metric: 'network.failures', higherBetter: false, extract: (r) => extractNetworkFailures(r.result) },
+  { metric: 'visual.diff.total', higherBetter: false, extract: (r) => extractVisualDiffTotal(r.result) },
+  { metric: 'flow.duration', higherBetter: false, extract: (r) => r.result.durationMs ?? null },
+];
+
+/**
+ * Compute rolling z-score anomalies over a sequence of runs.
+ *
+ * For each of the seven metric axes (performance score, accessibility score,
+ * total click count, console errors, network failures, visual pixel-diff
+ * totals, flow duration) the function walks the runs in order. At every
+ * position it looks back up to `window` prior runs to compute mean + sample
+ * std-dev, then flags the current run whenever |z| > `threshold` AND the
+ * prior window contains at least {@link MIN_BASELINE_SAMPLES} observations.
+ *
+ * Direction is derived from each axis's known semantics:
+ *   - higher-better axes (perf/a11y/clicks): z < -threshold = regression,
+ *     z > +threshold = improvement.
+ *   - lower-better axes (errors/failures/diff/duration): z > +threshold =
+ *     regression, z < -threshold = improvement.
+ *
+ * Results are ordered by runIndex ascending, then metric in the canonical
+ * axis order.
+ */
+export function computeAnomalies(runs: HistoryRun[], opts?: ComputeAnomaliesOptions): Anomaly[] {
+  const threshold = Math.max(0, opts?.threshold ?? DEFAULT_ANOMALY_THRESHOLD);
+  const window = Math.max(2, Math.floor(opts?.window ?? DEFAULT_ANOMALY_WINDOW));
+
+  if (!Array.isArray(runs) || runs.length < MIN_BASELINE_SAMPLES + 1) return [];
+
+  const anomalies: Anomaly[] = [];
+  for (let i = 0; i < runs.length; i++) {
+    const run = runs[i];
+    for (const axis of ANOMALY_AXES) {
+      const current = axis.extract(run);
+      if (current === null || !Number.isFinite(current)) continue;
+
+      const start = Math.max(0, i - window);
+      const prior: number[] = [];
+      for (let j = start; j < i; j++) {
+        const v = axis.extract(runs[j]);
+        if (v !== null && Number.isFinite(v)) prior.push(v);
+      }
+      if (prior.length < MIN_BASELINE_SAMPLES) continue;
+
+      const mean = prior.reduce((a, v) => a + v, 0) / prior.length;
+      const variance = prior.reduce((a, v) => a + (v - mean) * (v - mean), 0) / (prior.length - 1);
+      const stdDev = Math.sqrt(variance);
+      // A zero std-dev window (every prior value identical) gives no usable
+      // signal — skip rather than returning ±Infinity.
+      if (!Number.isFinite(stdDev) || stdDev === 0) continue;
+
+      const z = (current - mean) / stdDev;
+      if (Math.abs(z) <= threshold) continue;
+
+      const isWorse = axis.higherBetter ? z < 0 : z > 0;
+      anomalies.push({
+        metric: axis.metric,
+        runId: run.path,
+        runIndex: i,
+        value: current,
+        mean,
+        stdDev,
+        zScore: z,
+        direction: isWorse ? 'regression' : 'improvement',
+      });
+    }
+  }
+  return anomalies;
+}
+
+function perfMean(result: InspectResult, pick: (p: PerfResult) => number): number | null {
+  const perf = result.perf ?? [];
+  if (perf.length === 0) return null;
+  let sum = 0;
+  let n = 0;
+  for (const p of perf) {
+    const v = pick(p);
+    if (Number.isFinite(v)) { sum += v; n++; }
+  }
+  return n === 0 ? null : sum / n;
+}
+
+function extractClickCount(result: InspectResult): number {
+  let clicks = 0;
+  const explore = result.explore as ExploreResult | undefined;
+  if (explore) {
+    if (typeof explore.buttonsClicked === 'number') clicks += explore.buttonsClicked;
+    const heatmapClicks = explore.heatmap?.clicks;
+    if (Array.isArray(heatmapClicks)) clicks += heatmapClicks.length;
+  }
+  // Count step-level interactions from executed flows (best available
+  // proxy for total clicks when auto-explore is disabled).
+  for (const flow of result.flows ?? []) {
+    clicks += countFlowClicks(flow);
+  }
+  return clicks;
+}
+
+function countFlowClicks(flow: FlowResult): number {
+  let n = 0;
+  for (const s of flow.steps ?? []) {
+    const step = s.step as unknown as Record<string, unknown>;
+    if (typeof step['click'] === 'string') n++;
+    else if (step['hover'] !== undefined) n++;
+    else if (step['check'] !== undefined || step['uncheck'] !== undefined) n++;
+  }
+  return n;
+}
+
+function extractNetworkFailures(result: InspectResult): number {
+  let n = 0;
+  for (const flow of result.flows ?? []) {
+    for (const s of flow.steps ?? []) {
+      if (Array.isArray(s.networkFailures)) n += s.networkFailures.length;
+    }
+  }
+  return n;
+}
+
+function extractVisualDiffTotal(result: InspectResult): number {
+  let total = 0;
+  for (const v of result.visual ?? []) {
+    if (typeof v.diffPixels === 'number' && Number.isFinite(v.diffPixels)) total += v.diffPixels;
+  }
+  return total;
+}
 
 // ---------------------------------------------------------------------------
 // better-sqlite3 lazy loader
@@ -50,6 +241,8 @@ interface MetricSeries {
   neutral?: boolean;
   higherBetter?: boolean;
   passingThreshold?: number;
+  /** Axis key used to look up anomalies for this series. */
+  anomalyMetric?: AnomalyMetric;
 }
 
 interface TableRow {
@@ -214,9 +407,20 @@ export function renderHistoryHtml(runs: HistoryRun[], config?: HistoryConfig): s
   const series = buildSeries(limited);
   const rows = buildTableRows(limited);
 
+  const anomalies = computeAnomalies(limited, {
+    threshold: config?.anomalyThreshold,
+    window: config?.anomalyWindow,
+  });
+  const anomaliesByMetric = new Map<AnomalyMetric, Map<number, Anomaly>>();
+  for (const a of anomalies) {
+    let m = anomaliesByMetric.get(a.metric);
+    if (!m) { m = new Map(); anomaliesByMetric.set(a.metric, m); }
+    m.set(a.runIndex, a);
+  }
+
   const generatedAt = formatUtc(new Date());
   const subtitle = total === 0 ? 'no runs found' : `last ${total} run${total === 1 ? '' : 's'} — earliest to latest`;
-  const sparkCards = series.map(renderSparkCard).join('\n');
+  const sparkCards = series.map((s) => renderSparkCard(s, anomaliesByMetric.get(s.anomalyMetric ?? ('' as AnomalyMetric)) ?? null)).join('\n');
   const tableHtml = renderTable(rows);
 
   return `<!DOCTYPE html>
@@ -461,16 +665,16 @@ function buildSeries(runs: HistoryRun[]): MetricSeries[] {
   }
 
   return [
-    { label: 'Performance score', values: perfScore, format: (v) => v.toFixed(0), higherBetter: true, passingThreshold: 80 },
-    { label: 'Accessibility score', values: a11yScore, format: (v) => v.toFixed(0), higherBetter: true, passingThreshold: 80 },
+    { label: 'Performance score', values: perfScore, format: (v) => v.toFixed(0), higherBetter: true, passingThreshold: 80, anomalyMetric: 'perf.score' },
+    { label: 'Accessibility score', values: a11yScore, format: (v) => v.toFixed(0), higherBetter: true, passingThreshold: 80, anomalyMetric: 'a11y.score' },
     { label: 'LCP (ms)', values: lcp, format: (v) => `${Math.round(v)}ms`, neutral: true },
     { label: 'CLS', values: cls, format: (v) => v.toFixed(3), neutral: true },
     { label: 'TBT (ms)', values: tbt, format: (v) => `${Math.round(v)}ms`, neutral: true },
     { label: 'A11y critical violations', values: a11yCritical, format: (v) => v.toFixed(0), neutral: true },
     { label: 'A11y serious violations', values: a11ySerious, format: (v) => v.toFixed(0), neutral: true },
     { label: 'Visual diff ratio (max)', values: visualDiffMax, format: (v) => v.toFixed(4), neutral: true },
-    { label: 'Console errors', values: consoleErrors, format: (v) => v.toFixed(0), neutral: true },
-    { label: 'Duration', values: duration, format: (v) => formatDuration(v), neutral: true },
+    { label: 'Console errors', values: consoleErrors, format: (v) => v.toFixed(0), neutral: true, anomalyMetric: 'console.errors' },
+    { label: 'Duration', values: duration, format: (v) => formatDuration(v), neutral: true, anomalyMetric: 'flow.duration' },
   ];
 }
 
@@ -521,7 +725,7 @@ function buildTableRows(runs: HistoryRun[]): TableRow[] {
   });
 }
 
-function renderSparkCard(s: MetricSeries): string {
+function renderSparkCard(s: MetricSeries, anomalies: Map<number, Anomaly> | null): string {
   const latest = s.values.length ? s.values[s.values.length - 1] : null;
   const latestLabel = latest === null ? '—' : s.format(latest);
   const min = s.values.length ? Math.min(...s.values) : 0;
@@ -535,7 +739,7 @@ function renderSparkCard(s: MetricSeries): string {
     stroke = GREEN;
   }
 
-  const body = s.values.length === 0 ? `<div class="empty">no data</div>` : renderSparkline(s.values, stroke);
+  const body = s.values.length === 0 ? `<div class="empty">no data</div>` : renderSparkline(s.values, stroke, anomalies);
   const metaLeft = s.values.length ? `min ${s.format(min)}` : '';
   const metaRight = s.values.length ? `max ${s.format(max)}` : '';
 
@@ -546,7 +750,7 @@ function renderSparkCard(s: MetricSeries): string {
     </article>`;
 }
 
-function renderSparkline(values: number[], stroke: string): string {
+function renderSparkline(values: number[], stroke: string, anomalies: Map<number, Anomaly> | null): string {
   const n = values.length;
   const innerW = SPARK_W - SPARK_PX * 2;
   const innerH = SPARK_H - SPARK_PY * 2;
@@ -568,11 +772,20 @@ function renderSparkline(values: number[], stroke: string): string {
 
   const points: string[] = [];
   const circles: string[] = [];
+  const rings: string[] = [];
   for (let i = 0; i < n; i++) {
     const x = xFor(i);
     const y = yFor(values[i]);
     points.push(`${x.toFixed(2)},${y.toFixed(2)}`);
     circles.push(`<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="3" fill="${stroke}" />`);
+    const anomaly = anomalies?.get(i);
+    if (anomaly) {
+      const ringColor = anomaly.direction === 'regression' ? RED : GREEN;
+      const tooltip = `${anomaly.direction} (z=${anomaly.zScore.toFixed(2)})`;
+      rings.push(
+        `<circle class="anomaly anomaly-${anomaly.direction}" cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="6" fill="none" stroke="${ringColor}" stroke-width="2"><title>${escapeHtml(tooltip)}</title></circle>`,
+      );
+    }
   }
 
   const polyline = `<polyline fill="none" stroke="${stroke}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" points="${points.join(' ')}" />`;
@@ -581,7 +794,7 @@ function renderSparkline(values: number[], stroke: string): string {
   const baseline = `<line x1="${SPARK_PX}" y1="${bottom}" x2="${SPARK_W - SPARK_PX}" y2="${bottom}" stroke="${BORDER}" stroke-width="1" />` +
     `<line x1="${SPARK_PX}" y1="${top}" x2="${SPARK_W - SPARK_PX}" y2="${top}" stroke="${BORDER}" stroke-width="1" stroke-dasharray="2 3" opacity="0.6" />`;
 
-  return `<svg viewBox="0 0 ${SPARK_W} ${SPARK_H}" preserveAspectRatio="none" role="img" aria-label="sparkline">${baseline}${polyline}${circles.join('')}</svg>`;
+  return `<svg viewBox="0 0 ${SPARK_W} ${SPARK_H}" preserveAspectRatio="none" role="img" aria-label="sparkline">${baseline}${polyline}${circles.join('')}${rings.join('')}</svg>`;
 }
 
 function renderTable(rows: TableRow[]): string {
