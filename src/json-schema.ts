@@ -214,6 +214,20 @@ function buildStepVariants(): JsonSchema[] {
       ),
     ),
     singleKeyStep('clearCookies', { const: true }),
+    // NL extract step: pulls structured data per named Zod schema
+    {
+      type: 'object',
+      properties: {
+        extract: obj(
+          { instruction: str(), schemaName: str() },
+          ['instruction', 'schemaName'],
+        ),
+        storeAs: str(),
+      },
+      required: ['extract'],
+      additionalProperties: false,
+      description: 'Extract structured data from the current page using NL instruction + named Zod schema.',
+    },
     // ApiStep variants (apiFlows uses these)
     singleKeyStep(
       'request',
@@ -349,6 +363,17 @@ export function generateConfigSchema(): JsonSchema {
     debug: bool(),
     slowMo: num({ minimum: 0 }),
     apiFlows: arr({ $ref: '#/definitions/ApiFlow' }),
+    schemas: {
+      type: 'object',
+      additionalProperties: true,
+      description: 'Named Zod schemas for extract steps. Configured at runtime (not JSON-serializable).',
+    },
+    extractOptions: obj({
+      ollamaEnabled: bool(),
+      ollamaUrl: str({ format: 'uri' }),
+      ollamaModel: str(),
+      maxTextChars: num({ minimum: 100 }),
+    }),
   };
 
   return {

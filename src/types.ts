@@ -29,6 +29,15 @@ export interface InspectConfig {
   debug?: boolean;
   slowMo?: number;
   apiFlows?: ApiFlow[];
+  /** Zod schemas registered for use in `extract` steps. Key = schemaName referenced by steps. */
+  schemas?: import('./extract.js').SchemaRegistry;
+  /** Extract step behavior. */
+  extractOptions?: {
+    ollamaEnabled?: boolean;
+    ollamaUrl?: string;
+    ollamaModel?: string;
+    maxTextChars?: number;
+  };
 }
 
 export interface RouteMock {
@@ -91,7 +100,8 @@ export type Step =
   | { waitForDownload: { trigger: string; saveAs: string } }
   | { waitForPopup: { trigger: string; switchTo?: boolean } }
   | { cookie: { name: string; value: string; domain?: string; path?: string; expires?: number; httpOnly?: boolean; secure?: boolean; sameSite?: 'Strict' | 'Lax' | 'None' } }
-  | { clearCookies: true };
+  | { clearCookies: true }
+  | { extract: { instruction: string; schemaName: string }; storeAs?: string };
 
 export interface Viewport {
   name: string;
@@ -297,6 +307,8 @@ export interface StepResult {
   passed: boolean;
   durationMs: number;
   error?: string;
+  /** Populated by `extract` steps. Holds the structured data + provenance. */
+  extracted?: { key: string; source: 'heuristic' | 'llm'; confidence: number; data: unknown };
 }
 
 export interface A11yResult {

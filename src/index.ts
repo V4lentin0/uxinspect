@@ -166,6 +166,8 @@ import type { ErrorPageAuditResult } from './error-page-audit.js';
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
 export { AIHelper } from './ai.js';
+export { extractFromPage, defineSchemas, describeSchema, heuristicExtractField } from './extract.js';
+export type { ExtractResult, ExtractOptions, ExtractSource, SchemaRegistry, FieldDescriptor } from './extract.js';
 export { checkSeo } from './seo.js';
 export { checkLinks } from './links.js';
 export { checkPwa } from './pwa.js';
@@ -476,7 +478,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
         if (config.ai?.enabled) await ai.init(page);
-        const flowResult = await runFlow(page, flow.name, flow.steps, ai);
+        const flowResult = await runFlow(page, flow.name, flow.steps, ai, { schemas: config.schemas, extractOptions: config.extractOptions });
         const a11y = checks.a11y ? await checkA11y(page).catch((e) => emptyA11y(page.url(), e)) : undefined;
         if (a11y && a11y.violations.length > 0) {
           await annotateA11y(page, a11y, path.join(outputDir, 'a11y', `${flow.name}-${vp.name}.png`)).catch(() => {});
@@ -933,17 +935,31 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   return result;
 }
 
-async function runFlow(page: Page, name: string, steps: Step[], ai: AIHelper): Promise<FlowResult> {
+interface RunFlowContext {
+  schemas?: import('./extract.js').SchemaRegistry;
+  extractOptions?: InspectConfig['extractOptions'];
+}
+
+async function runFlow(
+  page: Page,
+  name: string,
+  steps: Step[],
+  ai: AIHelper,
+  ctx: RunFlowContext = {},
+): Promise<FlowResult> {
   const stepResults: StepResult[] = [];
   const screenshots: string[] = [];
   let passed = true;
   let error: string | undefined;
+  const flowState: Record<string, unknown> = {};
 
   for (const step of steps) {
     const start = Date.now();
     try {
-      await runStep(page, step, ai);
-      stepResults.push({ step, passed: true, durationMs: Date.now() - start });
+      const out = await runStep(page, step, ai, { ...ctx, state: flowState });
+      const result: StepResult = { step, passed: true, durationMs: Date.now() - start };
+      if (out && 'extracted' in out && out.extracted) result.extracted = out.extracted;
+      stepResults.push(result);
     } catch (e: any) {
       passed = false;
       error = e?.message ?? String(e);
@@ -955,7 +971,15 @@ async function runFlow(page: Page, name: string, steps: Step[], ai: AIHelper): P
   return { name, passed, steps: stepResults, screenshots, error };
 }
 
-async function runStep(page: Page, step: Step, ai: AIHelper): Promise<void> {
+interface StepExecContext extends RunFlowContext {
+  state: Record<string, unknown>;
+}
+
+interface StepExecResult {
+  extracted?: { key: string; source: 'heuristic' | 'llm'; confidence: number; data: unknown };
+}
+
+async function runStep(page: Page, step: Step, ai: AIHelper, stepCtx: StepExecContext = { state: {} }): Promise<StepExecResult | void> {
   if ('goto' in step) {
     await page.goto(step.goto, { waitUntil: 'domcontentloaded' });
   } else if ('click' in step) {
@@ -1060,6 +1084,24 @@ async function runStep(page: Page, step: Step, ai: AIHelper): Promise<void> {
     }]);
   } else if ('clearCookies' in step) {
     await page.context().clearCookies();
+  } else if ('extract' in step) {
+    const { extractFromPage } = await import('./extract.js');
+    const { instruction, schemaName } = step.extract;
+    const schema = stepCtx.schemas?.[schemaName];
+    if (!schema) {
+      throw new Error(
+        `extract step: schema "${schemaName}" not registered. Register via config.schemas = defineSchemas({ ${schemaName}: z.object({...}) }).`,
+      );
+    }
+    const result = await extractFromPage(page, instruction, schema, {
+      ollamaEnabled: stepCtx.extractOptions?.ollamaEnabled,
+      ollamaUrl: stepCtx.extractOptions?.ollamaUrl,
+      ollamaModel: stepCtx.extractOptions?.ollamaModel,
+      maxTextChars: stepCtx.extractOptions?.maxTextChars,
+    });
+    const key = (step as any).storeAs ?? schemaName;
+    stepCtx.state[key] = result.data;
+    return { extracted: { key, source: result.source, confidence: result.confidence, data: result.data } };
   }
 }
 
