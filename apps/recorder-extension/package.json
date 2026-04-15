@@ -1,0 +1,10 @@
+{
+  "name": "@uxinspect/recorder-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome MV3 extension that records user interactions on any page and exports them as a uxinspect flow JSON.",
+  "license": "MIT",
+  "scripts": {
+    "zip": "cd .. && zip -r recorder-extension.zip recorder-extension -x '*.DS_Store' '*/node_modules/*'"
+  }
+}

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>uxinspect Flow Recorder</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="header">
+      <div class="brand">
+        <span class="dot" aria-hidden="true"></span>
+        <h1>Flow Recorder</h1>
+      </div>
+      <p class="subtitle">Record interactions on this page and export as a flow.</p>
+    </header>
+
+    <section class="status" aria-live="polite">
+      <div class="status-row">
+        <span class="label">Status</span>
+        <span id="status-text" class="value">Idle</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Steps</span>
+        <span id="step-count" class="value">0</span>
+      </div>
+    </section>
+
+    <section class="form">
+      <label for="flow-name" class="field-label">Flow name</label>
+      <input
+        id="flow-name"
+        class="input"
+        type="text"
+        placeholder="Recorded flow"
+        autocomplete="off"
+      />
+    </section>
+
+    <section class="actions">
+      <button id="btn-start" class="btn btn-primary" type="button">Start</button>
+      <button id="btn-stop" class="btn btn-secondary" type="button" disabled>Stop</button>
+    </section>
+
+    <section class="actions actions-row">
+      <button id="btn-copy" class="btn btn-ghost" type="button" disabled>Copy JSON</button>
+      <button id="btn-download" class="btn btn-ghost" type="button" disabled>Download</button>
+    </section>
+
+    <section class="actions">
+      <button id="btn-clear" class="btn btn-danger" type="button" disabled>Clear</button>
+    </section>
+
+    <section class="preview" id="preview-wrap" hidden>
+      <div class="preview-header">
+        <span class="field-label">Preview</span>
+        <span id="preview-size" class="hint"></span>
+      </div>
+      <pre id="preview" class="code"></pre>
+    </section>
+
+    <footer class="footer">
+      <p id="message" class="message" role="status"></p>
+    </footer>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
