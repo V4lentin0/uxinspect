@@ -199,6 +199,7 @@ export interface ChecksConfig {
   storage?: boolean;
   csrf?: boolean;
   errorPages?: boolean;
+  stuckSpinners?: boolean | { timeoutMs?: number; selectors?: string[]; pollIntervalMs?: number; captureScreenshot?: boolean; screenshotDir?: string };
 }
 
 export interface OutputConfig {
@@ -300,6 +301,7 @@ export interface InspectResult {
   storage?: import('./storage-audit.js').StorageAuditResult[];
   csrf?: import('./csrf-audit.js').CsrfAuditResult[];
   errorPages?: import('./error-page-audit.js').ErrorPageAuditResult[];
+  stuckSpinners?: import('./stuck-spinner-audit.js').StuckSpinnerResult[];
   passed: boolean;
 }
 
@@ -381,4 +383,5 @@ export interface ExploreResult {
   consoleErrors: string[];
   networkErrors: string[];
   replayPath?: string;
+  stuckSpinners?: import('./stuck-spinner-audit.js').StuckSpinnerFinding[];
 }

@@ -91,6 +91,7 @@ import { auditStorage } from './storage-audit.js';
 import { auditCsrf } from './csrf-audit.js';
 import { auditErrorPages } from './error-page-audit.js';
 import { startReplay, stopReplay } from './replay.js';
+import { auditStuckSpinners } from './stuck-spinner-audit.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -169,6 +170,7 @@ import type { HydrationAuditResult } from './hydration-audit.js';
 import type { StorageAuditResult } from './storage-audit.js';
 import type { CsrfAuditResult } from './csrf-audit.js';
 import type { ErrorPageAuditResult } from './error-page-audit.js';
+import type { StuckSpinnerResult } from './stuck-spinner-audit.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -296,6 +298,7 @@ export { auditHydration } from './hydration-audit.js';
 export { auditStorage } from './storage-audit.js';
 export { auditCsrf } from './csrf-audit.js';
 export { auditErrorPages } from './error-page-audit.js';
+export { auditStuckSpinners, DEFAULT_STUCK_SPINNER_SELECTORS } from './stuck-spinner-audit.js';
 export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfall.js';
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
@@ -383,6 +386,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const storageResults: StorageAuditResult[] = [];
   const csrfResults: CsrfAuditResult[] = [];
   const errorPagesResults: ErrorPageAuditResult[] = [];
+  const stuckSpinnerResults: StuckSpinnerResult[] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
 
@@ -725,10 +729,27 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const ePage = await driver.newPage();
         const exploreReplay = await startReplay(ePage, `explore-${vp.name}`).catch(() => null);
         await ePage.goto(config.url);
-        exploreResult = await explore(ePage, opts);
+        exploreResult = await explore(ePage, {
+          ...opts,
+          skipStuckSpinner: !checks.stuckSpinners,
+          stuckSpinner: typeof checks.stuckSpinners === 'object' ? checks.stuckSpinners : undefined,
+        });
         const exploreReplayPath = await stopReplay(exploreReplay).catch(() => null);
         if (exploreResult && exploreReplayPath) exploreResult.replayPath = exploreReplayPath;
         await ePage.close();
+      }
+
+      if (checks.stuckSpinners) {
+        const spinOpts = typeof checks.stuckSpinners === 'object' ? checks.stuckSpinners : {};
+        const sPage = await driver.newPage();
+        try {
+          await sPage.goto(config.url);
+          stuckSpinnerResults.push(await auditStuckSpinners(sPage, spinOpts));
+        } catch {
+          // best effort
+        } finally {
+          await sPage.close();
+        }
       }
 
       if (checks.security) {
@@ -835,7 +856,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     printResults.every((r) => (r as any).passed !== false) &&
     canonicalResults.every((r) => (r as any).passed !== false) &&
     (compressionResult === undefined || (compressionResult as any).passed !== false) &&
-    (robotsAuditResult === undefined || (robotsAuditResult as any).passed !== false);
+    (robotsAuditResult === undefined || (robotsAuditResult as any).passed !== false) &&
+    stuckSpinnerResults.every((r) => (r as any).passed !== false);
 
   const result: InspectResult = {
     url: config.url,
@@ -923,6 +945,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     storage: checks.storage ? storageResults : undefined,
     csrf: checks.csrf ? csrfResults : undefined,
     errorPages: checks.errorPages ? errorPagesResults : undefined,
+    stuckSpinners: checks.stuckSpinners ? stuckSpinnerResults : undefined,
     passed: baselinePassed,
   };
 

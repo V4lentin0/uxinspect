@@ -1,11 +1,20 @@
 import type { Page } from 'playwright';
 import type { ExploreResult } from './types.js';
+import {
+  auditStuckSpinners,
+  type StuckSpinnerOptions,
+  type StuckSpinnerFinding,
+} from './stuck-spinner-audit.js';
 
 export interface ExploreOptions {
   maxClicks?: number;
   maxPages?: number;
   sameOrigin?: boolean;
   submitForms?: boolean;
+  /** Skip the stuck-spinner check that runs after every click. */
+  skipStuckSpinner?: boolean;
+  /** Options forwarded to `auditStuckSpinners` when run after clicks. */
+  stuckSpinner?: StuckSpinnerOptions;
 }
 
 export async function explore(page: Page, opts: ExploreOptions = {}): Promise<ExploreResult> {
@@ -13,11 +22,13 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
   const maxPages = opts.maxPages ?? 20;
   const sameOrigin = opts.sameOrigin ?? true;
   const submitForms = opts.submitForms ?? true;
+  const runStuckSpinner = opts.skipStuckSpinner !== true;
   const startOrigin = new URL(page.url()).origin;
 
   const consoleErrors: string[] = [];
   const networkErrors: string[] = [];
   const errors: string[] = [];
+  const stuckSpinners: StuckSpinnerFinding[] = [];
   let buttonsClicked = 0;
   let formsSubmitted = 0;
   const pagesVisited = new Set<string>([page.url()]);
@@ -55,6 +66,12 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
           if (submitForms) formsSubmitted += await fillAndSubmitForms(page, errors);
         }
       }
+      if (runStuckSpinner) {
+        const stuck = await auditStuckSpinners(page, opts.stuckSpinner ?? {}).catch(() => null);
+        if (stuck && stuck.stuck.length > 0) {
+          for (const f of stuck.stuck) stuckSpinners.push(f);
+        }
+      }
     } catch {
       // click failed — skip
     }
@@ -67,6 +84,7 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
     errors,
     consoleErrors,
     networkErrors,
+    stuckSpinners: runStuckSpinner ? stuckSpinners : undefined,
   };
 }
 
