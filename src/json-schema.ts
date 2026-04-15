@@ -130,6 +130,13 @@ function buildChecksSchema(): JsonSchema {
     pagination: boolOrOpts({ scrollProbes: num() }),
     print: boolOrOpts({ screenshotPath: str() }),
     canonical: boolOrOpts({ followChain: bool() }),
+    stuckSpinners: boolOrOpts({
+      timeoutMs: num({ minimum: 0 }),
+      selectors: arr(str()),
+      pollIntervalMs: num({ minimum: 0 }),
+      captureScreenshot: bool(),
+      screenshotDir: str(),
+    }),
   };
   return obj(properties);
 }
