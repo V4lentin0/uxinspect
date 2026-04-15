@@ -182,6 +182,14 @@ import type { FrustrationSignalResult } from './frustration-signals.js';
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
 export { AIHelper } from './ai.js';
+export {
+  LocatorCache,
+  hashKey as locatorCacheKey,
+  readCacheStats as readLocatorCacheStats,
+  clearCache as clearLocatorCache,
+  type CacheEntry as LocatorCacheEntry,
+  type CacheStats as LocatorCacheStats,
+} from './locator-cache.js';
 export { checkSeo } from './seo.js';
 export { checkLinks } from './links.js';
 export { checkPwa } from './pwa.js';
@@ -436,6 +444,10 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
       const ai = new AIHelper({
         model: config.ai?.model,
         cachePath: path.join(outputDir, 'ai-cache.json'),
+        // P2 #25 — persist resolved locators in the shared SQLite history DB so
+        // repeat runs skip the heuristic resolver (Stagehand-style speedup).
+        locatorCacheDbPath: path.join('.uxinspect', 'history.db'),
+        keyContext: { viewport: vp.name },
       });
 
       const runOne = async (flow: { name: string; steps: Step[] }): Promise<{
