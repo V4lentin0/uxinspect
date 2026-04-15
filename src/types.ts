@@ -180,6 +180,15 @@ export interface ChecksConfig {
   storage?: boolean;
   csrf?: boolean;
   errorPages?: boolean;
+  frustrationSignals?: boolean | {
+    rageClickWindowMs?: number;
+    rageClickThreshold?: number;
+    deadClickWaitMs?: number;
+    uTurnWindowMs?: number;
+    errorClickWindowMs?: number;
+    thrashedCursorWindowMs?: number;
+    thrashedCursorThreshold?: number;
+  };
 }
 
 export interface OutputConfig {
@@ -281,6 +290,7 @@ export interface InspectResult {
   storage?: import('./storage-audit.js').StorageAuditResult[];
   csrf?: import('./csrf-audit.js').CsrfAuditResult[];
   errorPages?: import('./error-page-audit.js').ErrorPageAuditResult[];
+  frustrationSignals?: import('./frustration-signals.js').FrustrationSignalResult[];
   passed: boolean;
 }
 
