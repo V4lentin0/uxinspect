@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { promises as fs } from 'node:fs';
 import { Driver, networkPresets } from './driver.js';
 import { checkA11y, annotateA11y } from './a11y.js';
 import { checkPerf } from './perf.js';
@@ -291,6 +292,21 @@ export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfa
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
 export { auditWebWorkers } from './web-worker-audit.js';
+
+/**
+ * Save a result snapshot to `.uxinspect/last.json` relative to cwd so that
+ * `uxinspect diff <baseline>` can default its `current` argument to it.
+ */
+export async function saveLastRun(
+  result: InspectResult,
+  cwd: string = process.cwd(),
+): Promise<string> {
+  const dir = path.join(cwd, '.uxinspect');
+  await fs.mkdir(dir, { recursive: true });
+  const file = path.join(dir, 'last.json');
+  await fs.writeFile(file, JSON.stringify(result, null, 2));
+  return file;
+}
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
@@ -922,6 +938,11 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   }
 
   await writeReport(result, outputDir, config.reporters);
+  try {
+    await saveLastRun(result);
+  } catch {
+    // non-fatal: auto-baseline save is best-effort
+  }
 
   if (config.notify) {
     const shouldNotify = !config.notify.onlyOnFail || !result.passed;

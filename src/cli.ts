@@ -7,6 +7,8 @@ import { pathToFileURL } from 'node:url';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { inspect } from './index.js';
+import { diffReportFiles, formatDiff } from './budget-diff.js';
+import type { BudgetDiffResult } from './budget-diff.js';
 import type { InspectConfig } from './types.js';
 
 const STARTER_CONFIG = `import type { InspectConfig } from 'uxinspect';
@@ -181,6 +183,13 @@ const argv = await yargs(hideBin(process.argv))
       .option('config', { type: 'string', demandOption: true })
       .option('path', { type: 'string', default: '.', describe: 'Directory to watch' }),
   )
+  .command('diff <baseline> [current]', 'Diff two reports; defaults current to .uxinspect/last.json', (y) =>
+    y
+      .positional('baseline', { type: 'string', demandOption: true, describe: 'Path to baseline report JSON' })
+      .positional('current', { type: 'string', describe: 'Path to current report JSON (default: .uxinspect/last.json)' })
+      .option('reporter', { type: 'string', choices: ['html', 'json', 'text'], default: 'text', describe: 'Output format' })
+      .option('out', { type: 'string', describe: 'Output path (required for html/json reporters)' }),
+  )
   .demandCommand(1)
   .strict()
   .help()
@@ -194,6 +203,7 @@ if (cmd === 'init') await initCmd();
 if (cmd === 'record') await recordCmd();
 if (cmd === 'accept') await acceptCmd();
 if (cmd === 'watch') await watchCmd();
+if (cmd === 'diff') await diffCmd();
 
 async function runCmd(): Promise<void> {
   const reporters = String((argv as any).reporters)
@@ -535,6 +545,94 @@ async function acceptCmd(): Promise<void> {
     count++;
   }
   console.log(`Accepted ${count} baseline(s) into ${baselines}`);
+}
+
+async function diffCmd(): Promise<void> {
+  const a = argv as any;
+  const baseline = path.resolve(String(a.baseline));
+  const currentArg = a.current ? String(a.current) : path.join('.uxinspect', 'last.json');
+  const current = path.resolve(currentArg);
+  const reporter = String(a.reporter ?? 'text') as 'text' | 'html' | 'json';
+  const outPath = a.out ? path.resolve(String(a.out)) : undefined;
+
+  if (!(await fs.stat(baseline).catch(() => null))) {
+    console.error(`Baseline not found: ${baseline}`);
+    process.exit(1);
+  }
+  if (!(await fs.stat(current).catch(() => null))) {
+    console.error(
+      `Current report not found: ${current}` +
+        (a.current ? '' : ' — run `uxinspect run` first to create .uxinspect/last.json'),
+    );
+    process.exit(1);
+  }
+
+  const diff = await diffReportFiles(baseline, current);
+  await emitDiff(diff, reporter, outPath);
+  process.exit(diff.passed ? 0 : 1);
+}
+
+async function emitDiff(
+  diff: BudgetDiffResult,
+  reporter: 'text' | 'html' | 'json',
+  outPath: string | undefined,
+): Promise<void> {
+  if (reporter === 'text') {
+    console.log(formatDiff(diff));
+    return;
+  }
+  if (!outPath) {
+    console.error(`--out <path> is required when --reporter ${reporter}`);
+    process.exit(1);
+  }
+  await fs.mkdir(path.dirname(outPath), { recursive: true });
+  if (reporter === 'json') {
+    await fs.writeFile(outPath, JSON.stringify(diff, null, 2));
+  } else {
+    await fs.writeFile(outPath, renderDiffHtml(diff));
+  }
+  console.log(`Wrote ${reporter} diff: ${outPath}`);
+  console.log(formatDiff(diff));
+}
+
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function renderDiffHtml(diff: BudgetDiffResult): string {
+  const status = diff.passed ? 'PASS' : 'FAIL';
+  const color = diff.passed ? '#10B981' : '#DC2626';
+  const rows = diff.deltas
+    .map((d) => {
+      const cls = d.regressed ? 'regressed' : 'ok';
+      return `<tr class="${cls}"><td>${escHtml(d.metric)}</td><td>${escHtml(d.page ?? '-')}</td><td>${d.baseline}</td><td>${d.current}</td><td>${d.delta}</td><td>${d.threshold}</td><td>${d.regressed ? 'REGRESSED' : 'OK'}</td></tr>`;
+    })
+    .join('\n');
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><title>uxinspect diff</title>
+<style>
+  body { font-family: Inter, system-ui, sans-serif; background: #FAFAFA; color: #1D1D1F; margin: 0; padding: 24px; }
+  h1 { margin: 0 0 16px; font-size: 20px; }
+  .status { display: inline-block; padding: 4px 10px; border-radius: 6px; color: white; background: ${color}; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; background: white; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; margin-top: 16px; }
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #E5E7EB; font-size: 13px; }
+  th { background: #ECFDF5; font-weight: 600; }
+  tr.regressed td { background: #FEF2F2; }
+  tr.ok td { background: #FFFFFF; }
+  .summary { margin-top: 12px; font-size: 14px; color: #374151; }
+</style></head><body>
+<h1>uxinspect diff <span class="status">${status}</span></h1>
+<div class="summary">${diff.summary.regressedCount} / ${diff.summary.totalChecked} metrics regressed</div>
+<table>
+<thead><tr><th>Metric</th><th>Page</th><th>Baseline</th><th>Current</th><th>Delta</th><th>Threshold</th><th>Status</th></tr></thead>
+<tbody>
+${rows}
+</tbody></table>
+</body></html>`;
 }
 
 async function loadConfig(p: string): Promise<InspectConfig> {
