@@ -34,7 +34,7 @@ describe('auditStuckSpinners', () => {
         </body></html>
       `);
       const result = await auditStuckSpinners(page, {
-        timeoutMs: 500,
+        timeoutMs: 1500,
         pollIntervalMs: 100,
         captureScreenshot: false,
       });
@@ -42,7 +42,7 @@ describe('auditStuckSpinners', () => {
       assert.ok(result.stuck.length >= 1, 'expected at least one stuck finding');
       const finding = result.stuck.find((s) => s.selector === '.spinner');
       assert.ok(finding, 'expected a .spinner finding');
-      assert.ok(finding.durationMs >= 500, `durationMs ${finding.durationMs} should be >= timeout`);
+      assert.ok(finding.durationMs >= 1500, `durationMs ${finding.durationMs} should be >= timeout`);
       assert.ok(finding.snippet.includes('spinner'));
       assert.equal(typeof result.checkedAt, 'string');
     } finally {
