@@ -249,7 +249,14 @@ export { toTeamsCard, postTeamsCard } from './teams-formatter.js';
 export { runChaos } from './chaos.js';
 export { runCrossBrowser } from './cross-browser.js';
 export { convertCodegen, convertCodegenFile, flowToPlaywrightSnippet } from './codegen-converter.js';
-export { installPrecommit, uninstallPrecommit, generateHookScript } from './precommit.js';
+export {
+  installPrecommit,
+  uninstallPrecommit,
+  generateHookScript,
+  generatePrePushHookScript,
+  installPrepush,
+  uninstallPrepush,
+} from './precommit.js';
 export { runInitWizard, generateConfigFile, generateWorkflowFile } from './init-wizard.js';
 export { runWorkerRuntime, extractMeta, extractAssets } from './worker-runtime.js';
 export { extractMetrics, toPrometheusText, toOtlpJson, pushOtlp } from './metrics-exporter.js';

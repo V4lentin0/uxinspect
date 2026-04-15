@@ -6,7 +6,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
-import { inspect } from './index.js';
+import { inspect, installPrepush, uninstallPrepush } from './index.js';
 import type { InspectConfig } from './types.js';
 
 const STARTER_CONFIG = `import type { InspectConfig } from 'uxinspect';
@@ -181,6 +181,16 @@ const argv = await yargs(hideBin(process.argv))
       .option('config', { type: 'string', demandOption: true })
       .option('path', { type: 'string', default: '.', describe: 'Directory to watch' }),
   )
+  .command('install-prepush', 'Install pre-push git hook running full audit before push', (y) =>
+    y
+      .option('git-dir', { type: 'string', describe: 'Path to .git directory (default: auto-detect)' })
+      .option('hook-command', { type: 'string', describe: 'Command to run in hook (default: npx uxinspect run --all)' })
+      .option('timeout-s', { type: 'number', describe: 'Timeout in seconds (default: 600)' })
+      .option('force', { type: 'boolean', default: false, describe: 'Overwrite existing hook (backup made)' }),
+  )
+  .command('uninstall-prepush', 'Remove pre-push git hook installed by uxinspect', (y) =>
+    y.option('git-dir', { type: 'string', describe: 'Path to .git directory (default: auto-detect)' }),
+  )
   .demandCommand(1)
   .strict()
   .help()
@@ -194,6 +204,8 @@ if (cmd === 'init') await initCmd();
 if (cmd === 'record') await recordCmd();
 if (cmd === 'accept') await acceptCmd();
 if (cmd === 'watch') await watchCmd();
+if (cmd === 'install-prepush') await installPrepushCmd();
+if (cmd === 'uninstall-prepush') await uninstallPrepushCmd();
 
 async function runCmd(): Promise<void> {
   const reporters = String((argv as any).reporters)
@@ -544,6 +556,33 @@ async function loadConfig(p: string): Promise<InspectConfig> {
   }
   const mod = await import(pathToFileURL(abs).href);
   return mod.default ?? mod.config;
+}
+
+async function installPrepushCmd(): Promise<void> {
+  const a = argv as any;
+  const result = await installPrepush({
+    gitDir: a['git-dir'],
+    hookCommand: a['hook-command'],
+    timeoutS: a['timeout-s'],
+    force: a.force === true,
+  });
+  if (!result.installed) {
+    console.error(`install-prepush failed: ${result.error ?? 'unknown error'}`);
+    process.exit(1);
+  }
+  console.log(`Installed pre-push hook: ${result.hookPath}`);
+  if (result.backupPath) console.log(`Backed up existing hook to: ${result.backupPath}`);
+  if (result.alreadyManaged) console.log('(overwrote previous uxinspect-managed hook)');
+}
+
+async function uninstallPrepushCmd(): Promise<void> {
+  const a = argv as any;
+  const result = await uninstallPrepush({ gitDir: a['git-dir'] });
+  if (result.error) {
+    console.error(`uninstall-prepush failed: ${result.error}`);
+    process.exit(1);
+  }
+  console.log(result.removed ? 'Removed pre-push hook.' : 'No uxinspect-managed pre-push hook found.');
 }
 
 function mime(p: string): string {

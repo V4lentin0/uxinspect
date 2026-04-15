@@ -24,6 +24,9 @@ export interface PrecommitInstallResult {
 const MARKER = '# uxinspect-managed pre-commit hook (do not edit this marker line)';
 const BACKUP_PREFIX = 'pre-commit.uxinspect-backup-';
 
+const PREPUSH_MARKER = '# uxinspect-managed pre-push hook';
+const PREPUSH_BACKUP_PREFIX = 'pre-push.uxinspect-backup-';
+
 async function pathExists(p: string): Promise<boolean> {
   try {
     await access(p, constants.F_OK);
@@ -254,6 +257,144 @@ export async function uninstallPrecommit(
     const entries = await readdir(hooksDir).catch(() => [] as string[]);
     const backups = entries
       .filter((e) => e.startsWith(BACKUP_PREFIX))
+      .sort()
+      .reverse();
+    if (backups.length > 0) {
+      const latest = join(hooksDir, backups[0]);
+      if (!(await pathExists(hookPath))) {
+        await rename(latest, hookPath);
+        removed = true;
+      }
+    }
+    return { removed };
+  } catch (err) {
+    return { removed: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export interface PrepushInstallOptions {
+  gitDir?: string;
+  repoRoot?: string;
+  hookCommand?: string;
+  timeoutS?: number;
+  force?: boolean;
+}
+
+export interface PrepushInstallResult {
+  installed: boolean;
+  hookPath: string;
+  backupPath?: string;
+  alreadyManaged: boolean;
+  error?: string;
+}
+
+export function generatePrePushHookScript(opts: PrepushInstallOptions = {}): string {
+  const timeoutS = Math.max(1, Math.floor(opts.timeoutS ?? 600));
+  const command = opts.hookCommand ?? 'npx uxinspect run --all';
+  const lines: string[] = [];
+  lines.push('#!/usr/bin/env bash');
+  lines.push(PREPUSH_MARKER);
+  lines.push('set -e');
+  lines.push('# uxinspect pre-push: full audit before pushing to remote');
+  lines.push('# stdin contains ref updates (ignored; full audit runs regardless)');
+  lines.push('while read -r _line; do :; done');
+  lines.push(`timeout ${timeoutS} ${command} || EXIT=$?`);
+  lines.push('if [ "${EXIT:-0}" != "0" ]; then');
+  lines.push('  echo "uxinspect pre-push full audit failed (exit $EXIT)"');
+  lines.push('  exit $EXIT');
+  lines.push('fi');
+  lines.push('exit 0');
+  lines.push('');
+  return lines.join('\n');
+}
+
+function isPrepushManaged(contents: string): boolean {
+  return contents.includes(PREPUSH_MARKER);
+}
+
+async function resolveHooksDirFromOpts(
+  repoRoot: string,
+  gitDirOverride?: string,
+): Promise<{ hooksDir: string; error?: string }> {
+  if (gitDirOverride) {
+    const resolvedGitDir = resolve(gitDirOverride);
+    if (!(await pathExists(resolvedGitDir))) {
+      return { hooksDir: '', error: 'gitDir does not exist' };
+    }
+    return { hooksDir: join(resolvedGitDir, 'hooks') };
+  }
+  const gitDir = await findGitDir(repoRoot);
+  if (!gitDir) {
+    return { hooksDir: '', error: 'no .git directory found walking up from repoRoot' };
+  }
+  const hooksDir = await resolveHooksDir(repoRoot, gitDir);
+  return { hooksDir };
+}
+
+export async function installPrepush(
+  opts: PrepushInstallOptions = {},
+): Promise<PrepushInstallResult> {
+  const repoRoot = resolve(opts.repoRoot ?? process.cwd());
+  const { hooksDir, error } = await resolveHooksDirFromOpts(repoRoot, opts.gitDir);
+  if (error) {
+    return { installed: false, hookPath: '', alreadyManaged: false, error };
+  }
+  const hookPath = join(hooksDir, 'pre-push');
+
+  try {
+    await mkdir(hooksDir, { recursive: true });
+    const existing = await readHookIfExists(hookPath);
+    let backupPath: string | undefined;
+    let alreadyManaged = false;
+
+    if (existing !== undefined) {
+      if (isPrepushManaged(existing)) {
+        alreadyManaged = true;
+      } else if (!opts.force) {
+        backupPath = join(hooksDir, `${PREPUSH_BACKUP_PREFIX}${timestampTag()}`);
+        await rename(hookPath, backupPath);
+      } else {
+        backupPath = join(hooksDir, `${PREPUSH_BACKUP_PREFIX}${timestampTag()}`);
+        await rename(hookPath, backupPath);
+      }
+    }
+
+    const script = generatePrePushHookScript(opts);
+    await writeFile(hookPath, script, 'utf8');
+    await chmod(hookPath, 0o755);
+
+    return { installed: true, hookPath, backupPath, alreadyManaged };
+  } catch (err) {
+    return {
+      installed: false,
+      hookPath,
+      alreadyManaged: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+export async function uninstallPrepush(
+  opts: { repoRoot?: string; gitDir?: string } = {},
+): Promise<{ removed: boolean; error?: string }> {
+  const root = resolve(opts.repoRoot ?? process.cwd());
+  const { hooksDir, error } = await resolveHooksDirFromOpts(root, opts.gitDir);
+  if (error) {
+    return { removed: false, error };
+  }
+  try {
+    const hookPath = join(hooksDir, 'pre-push');
+    const existing = await readHookIfExists(hookPath);
+    let removed = false;
+
+    if (existing !== undefined && isPrepushManaged(existing)) {
+      await unlink(hookPath);
+      removed = true;
+    }
+
+    const entries = await readdir(hooksDir).catch(() => [] as string[]);
+    const backups = entries
+      .filter((e) => e.startsWith(PREPUSH_BACKUP_PREFIX))
       .sort()
       .reverse();
     if (backups.length > 0) {
