@@ -180,6 +180,7 @@ export interface ChecksConfig {
   storage?: boolean;
   csrf?: boolean;
   errorPages?: boolean;
+  offline?: boolean;
 }
 
 export interface OutputConfig {
@@ -281,6 +282,7 @@ export interface InspectResult {
   storage?: import('./storage-audit.js').StorageAuditResult[];
   csrf?: import('./csrf-audit.js').CsrfAuditResult[];
   errorPages?: import('./error-page-audit.js').ErrorPageAuditResult[];
+  offline?: import('./offline-audit.js').OfflineResult[];
   passed: boolean;
 }
 

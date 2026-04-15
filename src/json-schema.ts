@@ -130,6 +130,14 @@ function buildChecksSchema(): JsonSchema {
     pagination: boolOrOpts({ scrollProbes: num() }),
     print: boolOrOpts({ screenshotPath: str() }),
     canonical: boolOrOpts({ followChain: bool() }),
+    offline: boolOrOpts({
+      checkOffline: bool(),
+      checkSlow: bool(),
+      checkFlaky: bool(),
+      slowDelayMs: num(),
+      flakyFailRate: num(),
+      skeletonWaitMs: num(),
+    }),
   };
   return obj(properties);
 }
