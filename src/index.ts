@@ -411,6 +411,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const errorPagesResults: ErrorPageAuditResult[] = [];
   const stuckSpinnerResults: StuckSpinnerResult[] = [];
   const frustrationSignalResults: FrustrationSignalResult[] = [];
+  const selfHealEvents: InspectResult['selfHealEvents'] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
   let errorStateResult: ErrorStateResult | undefined;
@@ -837,6 +838,12 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         securityResult = await checkSecurityHeaders(config.url).catch(() => undefined);
       }
 
+      // Drain self-heal events emitted during this viewport's runs (P2 #26).
+      try {
+        selfHealEvents!.push(...ai.getHealEvents());
+      } catch {
+        /* ignore */
+      }
       await ai.close();
       await driver.close();
     }
@@ -1049,6 +1056,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     errorState: checks.errorState ? errorStateResult : undefined,
     authWalk: authWalkResult,
     frustrationSignals: checks.frustrationSignals ? frustrationSignalResults : undefined,
+    selfHealEvents: selfHealEvents && selfHealEvents.length ? selfHealEvents : undefined,
     passed: baselinePassed,
   };
 

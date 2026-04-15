@@ -41,3 +41,32 @@ test('writeReport shows FAIL when flow fails', async () => {
   assert.match(html, /FAIL/);
   await fs.rm(dir, { recursive: true });
 });
+
+test('writeReport renders Self-heal events section (P2 #26)', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'uxinspect-test-'));
+  const result: InspectResult = {
+    url: 'https://example.com',
+    startedAt: '2026-04-14T00:00:00.000Z',
+    finishedAt: '2026-04-14T00:00:01.000Z',
+    durationMs: 1000,
+    flows: [{ name: 'load', passed: true, steps: [], screenshots: [] }],
+    selfHealEvents: [
+      {
+        instruction: 'click Submit order',
+        failedSelector: 'css=.submit-btn',
+        healedWith: 'testid-neighborhood',
+        newSelector: 'testid=submit-form',
+        at: Date.parse('2026-04-14T00:00:00.500Z'),
+        url: 'https://example.com',
+      },
+    ],
+    passed: true,
+  };
+  await writeReport(result, dir);
+  const html = await fs.readFile(path.join(dir, 'report.html'), 'utf8');
+  assert.match(html, /Self-heal events/);
+  assert.match(html, /Submit order/);
+  assert.match(html, /testid-neighborhood/);
+  assert.match(html, /submit-form/);
+  await fs.rm(dir, { recursive: true });
+});

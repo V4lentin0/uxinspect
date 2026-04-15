@@ -339,6 +339,8 @@ export interface InspectResult {
   errorState?: import('./error-state-audit.js').ErrorStateResult;
   authWalk?: import('./auth-walker.js').AuthWalkResult;
   frustrationSignals?: import('./frustration-signals.js').FrustrationSignalResult[];
+  /** Self-heal events emitted by the AI helper when a locator drifts (P2 #26). */
+  selfHealEvents?: import('./ai.js').SelfHealEvent[];
   passed: boolean;
 }
 

@@ -481,6 +481,7 @@ function renderHTML(r: InspectResult): string {
   ${(r as any).webfonts?.length ? `<h2>Webfonts</h2>${(r as any).webfonts.map(renderWebfonts).join('')}` : ''}
   ${(r as any).motionPrefs?.length ? `<h2>Motion preferences</h2>${(r as any).motionPrefs.map(renderMotionPrefs).join('')}` : ''}
   ${r.explore ? `<h2>Exploration</h2>${renderExplore(r.explore)}` : ''}
+  ${r.selfHealEvents?.length ? `<h2>Self-heal events</h2>${renderSelfHealEvents(r.selfHealEvents)}` : ''}
   ${renderUnknownSections(r)}
 </body>
 </html>`;
@@ -494,8 +495,50 @@ const KNOWN_RESULT_KEYS = new Set([
   'exposedPaths', 'tls', 'crawl', 'contentQuality', 'resourceHints', 'mixedContent',
   'compression', 'cacheHeaders', 'cookieBanner', 'thirdParty', 'bundleSize',
   'openGraph', 'robotsAudit', 'imageAudit', 'webfonts', 'motionPrefs', 'explore',
-  'apiFlows', 'passed',
+  'apiFlows', 'selfHealEvents', 'passed',
 ]);
+
+interface SelfHealEventLike {
+  instruction: string;
+  failedSelector: string;
+  healedWith: string;
+  newSelector: string;
+  at: number;
+  url?: string;
+}
+
+function renderSelfHealEvents(events: SelfHealEventLike[]): string {
+  if (!events.length) {
+    return '<div class="section"><div class="empty">No self-heal events.</div></div>';
+  }
+  const rows = events
+    .map((e) => {
+      const when = e.at ? new Date(e.at).toLocaleTimeString() : '';
+      return `<tr>
+        <td><code>${escape(e.instruction)}</code></td>
+        <td><span class="pill pill-warn">${escape(e.healedWith)}</span></td>
+        <td class="mono trunc" title="${escape(e.failedSelector)}">${escape(e.failedSelector)}</td>
+        <td class="mono trunc" title="${escape(e.newSelector)}">${escape(e.newSelector)}</td>
+        <td>${escape(when)}</td>
+      </tr>`;
+    })
+    .join('');
+  return `<div class="section">
+    <div class="label">${events.length} locator${events.length === 1 ? '' : 's'} recovered via self-heal</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Instruction</th>
+          <th>Strategy</th>
+          <th>Failed selector</th>
+          <th>New selector</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
 
 function renderUnknownSections(r: any): string {
   const out: string[] = [];
