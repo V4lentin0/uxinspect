@@ -1,0 +1,99 @@
+{
+  "name": "uxinspect-vscode",
+  "displayName": "uxinspect",
+  "description": "Inline broken-interaction diagnostics + one-click replay for uxinspect flows.",
+  "version": "0.1.0",
+  "publisher": "uxinspect",
+  "license": "MIT",
+  "homepage": "https://uxinspect.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/uxinspect/uxinspect.git",
+    "directory": "apps/vscode-extension"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Testing",
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "uxinspect",
+    "ui-testing",
+    "e2e",
+    "playwright",
+    "diagnostics"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:javascript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascriptreact",
+    "workspaceContains:.uxinspect/last.json",
+    "workspaceContains:uxinspect.config.ts",
+    "workspaceContains:uxinspect.config.js"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "uxinspect.runFast",
+        "title": "uxinspect: Run Fast",
+        "category": "uxinspect"
+      },
+      {
+        "command": "uxinspect.openReport",
+        "title": "uxinspect: Open HTML Report",
+        "category": "uxinspect"
+      },
+      {
+        "command": "uxinspect.replayFailure",
+        "title": "uxinspect: Replay Failing Flow",
+        "category": "uxinspect"
+      },
+      {
+        "command": "uxinspect.refreshDiagnostics",
+        "title": "uxinspect: Refresh Diagnostics",
+        "category": "uxinspect"
+      }
+    ],
+    "configuration": {
+      "title": "uxinspect",
+      "properties": {
+        "uxinspect.lastRunPath": {
+          "type": "string",
+          "default": ".uxinspect/last.json",
+          "description": "Relative path to the last run JSON file (written by uxinspect)."
+        },
+        "uxinspect.reportPath": {
+          "type": "string",
+          "default": "report/index.html",
+          "description": "Relative path to the HTML report."
+        },
+        "uxinspect.flowsGlob": {
+          "type": "string",
+          "default": "**/*.{ts,tsx,js,jsx,mjs,cjs}",
+          "description": "Glob for files that may define flows."
+        },
+        "uxinspect.cliCommand": {
+          "type": "string",
+          "default": "npx uxinspect",
+          "description": "CLI command used to invoke uxinspect."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "tsc -p ./ && node --test out/test/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.6.0"
+  }
+}
