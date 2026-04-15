@@ -94,6 +94,7 @@ const argv = await yargs(hideBin(process.argv))
       .option('long-tasks', { type: 'boolean', describe: 'Detect long-running main-thread tasks' })
       .option('cls-timeline', { type: 'boolean', describe: 'Record Cumulative Layout Shift timeline' })
       .option('forms', { type: 'boolean', describe: 'Audit form accessibility and validation' })
+      .option('form-behavior', { type: 'boolean', describe: 'Run the empty/invalid/valid submit cycle on each form' })
       .option('structured-data', { type: 'boolean', describe: 'Validate JSON-LD / structured data' })
       .option('passive-security', { type: 'boolean', describe: 'Passive security scan (headers, cookies, CSP)' })
       .option('console-errors', { type: 'boolean', describe: 'Capture browser console errors' })
@@ -242,6 +243,7 @@ async function runCmd(): Promise<void> {
     longTasks: pick(a['long-tasks']),
     clsTimeline: pick(a['cls-timeline']),
     forms: pick(a.forms),
+    formBehavior: pick(a['form-behavior']),
     structuredData: pick(a['structured-data']),
     passiveSecurity: pick(a['passive-security']),
     consoleErrors: pick(a['console-errors']),

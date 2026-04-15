@@ -202,3 +202,450 @@ export async function auditForms(page: Page): Promise<FormsAuditResult> {
 
   return { page: url, forms, totalIssues, passed };
 }
+
+// ---------------------------------------------------------------------------
+// Form behaviour cycle auditor
+//
+// Probes each form's runtime validation: submit empty → expect error appears,
+// submit invalid → expect error appears, submit valid → expect error clears.
+// Structural checks live in auditForms() above.
+// ---------------------------------------------------------------------------
+
+export interface FormBehaviorInfo {
+  selector: string;
+  emptyShowsError: boolean;
+  invalidShowsError: boolean;
+  validClearsError: boolean;
+  missingBehavior: string[];
+  error?: string;
+  skipped?: boolean;
+  skipReason?: string;
+}
+
+export interface FormBehaviorResult {
+  page: string;
+  forms: FormBehaviorInfo[];
+  passed: boolean;
+}
+
+interface ProbeTarget {
+  formSelector: string;
+  submitSelector: string;
+  inputSelector: string;
+  inputType: string;
+  inputTag: string;
+  isRequired: boolean;
+}
+
+const MAX_FORM_MS = 30_000;
+const ERROR_POLL_MS = 250;
+// Per-phase wait cap: keeps the overall run comfortably below MAX_FORM_MS even
+// when every phase has to exhaust its timeout (worst case ≈ 3 × 2.5s + overhead).
+const PHASE_WAIT_MS = 2_500;
+const PHASE_MIN_WAIT_MS = 600;
+
+// CSS + ARIA selectors we treat as "validation error shown near the form".
+const ERROR_SELECTORS = [
+  '[aria-invalid="true"]',
+  '[role="alert"]',
+  '.error',
+  '.invalid',
+  '.is-invalid',
+  '.has-error',
+  '.field-error',
+  '.form-error',
+  '.error-message',
+  '.help-block.error',
+  '[data-error="true"]',
+];
+
+function invalidValueFor(type: string): string {
+  // Intentionally malformed values to trigger native/ARIA validation.
+  switch (type) {
+    case 'email':
+      return 'x';
+    case 'url':
+      return 'not a url';
+    case 'tel':
+      return 'abc';
+    case 'number':
+      return 'abc';
+    default:
+      return '';
+  }
+}
+
+function validValueFor(type: string): string {
+  switch (type) {
+    case 'email':
+      return 'test@example.com';
+    case 'tel':
+      return '+11234567890';
+    case 'url':
+      return 'https://example.com';
+    case 'number':
+      return '42';
+    case 'password':
+      return 'Valid1Password!';
+    case 'date':
+      return '2025-01-15';
+    case 'time':
+      return '12:30';
+    case 'month':
+      return '2025-01';
+    case 'week':
+      return '2025-W03';
+    case 'color':
+      return '#336699';
+    case 'search':
+    case 'text':
+    default:
+      return 'valid input';
+  }
+}
+
+export async function auditFormBehavior(
+  page: Page,
+  formSelector?: string,
+): Promise<FormBehaviorResult> {
+  const url = page.url();
+  const results: FormBehaviorInfo[] = [];
+
+  // Discover probe targets. Runs a single evaluate so we operate on DOM truth
+  // at discovery time; probes that follow use Playwright locators by selector.
+  const targets: ProbeTarget[] = await page
+    .evaluate(
+      ({ scopeSelector }: { scopeSelector?: string }) => {
+        const cssEscape = (s: string): string => {
+          // Simple fallback; CSS.escape exists in all evergreen browsers.
+          if ((globalThis as any).CSS?.escape) return (globalThis as any).CSS.escape(s);
+          return s.replace(/([^a-zA-Z0-9_-])/g, '\\$1');
+        };
+
+        const describe = (el: Element): string => {
+          if (el.id) return `#${cssEscape(el.id)}`;
+          const name = (el as HTMLInputElement).name;
+          if (name) return `${el.tagName.toLowerCase()}[name="${name}"]`;
+          const form = el.closest('form');
+          const parent = form ?? document;
+          const tag = el.tagName.toLowerCase();
+          const siblings = Array.from(parent.querySelectorAll(tag));
+          const idx = siblings.indexOf(el);
+          return idx >= 0 ? `${tag}:nth-of-type(${idx + 1})` : tag;
+        };
+
+        const formEls = scopeSelector
+          ? Array.from(document.querySelectorAll(scopeSelector)).filter(
+              (el): el is HTMLFormElement => el instanceof HTMLFormElement,
+            )
+          : Array.from(document.querySelectorAll('form'));
+
+        const found: ProbeTarget[] = [];
+        formEls.forEach((form, formIdx) => {
+          const submit = form.querySelector<HTMLElement>(
+            'button[type=submit], input[type=submit], button:not([type])',
+          );
+          if (!submit) return;
+
+          const candidate = form.querySelector<HTMLElement>(
+            'input[required]:not([type=hidden]):not([type=submit]):not([type=button]):not([type=checkbox]):not([type=radio]):not([type=file]), textarea[required]',
+          ) ||
+            form.querySelector<HTMLElement>(
+              'input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=checkbox]):not([type=radio]):not([type=file]), textarea',
+            );
+          if (!candidate) return;
+
+          const formSel =
+            (form.id && `form#${cssEscape(form.id)}`) ||
+            (form.getAttribute('name') && `form[name="${form.getAttribute('name')}"]`) ||
+            `form:nth-of-type(${formIdx + 1})`;
+
+          const inputType = ((candidate as HTMLInputElement).type || candidate.tagName.toLowerCase())
+            .toLowerCase();
+          const inputTag = candidate.tagName.toLowerCase();
+
+          const inputSel = `${formSel} ${describe(candidate)}`;
+          const submitSel = `${formSel} ${describe(submit)}`;
+
+          found.push({
+            formSelector: formSel,
+            submitSelector: submitSel,
+            inputSelector: inputSel,
+            inputType,
+            inputTag,
+            isRequired: (candidate as HTMLInputElement).required === true,
+          });
+        });
+        return found;
+      },
+      { scopeSelector: formSelector },
+    )
+    .catch((): ProbeTarget[] => []);
+
+  for (const t of targets) {
+    const info: FormBehaviorInfo = {
+      selector: t.formSelector,
+      emptyShowsError: false,
+      invalidShowsError: false,
+      validClearsError: false,
+      missingBehavior: [],
+    };
+
+    const started = Date.now();
+    const budgetLeft = () => Math.max(0, MAX_FORM_MS - (Date.now() - started));
+
+    try {
+      await page.waitForTimeout(0);
+
+      // Step 1: empty submit
+      await clearInput(page, t.inputSelector);
+      await suppressNativePopup(page, t.formSelector);
+      const submitClicked1 = await submitForm(page, t);
+      if (!submitClicked1) {
+        info.error = 'submit-click-failed';
+        info.missingBehavior.push('submit-click-failed');
+        results.push(info);
+        continue;
+      }
+      info.emptyShowsError = await waitForError(
+        page,
+        t.formSelector,
+        t.inputSelector,
+        PHASE_MIN_WAIT_MS,
+        Math.min(PHASE_WAIT_MS, budgetLeft()),
+      );
+      if (!info.emptyShowsError) info.missingBehavior.push('no-error-on-empty-submit');
+
+      // Step 2: invalid submit
+      const invalidVal = invalidValueFor(t.inputType);
+      if (invalidVal.length > 0) {
+        await fillInput(page, t.inputSelector, invalidVal);
+        const submitClicked2 = await submitForm(page, t);
+        if (submitClicked2) {
+          info.invalidShowsError = await waitForError(
+            page,
+            t.formSelector,
+            t.inputSelector,
+            PHASE_MIN_WAIT_MS,
+            Math.min(PHASE_WAIT_MS, budgetLeft()),
+          );
+          if (!info.invalidShowsError) info.missingBehavior.push('no-error-on-invalid-submit');
+        }
+      } else {
+        // Skip invalid phase for types without a usable invalid value.
+        info.invalidShowsError = info.emptyShowsError;
+      }
+
+      // Step 3: valid submit — error should clear.
+      await clearInput(page, t.inputSelector);
+      await fillInput(page, t.inputSelector, validValueFor(t.inputType));
+      // Freeze navigation so we can observe post-submit DOM before it unloads.
+      await preventSubmitNavigation(page, t.formSelector);
+      await submitForm(page, t);
+      info.validClearsError = await waitForErrorCleared(
+        page,
+        t.formSelector,
+        t.inputSelector,
+        PHASE_MIN_WAIT_MS,
+        Math.min(PHASE_WAIT_MS, budgetLeft()),
+      );
+      if (!info.validClearsError) info.missingBehavior.push('error-persists-on-valid-submit');
+    } catch (e) {
+      info.error = (e as Error)?.message ?? String(e);
+    }
+
+    results.push(info);
+  }
+
+  const passed = results.every(
+    (r) => r.missingBehavior.length === 0 && !r.error,
+  );
+  return { page: url, forms: results, passed };
+}
+
+async function clearInput(page: Page, selector: string): Promise<void> {
+  try {
+    await page.fill(selector, '', { timeout: 1000 });
+  } catch {
+    // ignore — non-fillable field
+  }
+}
+
+async function fillInput(page: Page, selector: string, value: string): Promise<void> {
+  try {
+    await page.fill(selector, value, { timeout: 1500 });
+  } catch {
+    // fall back to type if fill is unsupported for the field type
+    try {
+      await page.locator(selector).first().type(value, { timeout: 1500 });
+    } catch {
+      // give up silently; waitForError will report the absence
+    }
+  }
+}
+
+async function submitForm(page: Page, t: ProbeTarget): Promise<boolean> {
+  try {
+    await page.click(t.submitSelector, { timeout: 1500 });
+    return true;
+  } catch {
+    try {
+      await page.locator(t.formSelector).evaluate((form: Element) => {
+        if (form instanceof HTMLFormElement) {
+          form.requestSubmit?.();
+        }
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+async function suppressNativePopup(page: Page, formSelector: string): Promise<void> {
+  // Some forms rely on the native `invalid` event + popup bubble. We stop the
+  // popup to make sure the probe observes DOM state, not browser chrome.
+  await page
+    .evaluate((sel: string) => {
+      const form = document.querySelector(sel);
+      if (!form || !(form instanceof HTMLFormElement)) return;
+      form.addEventListener(
+        'invalid',
+        (ev) => {
+          // Don't preventDefault — we want aria-invalid & :invalid state set —
+          // but cancel the popup via capture-phase listener on the field.
+        },
+        true,
+      );
+      Array.from(form.elements).forEach((el) => {
+        el.addEventListener(
+          'invalid',
+          (ev) => {
+            ev.preventDefault();
+          },
+          true,
+        );
+      });
+    }, formSelector)
+    .catch(() => {});
+}
+
+async function preventSubmitNavigation(page: Page, formSelector: string): Promise<void> {
+  await page
+    .evaluate((sel: string) => {
+      const form = document.querySelector(sel);
+      if (!form || !(form instanceof HTMLFormElement)) return;
+      form.addEventListener(
+        'submit',
+        (ev) => {
+          // Only neutralise navigation if the form would actually submit.
+          if (!ev.defaultPrevented) ev.preventDefault();
+        },
+        { capture: true },
+      );
+    }, formSelector)
+    .catch(() => {});
+}
+
+async function hasError(
+  page: Page,
+  formSelector: string,
+  inputSelector: string,
+): Promise<boolean> {
+  return page
+    .evaluate(
+      ({ formSel, inputSel, errSelectors }: {
+        formSel: string;
+        inputSel: string;
+        errSelectors: string[];
+      }) => {
+        const form = document.querySelector(formSel);
+        if (!form) return false;
+        const input = document.querySelector(inputSel);
+
+        // 1. aria-invalid on the probed input.
+        if (input?.getAttribute('aria-invalid') === 'true') return true;
+
+        // 2. :invalid pseudo-state (native validation) when the element supports it.
+        try {
+          if (
+            input instanceof HTMLInputElement ||
+            input instanceof HTMLTextAreaElement ||
+            input instanceof HTMLSelectElement
+          ) {
+            if (!input.validity.valid) return true;
+          }
+        } catch {
+          // ignore — jsdom/older engines may not support .validity
+        }
+
+        // 3. error selector inside the form.
+        for (const sel of errSelectors) {
+          const matches = Array.from(form.querySelectorAll(sel));
+          for (const m of matches) {
+            const text = (m.textContent || '').trim();
+            // Any visible error node with non-empty text qualifies; aria-invalid
+            // matches even without text (the attr itself is the signal).
+            if (sel === '[aria-invalid="true"]' || text.length > 0) return true;
+          }
+        }
+
+        // 4. error selector right after the form (e.g. sibling alert).
+        const next = form.nextElementSibling;
+        if (next) {
+          for (const sel of errSelectors) {
+            if (next.matches(sel)) return true;
+          }
+        }
+
+        // 5. aria-describedby points to an element with visible text.
+        if (input) {
+          const describedBy = input.getAttribute('aria-describedby');
+          if (describedBy) {
+            const ids = describedBy.trim().split(/\s+/);
+            for (const id of ids) {
+              const el = document.getElementById(id);
+              if (el && (el.textContent || '').trim().length > 0) return true;
+            }
+          }
+        }
+        return false;
+      },
+      { formSel: formSelector, inputSel: inputSelector, errSelectors: ERROR_SELECTORS },
+    )
+    .catch(() => false);
+}
+
+async function waitForError(
+  page: Page,
+  formSelector: string,
+  inputSelector: string,
+  minWaitMs: number,
+  budgetMs: number,
+): Promise<boolean> {
+  await page.waitForTimeout(Math.min(minWaitMs, budgetMs));
+  if (await hasError(page, formSelector, inputSelector)) return true;
+  const deadline = Date.now() + Math.max(0, budgetMs - minWaitMs);
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(ERROR_POLL_MS);
+    if (await hasError(page, formSelector, inputSelector)) return true;
+  }
+  return false;
+}
+
+async function waitForErrorCleared(
+  page: Page,
+  formSelector: string,
+  inputSelector: string,
+  minWaitMs: number,
+  budgetMs: number,
+): Promise<boolean> {
+  await page.waitForTimeout(Math.min(minWaitMs, budgetMs));
+  if (!(await hasError(page, formSelector, inputSelector))) return true;
+  const deadline = Date.now() + Math.max(0, budgetMs - minWaitMs);
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(ERROR_POLL_MS);
+    if (!(await hasError(page, formSelector, inputSelector))) return true;
+  }
+  return false;
+}

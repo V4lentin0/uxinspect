@@ -135,6 +135,7 @@ export interface ChecksConfig {
   longTasks?: boolean | { durationMs?: number };
   clsTimeline?: boolean | { durationMs?: number };
   forms?: boolean;
+  formBehavior?: boolean | { formSelector?: string };
   structuredData?: boolean;
   passiveSecurity?: boolean;
   consoleErrors?: boolean;
@@ -239,6 +240,7 @@ export interface InspectResult {
   longTasks?: import('./longtasks.js').LongTasksResult[];
   clsTimeline?: import('./cls-timeline.js').CLSTimelineResult[];
   forms?: import('./forms-audit.js').FormsAuditResult[];
+  formBehavior?: import('./forms-audit.js').FormBehaviorResult[];
   structuredData?: import('./structured-data.js').StructuredDataResult[];
   passiveSecurity?: import('./passive-security.js').PassiveSecurityResult[];
   consoleErrors?: import('./console-errors.js').ConsoleCapture[];

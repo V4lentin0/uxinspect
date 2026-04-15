@@ -24,7 +24,7 @@ import { auditTouchTargets } from './touchtargets.js';
 import { auditKeyboard } from './keyboard.js';
 import { captureLongTasks } from './longtasks.js';
 import { captureClsTimeline } from './cls-timeline.js';
-import { auditForms } from './forms-audit.js';
+import { auditForms, auditFormBehavior } from './forms-audit.js';
 import { checkStructuredData } from './structured-data.js';
 import { auditPassiveSecurity } from './passive-security.js';
 import { attachConsoleCapture } from './console-errors.js';
@@ -114,7 +114,7 @@ import type { TouchTargetResult } from './touchtargets.js';
 import type { KeyboardAuditResult } from './keyboard.js';
 import type { LongTasksResult } from './longtasks.js';
 import type { CLSTimelineResult } from './cls-timeline.js';
-import type { FormsAuditResult } from './forms-audit.js';
+import type { FormsAuditResult, FormBehaviorResult } from './forms-audit.js';
 import type { StructuredDataResult } from './structured-data.js';
 import type { PassiveSecurityResult } from './passive-security.js';
 import type { ConsoleCapture } from './console-errors.js';
@@ -193,7 +193,7 @@ export { auditTouchTargets } from './touchtargets.js';
 export { auditKeyboard } from './keyboard.js';
 export { captureLongTasks } from './longtasks.js';
 export { captureClsTimeline } from './cls-timeline.js';
-export { auditForms } from './forms-audit.js';
+export { auditForms, auditFormBehavior } from './forms-audit.js';
 export { checkStructuredData } from './structured-data.js';
 export { auditPassiveSecurity } from './passive-security.js';
 export { attachConsoleCapture } from './console-errors.js';
@@ -335,6 +335,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const longTasksResults: LongTasksResult[] = [];
   const clsTimelineResults: CLSTimelineResult[] = [];
   const formsResults: FormsAuditResult[] = [];
+  const formBehaviorResults: FormBehaviorResult[] = [];
   const structuredDataResults: StructuredDataResult[] = [];
   const passiveSecurityResults: PassiveSecurityResult[] = [];
   const consoleErrorResults: ConsoleCapture[] = [];
@@ -436,6 +437,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         longTasks?: LongTasksResult;
         clsTimeline?: CLSTimelineResult;
         forms?: FormsAuditResult;
+        formBehavior?: FormBehaviorResult;
         structuredData?: StructuredDataResult;
         passiveSecurity?: PassiveSecurityResult;
         consoleErrors?: ConsoleCapture;
@@ -529,6 +531,12 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           ? await captureClsTimeline(page, typeof checks.clsTimeline === 'object' ? checks.clsTimeline.durationMs : undefined).catch(() => undefined)
           : undefined;
         const formsR = checks.forms ? await auditForms(page).catch(() => undefined) : undefined;
+        const formBehaviorR = checks.formBehavior
+          ? await auditFormBehavior(
+              page,
+              typeof checks.formBehavior === 'object' ? checks.formBehavior.formSelector : undefined,
+            ).catch(() => undefined)
+          : undefined;
         const structuredR = checks.structuredData ? await checkStructuredData(page).catch(() => undefined) : undefined;
         const passiveSecR = checks.passiveSecurity ? await auditPassiveSecurity(page).catch(() => undefined) : undefined;
         const contentR = checks.contentQuality
@@ -625,6 +633,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           seo: seoR as any, links: linksR as any, pwa: pwaR as any,
           retire: retireR, deadClicks: deadR, disabledButtons: disabledBtnR, touchTargets: touchR, keyboard: keyboardR,
           longTasks: longTasksR, clsTimeline: clsR, forms: formsR,
+          formBehavior: formBehaviorR,
           structuredData: structuredR, passiveSecurity: passiveSecR, consoleErrors: consoleR,
           contentInfo: contentR,
           resourceHints: resourceHintsR, mixedContent: mixedContentR,
@@ -668,6 +677,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.longTasks) longTasksResults.push(r.longTasks);
         if (r.clsTimeline) clsTimelineResults.push(r.clsTimeline);
         if (r.forms) formsResults.push(r.forms);
+        if (r.formBehavior) formBehaviorResults.push(r.formBehavior);
         if (r.structuredData) structuredDataResults.push(r.structuredData);
         if (r.passiveSecurity) passiveSecurityResults.push(r.passiveSecurity);
         if (r.consoleErrors) consoleErrorResults.push(r.consoleErrors);
@@ -840,6 +850,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     longTasksResults.every((r) => (r as any).passed !== false) &&
     clsTimelineResults.every((r) => (r as any).passed !== false) &&
     formsResults.every((r) => (r as any).passed !== false) &&
+    formBehaviorResults.every((r) => (r as any).passed !== false) &&
     structuredDataResults.every((r) => (r as any).passed !== false) &&
     passiveSecurityResults.every((r) => (r as any).passed !== false) &&
     consoleErrorResults.every((r) => (r as any).passed !== false) &&
@@ -909,6 +920,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     longTasks: checks.longTasks ? longTasksResults : undefined,
     clsTimeline: checks.clsTimeline ? clsTimelineResults : undefined,
     forms: checks.forms ? formsResults : undefined,
+    formBehavior: checks.formBehavior ? formBehaviorResults : undefined,
     structuredData: checks.structuredData ? structuredDataResults : undefined,
     passiveSecurity: checks.passiveSecurity ? passiveSecurityResults : undefined,
     consoleErrors: checks.consoleErrors ? consoleErrorResults : undefined,
