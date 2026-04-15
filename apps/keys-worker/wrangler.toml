@@ -1,0 +1,24 @@
+name = "uxinspect-keys-worker"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Public key is safe to ship in wrangler vars; the private key MUST be set via:
+#   wrangler secret put PRIVATE_KEY
+# See apps/keys-worker/README.md for key-generation + rotation instructions.
+[vars]
+# PKCS#8 PEM. Safe to expose; clients use this to verify signed JWTs.
+PUBLIC_KEY = ""
+# Issuer claim embedded in every signed JWT.
+JWT_ISSUER = "https://keys.uxinspect.com"
+# How long a verify() response is valid before the CLI must re-check.
+JWT_TTL_SECONDS = "2592000"
+
+[[kv_namespaces]]
+binding = "LICENSES"
+id = "replace-with-real-kv-id"
+preview_id = "replace-with-preview-kv-id"
+
+[[routes]]
+pattern = "keys.uxinspect.com/*"
+zone_name = "uxinspect.com"

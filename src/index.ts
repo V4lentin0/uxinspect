@@ -291,6 +291,8 @@ export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfa
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
 export { auditWebWorkers } from './web-worker-audit.js';
+export { verifyLicense, BUNDLED_PUBLIC_KEY_PEM } from './license.js';
+export type { License, LicensePlan, VerifyOptions } from './license.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
