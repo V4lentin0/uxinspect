@@ -1,0 +1,25 @@
+name = "uxinspect-keys"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+
+# KV namespace stores license records keyed by license-key.
+# Create with: wrangler kv namespace create UXINSPECT_KEYS
+[[kv_namespaces]]
+binding = "KEYS"
+id = "REPLACE_WITH_KV_ID"
+
+# Public + private Ed25519 keypair are stored as Worker secrets.
+# Set via:
+#   wrangler secret put SIGNING_PRIVATE_KEY   # 64-byte hex (or base64) Ed25519 private key
+#   wrangler secret put SIGNING_PUBLIC_KEY    # 32-byte hex (or base64) Ed25519 public key
+#   wrangler secret put POLAR_WEBHOOK_SECRET  # Polar.sh webhook signing secret
+#   wrangler secret put POLAR_API_TOKEN       # Polar.sh API token (read-only)
+#   wrangler secret put POLAR_ORG_ID          # Polar.sh organization id
+
+[vars]
+JWT_TTL_SECONDS = "2592000"   # 30 days
+JWT_ISSUER = "keys.uxinspect.com"
+
+[[routes]]
+pattern = "keys.uxinspect.com"
+custom_domain = true

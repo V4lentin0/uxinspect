@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>uxinspect pricing — Free MIT, Pro $19, Team $99, Enterprise $499</title>
+<meta name="description" content="Free MIT CLI forever. Pro $19/mo for replay capture, per-step assertions, history. Team $99/mo for hosted dashboard. Enterprise $499/mo for SSO + compliance. Cloud Replay add-on $49.">
+<link rel="preconnect" href="https://rsms.me/">
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2310B981'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Inter,sans-serif' font-size='18' font-weight='700' fill='white'%3Eu%3C/text%3E%3C/svg%3E">
+<style>
+  :root { --bg:#FAFAFA; --card:#FFFFFF; --border:#E5E7EB; --text:#1D1D1F; --muted:#6B7280;
+          --green:#10B981; --green-hover:#059669; --green-light:#6EE7B7; --green-bg:#ECFDF5;
+          --blue:#3B82F6; --blue-bg:#EFF6FF; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace; font-size: 13px; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  header { padding: 18px 0; border-bottom: 1px solid var(--border); background: white; position: sticky; top: 0; z-index: 10; }
+  .nav { display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-weight: 700; font-size: 17px; display: flex; align-items: center; gap: 8px; color: var(--text); }
+  .logo:hover { text-decoration: none; }
+  .logo-mark { width: 28px; height: 28px; background: var(--green); border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 16px; }
+  .nav-links { display: flex; gap: 28px; font-size: 14px; align-items: center; }
+  .nav-links a { color: var(--muted); }
+  .nav-links a:hover { color: var(--text); text-decoration: none; }
+  .nav-links a.active { color: var(--text); }
+  .nav-links a.cta-link { background: var(--green); color: white; padding: 8px 14px; border-radius: 6px; font-weight: 600; }
+  .nav-links a.cta-link:hover { background: var(--green-hover); color: white; }
+
+  .hero { padding: 64px 0 24px; text-align: center; }
+  .badge-pill { display: inline-block; background: var(--green-bg); color: var(--green); border: 1px solid var(--green-light); padding: 5px 14px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-bottom: 20px; }
+  h1 { font-size: 44px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; margin-bottom: 14px; max-width: 760px; margin-left: auto; margin-right: auto; }
+  h1 .accent { color: var(--green); }
+  .lede { font-size: 17px; color: var(--muted); max-width: 640px; margin: 0 auto; line-height: 1.55; }
+
+  section { padding: 56px 0; }
+  section.alt { background: white; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; }
+  .section-sub { color: var(--muted); margin-bottom: 32px; font-size: 15.5px; max-width: 640px; }
+
+  .tier-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .tier { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 24px 22px; display: flex; flex-direction: column; box-shadow: 0 1px 2px rgba(16,24,40,0.03); }
+  .tier.pro { border-color: var(--green); box-shadow: 0 4px 16px rgba(16,185,129,0.12); position: relative; }
+  .tier-name { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .tier.pro .tier-name { color: var(--green); }
+  .tier-popular { position: absolute; top: -10px; right: 16px; background: var(--green); color: white; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 4px 10px; border-radius: 4px; }
+  .tier-price { font-size: 32px; font-weight: 800; color: var(--text); margin-bottom: 4px; letter-spacing: -0.02em; }
+  .tier-price .unit { font-size: 14px; font-weight: 500; color: var(--muted); }
+  .tier-tagline { font-size: 13.5px; color: var(--muted); margin-bottom: 18px; min-height: 38px; }
+  .tier-cta { display: block; text-align: center; padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: 14px; border: 1px solid var(--border); background: white; color: var(--text); margin-bottom: 18px; }
+  .tier-cta:hover { background: var(--bg); text-decoration: none; }
+  .tier.pro .tier-cta { background: var(--green); color: white; border-color: var(--green); }
+  .tier.pro .tier-cta:hover { background: var(--green-hover); color: white; }
+  .tier-features { list-style: none; padding: 0; margin: 0; flex: 1; }
+  .tier-features li { font-size: 13px; color: var(--text); padding: 6px 0 6px 22px; position: relative; line-height: 1.5; }
+  .tier-features li::before { content: ''; position: absolute; left: 0; top: 11px; width: 12px; height: 12px; background: var(--green-bg); border: 2px solid var(--green); border-radius: 50%; box-sizing: border-box; }
+  .tier-features li.muted { color: var(--muted); }
+  .tier-features li.muted::before { background: var(--bg); border-color: var(--border); }
+
+  .addons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .addon { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 22px; box-shadow: 0 1px 2px rgba(16,24,40,0.03); }
+  section.alt .addon { background: var(--bg); }
+  .addon-label { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--blue); background: var(--blue-bg); padding: 3px 9px; border-radius: 4px; margin-bottom: 12px; }
+  .addon h3 { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+  .addon .price { font-size: 14px; color: var(--muted); margin-bottom: 12px; font-weight: 600; }
+  .addon p { font-size: 13.5px; color: var(--muted); line-height: 1.55; }
+
+  .compare-table { width: 100%; border-collapse: collapse; background: white; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: 0 1px 2px rgba(16,24,40,0.03); }
+  .compare-table th, .compare-table td { text-align: left; padding: 12px 16px; font-size: 13.5px; border-bottom: 1px solid var(--border); }
+  .compare-table th { background: var(--bg); font-weight: 600; color: var(--text); font-size: 13px; }
+  .compare-table th.tier-col { text-align: center; width: 130px; }
+  .compare-table td.tier { text-align: center; color: var(--muted); width: 130px; font-weight: 600; }
+  .compare-table td.tier.yes { color: var(--green); }
+  .compare-table tr:last-child td { border-bottom: none; }
+  .compare-table tr.section-row td { background: var(--green-bg); color: var(--green); font-weight: 700; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; padding: 10px 16px; }
+
+  .faq { display: grid; grid-template-columns: repeat(2, 1fr); gap: 28px 32px; }
+  .faq-item h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .faq-item p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+  .cta-row { text-align: center; padding: 48px 0; }
+  .cta-row h2 { margin-bottom: 12px; }
+  .cta-row p { color: var(--muted); margin-bottom: 24px; font-size: 16px; }
+  .btn { display: inline-block; padding: 11px 22px; border-radius: 8px; font-weight: 600; font-size: 14px; border: 1px solid transparent; cursor: pointer; transition: background-color 0.15s, border-color 0.15s; }
+  .btn-primary { background: var(--green); color: white; }
+  .btn-primary:hover { background: var(--green-hover); text-decoration: none; }
+  .btn-secondary { background: white; border-color: var(--border); color: var(--text); margin-left: 8px; }
+  .btn-secondary:hover { background: var(--green-bg); border-color: var(--green-light); text-decoration: none; }
+
+  footer { padding: 48px 0; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; background: white; }
+  .footer-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+  .footer-links { display: flex; gap: 22px; }
+
+  @media (max-width: 980px) {
+    .tier-grid { grid-template-columns: repeat(2, 1fr); }
+    .addons { grid-template-columns: 1fr; }
+    .faq { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 600px) {
+    h1 { font-size: 32px; }
+    .tier-grid { grid-template-columns: 1fr; }
+    .nav-links a:not(.cta-link):not(.active) { display: none; }
+    h2 { font-size: 22px; }
+    .compare-table { font-size: 12px; }
+    .compare-table th.tier-col, .compare-table td.tier { width: 70px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container nav">
+    <a href="/" class="logo"><span class="logo-mark">u</span> uxinspect</a>
+    <nav class="nav-links">
+      <a href="/#how">How it works</a>
+      <a href="/#pro">Pro features</a>
+      <a href="/pricing" class="active">Pricing</a>
+      <a href="https://github.com/V4lentin0/uxinspect">GitHub</a>
+      <a href="#tiers" class="cta-link">Get Pro</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <span class="badge-pill">Pricing</span>
+    <h1>Free MIT forever. <span class="accent">Pro from $19/mo</span> when you need replays.</h1>
+    <p class="lede">Pay for what stops a bug from shipping. The CLI is open source. The replay viewer, per-click attribution, hosted dashboard, and compliance pack are paid.</p>
+  </div>
+</section>
+
+<section id="tiers" style="padding-top:24px;">
+  <div class="container">
+    <div class="tier-grid">
+
+      <div class="tier">
+        <div class="tier-name">Free MIT</div>
+        <div class="tier-price">$0<span class="unit"> / forever</span></div>
+        <div class="tier-tagline">Open-source CLI for solo devs and OSS projects.</div>
+        <a href="https://github.com/V4lentin0/uxinspect" class="tier-cta">View on GitHub</a>
+        <ul class="tier-features">
+          <li>65+ local audits (a11y, perf, security, SEO, visual)</li>
+          <li>Auto-explore + AI keyless locators</li>
+          <li>HTML / JSON / JUnit / SARIF / Allure / TAP reporters</li>
+          <li>Watch mode + pre-commit hook</li>
+          <li>Multi-viewport + cross-browser (lib)</li>
+          <li>MIT license, run anywhere Node 20+ runs</li>
+        </ul>
+      </div>
+
+      <div class="tier pro">
+        <span class="tier-popular">Most popular</span>
+        <div class="tier-name">Pro</div>
+        <div class="tier-price">$19<span class="unit"> / month</span></div>
+        <div class="tier-tagline">Everything in Free, plus the parts that turn a green report into a debuggable failure.</div>
+        <a href="#contact" class="tier-cta">Get Pro</a>
+        <ul class="tier-features">
+          <li>Replay capture (rrweb local) + static viewer</li>
+          <li>"Replay this failure" link in HTML report</li>
+          <li>Per-step assertion DSL (console / network / dom / visual)</li>
+          <li>Per-click console + network attribution</li>
+          <li>Stuck-spinner, disabled-button, error-state verifiers</li>
+          <li>Auth-gated route walker + click coverage %</li>
+          <li>Frustration signals (rage, dead, u-turn, error-click)</li>
+          <li>SQLite history + trends + anomaly detection</li>
+          <li>Cross-browser matrix UI + heatmap from auto-explore</li>
+          <li>SSIM perceptual diff + locator self-healing</li>
+          <li>Diff-against-last-commit + Ollama bridge (opt-in)</li>
+        </ul>
+      </div>
+
+      <div class="tier">
+        <div class="tier-name">Team</div>
+        <div class="tier-price">$99<span class="unit"> / team / month</span></div>
+        <div class="tier-tagline">Hosted dashboard, PR bot, monitor, alerts. Up to 10 devs ($9/dev over).</div>
+        <a href="#contact" class="tier-cta">Start Team</a>
+        <ul class="tier-features">
+          <li>Everything in Pro for every seat</li>
+          <li>Hosted multi-repo dashboard</li>
+          <li>PR comment bot (GitHub / GitLab / Bitbucket / Azure)</li>
+          <li>Synthetic monitor scheduler (cron triggers)</li>
+          <li>Slack / Discord / MS Teams alert templates</li>
+          <li>Branded HTML / PDF reports</li>
+          <li>Public status page generator</li>
+          <li>Email digest (daily / weekly summary)</li>
+          <li>REST API for results query</li>
+          <li>24-hour email support SLA</li>
+        </ul>
+      </div>
+
+      <div class="tier">
+        <div class="tier-name">Enterprise</div>
+        <div class="tier-price">$499<span class="unit"> / month +</span></div>
+        <div class="tier-tagline">Compliance, air-gap, custom packs. Custom contracts above $999.</div>
+        <a href="#contact" class="tier-cta">Contact sales</a>
+        <ul class="tier-features">
+          <li>Everything in Team, unlimited seats</li>
+          <li>SSO / SAML / OIDC + SCIM provisioning</li>
+          <li>RBAC (Owner / Admin / Member / Read-only)</li>
+          <li>Tamper-evident audit log of every run</li>
+          <li>Custom rule packs (private repo plugin loader)</li>
+          <li>WCAG 2.2 AA legal PDF (VPAT 2.5 INT)</li>
+          <li>DPA / MSA / SOC2 documentation</li>
+          <li>Self-hosted license server (air-gap option)</li>
+          <li>HIPAA BAA support</li>
+          <li>Custom data retention (30 / 90 / 365+ days)</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="addons">
+  <div class="container">
+    <h2>Add-ons</h2>
+    <p class="section-sub">Bolt onto any tier. Pay once or monthly.</p>
+    <div class="addons">
+      <div class="addon">
+        <span class="addon-label">Cloud Replay</span>
+        <h3>Production session replay</h3>
+        <div class="price">$49 / month</div>
+        <p>Drop-in &lt;5KB JS collector. Real-user session replay (rrweb &rarr; R2). Real-user heatmaps, funnel analytics, frustration signals from production traffic. Privacy-by-default: input redaction, IP anonymization, GDPR consent integration.</p>
+      </div>
+      <div class="addon">
+        <span class="addon-label">Framework Pack</span>
+        <h3>Preset flows + assertions</h3>
+        <div class="price">$49 one-time, per pack</div>
+        <p>Stripe checkout, Next.js App Router, Shopify checkout, Remix loaders/actions, Webflow CMS, WordPress accessibility, SvelteKit, Astro, Nuxt. Each pack ships preset flows, assertions, and per-framework heuristics.</p>
+      </div>
+      <div class="addon">
+        <span class="addon-label">Sponsor</span>
+        <h3>Support the project</h3>
+        <div class="price">$9 / month</div>
+        <p>60-day early access to new audits before they ship to the MIT core. Sponsor role in Discord. Monthly office-hours video call. For solo devs who can't justify Pro yet.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <h2>Full feature comparison</h2>
+    <p class="section-sub">Every capability across every tier. Greens are included.</p>
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>Capability</th>
+          <th class="tier-col">Free</th>
+          <th class="tier-col">Pro $19</th>
+          <th class="tier-col">Team $99</th>
+          <th class="tier-col">Enterprise $499</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="section-row"><td colspan="5">Core CLI &amp; Audits</td></tr>
+        <tr><td>65+ audits (a11y, perf, security, SEO, visual, exploration)</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Auto-explore + AI keyless locators</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>HTML / JSON / JUnit / SARIF / Allure / TAP reporters</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Watch mode + pre-commit hook</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Multi-viewport + cross-browser (lib)</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+
+        <tr class="section-row"><td colspan="5">Replay &amp; Debug (Pro)</td></tr>
+        <tr><td>Replay capture (rrweb local) + static HTML viewer</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>"Replay this failure" link in HTML report</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Per-step assertion DSL (console / network / dom / visual)</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Per-click console + network attribution</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+
+        <tr class="section-row"><td colspan="5">Per-Click Verifiers (Pro)</td></tr>
+        <tr><td>Stuck-spinner / aria-busy timeout</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Disabled-button click verifier</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>DOM error-state appearance check</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Form validation behavior detector</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Modal backdrop-close detector</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Auth-gated route walker</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Click coverage % per route + budget flag</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Frustration signals (rage / dead / u-turn / error-click)</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+
+        <tr class="section-row"><td colspan="5">History &amp; Analytics (Pro)</td></tr>
+        <tr><td>SQLite history (better-sqlite3)</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Trend graph HTML</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Anomaly detector (z-score on metrics)</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Diff-against-last-commit CLI</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+
+        <tr class="section-row"><td colspan="5">Visual &amp; AI (Pro)</td></tr>
+        <tr><td>Cross-browser matrix UI in report</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Heatmap from auto-explore (SVG)</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>SSIM perceptual visual diff + ignore-region DSL</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Locator caching + self-healing</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Ollama bridge (opt-in fuzzy locator)</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>NL extract() with Zod schema + observe()</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+
+        <tr class="section-row"><td colspan="5">Dev Loop (Pro)</td></tr>
+        <tr><td>Git-diff mode (test only changed routes)</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Fast inner-loop mode (sub-30s) + pre-push hook</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Browser-extension recorder (Chrome MV3)</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>VS Code extension</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+
+        <tr class="section-row"><td colspan="5">Specialty Audits (Pro)</td></tr>
+        <tr><td>i18n / RTL / locale overflow audit</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>GDPR consent flow simulator</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Color contrast at every state (hover/focus/disabled)</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Auth-edge audit (expired / refresh / CSRF rotation)</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Offline / flaky-network audit</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Concurrency audit (2-tab race detection)</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Email rendering audit (Mailpit / MailHog bridge)</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>PDF / print audit</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>MCP server (Claude / Cursor / Copilot integrations)</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+
+        <tr class="section-row"><td colspan="5">Hosted Cloud (Team)</td></tr>
+        <tr><td>Hosted multi-repo dashboard</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>PR comment bot (GitHub / GitLab / Bitbucket / Azure)</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>PR status check (block merge on regression)</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Synthetic monitor scheduler (cron triggers)</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Slack / Discord / MS Teams alert templates</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Branded HTML / PDF reports</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Public status page generator</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Email digest (daily / weekly summary)</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>REST API for results query</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Sharding / parallelization across runners</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>24-hour email support SLA</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+
+        <tr class="section-row"><td colspan="5">Compliance &amp; Security (Enterprise)</td></tr>
+        <tr><td>SSO / SAML / OIDC config</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td></tr>
+        <tr><td>SCIM provisioning</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td></tr>
+        <tr><td>RBAC (Owner / Admin / Member / Read-only)</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td></tr>
+        <tr><td>Tamper-evident audit log of every run</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td></tr>
+        <tr><td>Custom rule packs (private repo plugin loader)</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td></tr>
+        <tr><td>WCAG 2.2 AA legal PDF (VPAT 2.5 INT)</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td></tr>
+        <tr><td>DPA / MSA / SOC2 docs</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td></tr>
+        <tr><td>Self-hosted license server (air-gap)</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td></tr>
+        <tr><td>HIPAA BAA support</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td></tr>
+        <tr><td>Custom data retention (30 / 90 / 365+ days)</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier">&mdash;</td><td class="tier yes">yes</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="container">
+    <h2>Frequently asked</h2>
+    <p class="section-sub">If your question isn't here, open an issue on GitHub.</p>
+    <div class="faq">
+      <div class="faq-item">
+        <h3>Is the free CLI really free forever?</h3>
+        <p>Yes. The core CLI is MIT-licensed. Use it commercially, fork it, ship it inside your own product. The 65+ audits, auto-explore, AI keyless locators, and every reporter stay free.</p>
+      </div>
+      <div class="faq-item">
+        <h3>What runs locally vs in the cloud?</h3>
+        <p>Free and Pro run entirely on your machine. Replay capture writes to <code>.uxinspect/replays/</code> on disk. Team and Enterprise add a hosted dashboard at app.uxinspect.com so multiple devs see one view across repos.</p>
+      </div>
+      <div class="faq-item">
+        <h3>How does Pro activate without phoning home?</h3>
+        <p>License key checked once via a Cloudflare Worker, signed JWT cached for 30 days. 14-day offline grace if the network is down. Your test runs never leave your machine.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Do I need Team to use the PR bot?</h3>
+        <p>The PR bot, monitor scheduler, hosted dashboard, and alert templates are Team-tier and above. Pro is local-only by design.</p>
+      </div>
+      <div class="faq-item">
+        <h3>What does Cloud Replay add?</h3>
+        <p>A &lt;5KB JS collector you drop into your production HTML. Captures real-user sessions to rrweb, plus heatmaps and funnel analytics. Bolts onto any tier for $49/mo.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Can I cancel anytime?</h3>
+        <p>Yes. Monthly billing, no contracts on Pro or Team. Enterprise is annual with custom terms. Free CLI keeps working forever, regardless.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Is there a startup discount?</h3>
+        <p>Pro is already $19/mo. Team starts at $99 for up to 10 devs. For pre-revenue startups under 5 people, email sales for a 50% Team discount for the first year.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Do framework packs require Pro?</h3>
+        <p>No. Packs are $49 one-time and work with the free MIT core. They ship preset flows + assertions for a specific framework or checkout flow.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-row" id="contact">
+  <div class="container">
+    <h2>Start with the free CLI in under a minute</h2>
+    <p>Install, run one command, see the report. Upgrade to Pro when you want the replay link.</p>
+    <a href="https://github.com/V4lentin0/uxinspect" class="btn btn-primary">View on GitHub</a>
+    <a href="mailto:hello@uxinspect.com?subject=uxinspect%20Pro" class="btn btn-secondary">Email sales</a>
+  </div>
+</section>
+
+<footer>
+  <div class="container footer-row">
+    <div>&copy; 2026 uxinspect &middot; MIT core, commercial Pro / Team / Enterprise</div>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/pricing">Pricing</a>
+      <a href="https://github.com/V4lentin0/uxinspect">GitHub</a>
+      <a href="https://www.npmjs.com/package/uxinspect">npm</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

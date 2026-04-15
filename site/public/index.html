@@ -3,75 +3,108 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>uxinspect — UI/UX testing that acts like a real human</title>
-<meta name="description" content="One CLI for accessibility, performance, visual diff and AI exploration. MIT, no API keys, runs anywhere Node 20 runs.">
+<title>uxinspect — the robot user that clicks every button and hands you a failure replay</title>
+<meta name="description" content="uxinspect drives a real browser through your app, clicks every interactive element, and when something breaks gives you a click-by-click replay with the console error and failed network call attributed to the exact step.">
 <link rel="preconnect" href="https://rsms.me/">
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2310B981'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Inter,sans-serif' font-size='18' font-weight='700' fill='white'%3Eu%3C/text%3E%3C/svg%3E">
 <style>
   :root { --bg:#FAFAFA; --card:#FFFFFF; --border:#E5E7EB; --text:#1D1D1F; --muted:#6B7280;
-          --green:#10B981; --green-light:#6EE7B7; --green-bg:#ECFDF5;
+          --green:#10B981; --green-hover:#059669; --green-light:#6EE7B7; --green-bg:#ECFDF5;
           --blue:#3B82F6; --blue-bg:#EFF6FF; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased; }
   a { color: var(--blue); text-decoration: none; }
   a:hover { text-decoration: underline; }
   code, pre { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace; font-size: 13px; }
-  .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+  .container { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
 
-  header { padding: 20px 0; border-bottom: 1px solid var(--border); background: white; }
+  header { padding: 18px 0; border-bottom: 1px solid var(--border); background: white; position: sticky; top: 0; z-index: 10; }
   .nav { display: flex; align-items: center; justify-content: space-between; }
-  .logo { font-weight: 700; font-size: 18px; display: flex; align-items: center; gap: 8px; color: var(--text); }
+  .logo { font-weight: 700; font-size: 17px; display: flex; align-items: center; gap: 8px; color: var(--text); }
+  .logo:hover { text-decoration: none; }
   .logo-mark { width: 28px; height: 28px; background: var(--green); border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 16px; }
-  .nav-links { display: flex; gap: 24px; font-size: 14px; }
+  .nav-links { display: flex; gap: 28px; font-size: 14px; align-items: center; }
   .nav-links a { color: var(--muted); }
   .nav-links a:hover { color: var(--text); text-decoration: none; }
+  .nav-links a.cta-link { background: var(--green); color: white; padding: 8px 14px; border-radius: 6px; font-weight: 600; }
+  .nav-links a.cta-link:hover { background: var(--green-hover); color: white; }
 
-  .hero { padding: 80px 0 64px; text-align: center; }
-  .badge-pill { display: inline-block; background: var(--green-bg); color: var(--green); border: 1px solid var(--green-light); padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-bottom: 24px; }
-  h1 { font-size: 48px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; margin-bottom: 16px; }
+  .hero { padding: 88px 0 56px; text-align: center; }
+  .badge-pill { display: inline-block; background: var(--green-bg); color: var(--green); border: 1px solid var(--green-light); padding: 5px 14px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-bottom: 24px; letter-spacing: 0.01em; }
+  h1 { font-size: 52px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.08; margin-bottom: 20px; max-width: 880px; margin-left: auto; margin-right: auto; }
   h1 .accent { color: var(--green); }
-  .lede { font-size: 18px; color: var(--muted); max-width: 640px; margin: 0 auto 32px; }
-  .cta { display: inline-flex; gap: 12px; align-items: center; }
-  .btn { display: inline-block; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 14px; border: 1px solid transparent; cursor: pointer; }
+  .lede { font-size: 19px; color: var(--muted); max-width: 720px; margin: 0 auto 36px; line-height: 1.55; }
+  .cta { display: inline-flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .btn { display: inline-block; padding: 11px 22px; border-radius: 8px; font-weight: 600; font-size: 14px; border: 1px solid transparent; cursor: pointer; transition: background-color 0.15s, border-color 0.15s; }
   .btn-primary { background: var(--green); color: white; }
-  .btn-primary:hover { background: #059669; text-decoration: none; }
+  .btn-primary:hover { background: var(--green-hover); text-decoration: none; }
   .btn-secondary { background: white; border-color: var(--border); color: var(--text); }
   .btn-secondary:hover { background: var(--green-bg); border-color: var(--green-light); text-decoration: none; }
 
-  .install { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin: 32px auto 0; max-width: 480px; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
-  .install code { color: var(--text); }
-  .copy-btn { font-size: 12px; color: var(--muted); background: none; border: 1px solid var(--border); padding: 4px 10px; border-radius: 4px; }
+  .install { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 14px 20px; margin: 36px auto 0; max-width: 560px; display: flex; align-items: center; gap: 12px; text-align: left; box-shadow: 0 1px 2px rgba(16,24,40,0.04); }
+  .install code { color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .install .prompt { color: var(--muted); }
 
-  section { padding: 64px 0; }
+  .replay-frame { max-width: 920px; margin: 56px auto 0; background: white; border: 1px solid var(--border); border-radius: 12px; padding: 8px; box-shadow: 0 8px 32px rgba(16,24,40,0.06); }
+  .replay-window { background: var(--bg); border-radius: 8px; padding: 0; overflow: hidden; }
+  .replay-bar { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--border); background: white; }
+  .replay-dot { width: 10px; height: 10px; border-radius: 50%; background: #E5E7EB; }
+  .replay-url { margin-left: 14px; font-size: 12px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+  .replay-body { padding: 48px 24px; text-align: center; min-height: 280px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: linear-gradient(0deg, #FFFFFF, #FFFFFF), var(--bg); }
+  .replay-body .placeholder-label { font-size: 13px; color: var(--muted); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  .replay-body .placeholder-flow { font-size: 16px; color: var(--text); font-weight: 600; }
+  .replay-body .placeholder-steps { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+  .replay-step { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: white; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; color: var(--text); }
+  .replay-step.fail { border-color: #FCA5A5; background: #FEF2F2; color: #B91C1C; }
+  .replay-step.pass { border-color: var(--green-light); background: var(--green-bg); color: var(--green); }
+  .arrow { color: var(--muted); }
+
+  section { padding: 72px 0; }
   section.alt { background: white; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-  h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; }
-  .section-sub { color: var(--muted); margin-bottom: 32px; }
+  h2 { font-size: 30px; font-weight: 700; letter-spacing: -0.015em; margin-bottom: 10px; }
+  .section-sub { color: var(--muted); margin-bottom: 36px; font-size: 16px; max-width: 640px; }
 
-  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
-  .feature { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .feature { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 22px; box-shadow: 0 1px 2px rgba(16,24,40,0.03); }
   section.alt .feature { background: var(--bg); }
-  .feature-icon { width: 32px; height: 32px; border-radius: 6px; background: var(--green-bg); color: var(--green); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; margin-bottom: 12px; }
+  .feature-icon { width: 32px; height: 32px; border-radius: 6px; background: var(--green-bg); color: var(--green); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; margin-bottom: 14px; font-size: 14px; }
+  .feature-icon.blue { background: var(--blue-bg); color: var(--blue); }
   .feature h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
-  .feature p { font-size: 13px; color: var(--muted); }
+  .feature p { font-size: 13.5px; color: var(--muted); line-height: 1.55; }
 
-  pre.codeblock { background: #0B1320; color: #E5E7EB; padding: 20px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.6; }
+  pre.codeblock { background: #0B1320; color: #E5E7EB; padding: 22px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.65; }
   pre.codeblock .c-key { color: var(--green-light); }
   pre.codeblock .c-str { color: #FCD34D; }
   pre.codeblock .c-com { color: #6B7280; }
+  pre.codeblock .c-fn  { color: #93C5FD; }
 
-  .checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 24px; }
-  .check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
-  .check::before { content: ''; width: 16px; height: 16px; border-radius: 50%; background: var(--green-bg); border: 2px solid var(--green); flex-shrink: 0; }
+  .pro-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 28px; }
+  .pro-card { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 2px rgba(16,24,40,0.03); }
+  section.alt .pro-card { background: var(--bg); }
+  .pro-card .label { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--green); background: var(--green-bg); padding: 3px 8px; border-radius: 4px; margin-bottom: 10px; }
+  .pro-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .pro-card p { font-size: 13px; color: var(--muted); line-height: 1.55; }
 
-  footer { padding: 40px 0; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+  .compare-table { width: 100%; border-collapse: collapse; background: white; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; box-shadow: 0 1px 2px rgba(16,24,40,0.03); }
+  .compare-table th, .compare-table td { text-align: left; padding: 12px 16px; font-size: 13.5px; border-bottom: 1px solid var(--border); }
+  .compare-table th { background: var(--bg); font-weight: 600; color: var(--text); font-size: 13px; }
+  .compare-table tr:last-child td { border-bottom: none; }
+  .compare-table td.tier { text-align: center; color: var(--muted); width: 110px; font-weight: 600; }
+  .compare-table td.tier.yes { color: var(--green); }
+
+  footer { padding: 48px 0; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; background: white; }
   .footer-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
-  .footer-links { display: flex; gap: 20px; }
+  .footer-links { display: flex; gap: 22px; }
 
-  @media (max-width: 600px) {
+  @media (max-width: 720px) {
     h1 { font-size: 36px; }
-    .hero { padding: 48px 0 40px; }
-    section { padding: 48px 0; }
+    .hero { padding: 56px 0 32px; }
+    section { padding: 56px 0; }
+    .nav-links { gap: 16px; }
+    .nav-links a:not(.cta-link) { display: none; }
+    h2 { font-size: 24px; }
   }
 </style>
 </head>
@@ -81,98 +114,156 @@
   <div class="container nav">
     <a href="/" class="logo"><span class="logo-mark">u</span> uxinspect</a>
     <nav class="nav-links">
-      <a href="#features">Features</a>
-      <a href="#install">Install</a>
-      <a href="#example">Example</a>
+      <a href="#how">How it works</a>
+      <a href="#pro">Pro features</a>
+      <a href="/pricing">Pricing</a>
       <a href="https://github.com/V4lentin0/uxinspect">GitHub</a>
+      <a href="/pricing" class="cta-link">Get Pro</a>
     </nav>
   </div>
 </header>
 
 <section class="hero">
   <div class="container">
-    <span class="badge-pill">v0.1.0 · MIT · Node 20+</span>
-    <h1>UI/UX testing that acts <span class="accent">like a real human</span></h1>
-    <p class="lede">One CLI for accessibility, performance, visual diff, and AI exploration. No API keys. No SaaS lock-in. Runs anywhere Node runs.</p>
+    <span class="badge-pill">v0.11 — Replay capture in Pro</span>
+    <h1>The robot user that <span class="accent">clicks every button</span> and hands you a failure replay</h1>
+    <p class="lede">uxinspect drives a real browser through your app the way a person would. When something breaks, you get a click-by-click replay with the exact console error and failed network call attributed to the step that triggered them.</p>
     <div class="cta">
-      <a href="#install" class="btn btn-primary">Install</a>
+      <a href="/pricing" class="btn btn-primary">See pricing</a>
       <a href="https://github.com/V4lentin0/uxinspect" class="btn btn-secondary">View on GitHub</a>
     </div>
-    <div class="install" id="install">
-      <code>$ npm install -g uxinspect &amp;&amp; uxinspect run --url https://yourapp.com</code>
+    <div class="install">
+      <span class="prompt">$</span>
+      <code>npm install -g uxinspect &amp;&amp; uxinspect run --url https://yourapp.com --explore --replay</code>
+    </div>
+
+    <div class="replay-frame" aria-label="Replay viewer demo">
+      <div class="replay-window">
+        <div class="replay-bar">
+          <span class="replay-dot"></span><span class="replay-dot"></span><span class="replay-dot"></span>
+          <span class="replay-url">uxinspect-report/replay.html#flow=signup&amp;t=00:14</span>
+        </div>
+        <div class="replay-body">
+          <span class="placeholder-label">Replay this failure</span>
+          <span class="placeholder-flow">signup flow — step 7 of 9 failed</span>
+          <div class="placeholder-steps">
+            <span class="replay-step pass">goto /signup</span>
+            <span class="arrow">&rarr;</span>
+            <span class="replay-step pass">fill #email</span>
+            <span class="arrow">&rarr;</span>
+            <span class="replay-step pass">click Continue</span>
+            <span class="arrow">&rarr;</span>
+            <span class="replay-step fail">click Submit  &middot;  console.error + 500</span>
+          </div>
+          <span class="placeholder-label" style="margin-top:18px;">scrub the recording, see the broken click</span>
+        </div>
+      </div>
     </div>
   </div>
 </section>
 
-<section id="features">
+<section id="how">
   <div class="container">
-    <h2>Everything in one tool</h2>
-    <p class="section-sub">Stop stitching five testing tools together. uxinspect bundles every check that matters.</p>
+    <h2>What one command does</h2>
+    <p class="section-sub">Run uxinspect once. Get a report you can hand to anyone on the team.</p>
     <div class="features">
-      <div class="feature"><div class="feature-icon">A</div><h3>Accessibility</h3><p>Full WCAG audit on every page with severity-graded violations.</p></div>
-      <div class="feature"><div class="feature-icon">P</div><h3>Performance</h3><p>Core Web Vitals + four-category scoring on real pages.</p></div>
-      <div class="feature"><div class="feature-icon">V</div><h3>Visual diff</h3><p>Pixel-perfect baselines per viewport with diff images on regression.</p></div>
-      <div class="feature"><div class="feature-icon">F</div><h3>Flow runner</h3><p>Scripted user journeys: click, fill, submit, navigate.</p></div>
-      <div class="feature"><div class="feature-icon">E</div><h3>Auto-explore</h3><p>Crawl every button and form on the site without writing scripts.</p></div>
-      <div class="feature"><div class="feature-icon">AI</div><h3>Keyless AI</h3><p>Natural-language steps resolved via role/text/label — no API key needed.</p></div>
+      <div class="feature"><div class="feature-icon">1</div><h3>Loads in a real browser</h3><p>Headless Chromium, Firefox, or WebKit. Real network. Real rendering. Real DOM.</p></div>
+      <div class="feature"><div class="feature-icon">2</div><h3>Discovers every interactive element</h3><p>Buttons, links, forms, menus, modals. Walks the DOM, finds them all.</p></div>
+      <div class="feature"><div class="feature-icon">3</div><h3>Clicks them all, every viewport</h3><p>Mobile, tablet, desktop. Every button, every screen, every state.</p></div>
+      <div class="feature"><div class="feature-icon">4</div><h3>Records every step (Pro)</h3><p>rrweb captures DOM events to <code>.uxinspect/replays/</code>. Local. No cloud.</p></div>
+      <div class="feature"><div class="feature-icon">5</div><h3>Attributes errors to the click (Pro)</h3><p>Console errors and 4xx/5xx network calls pinned to the exact step.</p></div>
+      <div class="feature"><div class="feature-icon">6</div><h3>Hands you a report</h3><p><code>report.html</code> with screenshots, scores, and a "Replay this failure" link on every red row.</p></div>
     </div>
   </div>
 </section>
 
-<section class="alt" id="example">
+<section class="alt" id="pro">
   <div class="container">
-    <h2>One config. One report. Done.</h2>
-    <p class="section-sub">Drop a config file, run the CLI, get HTML + JSON + JUnit + SARIF reports.</p>
-    <pre class="codeblock"><span class="c-com">// uxinspect.config.mjs</span>
+    <h2>Pro turns a green report into a debuggable failure</h2>
+    <p class="section-sub">Free MIT runs every audit. Pro adds the parts that let you find <em>why</em> a click broke and reproduce it.</p>
+    <div class="pro-grid">
+      <div class="pro-card"><span class="label">Replay</span><h3>Replay capture (rrweb local)</h3><p>Every flow + every explore run is recorded to <code>.uxinspect/replays/</code>. Bundled rrweb-player, no CDN.</p></div>
+      <div class="pro-card"><span class="label">Replay</span><h3>"Replay this failure" link</h3><p>Failed flows in <code>report.html</code> link to the viewer at the failure timestamp. Click and see the broken click.</p></div>
+      <div class="pro-card"><span class="label">Assertions</span><h3>Per-step assertion DSL</h3><p><code>assert: { console: 'clean', network: 'no-4xx', dom: 'no-error', visual: 'matches' }</code> on every step.</p></div>
+      <div class="pro-card"><span class="label">Attribution</span><h3>Per-click console + network</h3><p>Capture resets before every step. The 500 / TypeError is attributed to the click that fired it.</p></div>
+      <div class="pro-card"><span class="label">Verifiers</span><h3>Stuck-spinner detection</h3><p>If <code>[aria-busy]</code> or <code>.spinner</code> persists past 5s after a click, flagged broken.</p></div>
+      <div class="pro-card"><span class="label">Verifiers</span><h3>Disabled-button audit</h3><p>Walks every <code>[disabled]</code>, attempts click, asserts no state change. Catches the bugs you forgot.</p></div>
+      <div class="pro-card"><span class="label">Verifiers</span><h3>DOM error-state appearance</h3><p>Scans for new <code>[role="alert"]</code>, error toasts, <code>.alert-danger</code> after every click.</p></div>
+      <div class="pro-card"><span class="label">Coverage</span><h3>Click coverage % per route</h3><p>Interactive-element count vs clicked count. <code>--coverage-min 80</code> budget flag for CI.</p></div>
+      <div class="pro-card"><span class="label">Coverage</span><h3>Auth-gated route walker</h3><p>storageState + auto-discovered protected routes. Per-click verifier on every gated page.</p></div>
+      <div class="pro-card"><span class="label">History</span><h3>SQLite history + trends</h3><p>better-sqlite3 in <code>.uxinspect/history.db</code>. Z-score anomaly detection on every metric.</p></div>
+      <div class="pro-card"><span class="label">Visual</span><h3>Cross-browser matrix UI</h3><p>Side-by-side Chromium / Firefox / WebKit screenshots in the report with diff overlay toggle.</p></div>
+      <div class="pro-card"><span class="label">AI</span><h3>Locator caching + self-healing</h3><p>Cache resolved locators by selector hash. Retry neighboring strategies on miss. 2x faster reruns.</p></div>
+    </div>
+    <div style="margin-top:36px; text-align:center;">
+      <a href="/pricing" class="btn btn-primary">Get Pro for $19/mo</a>
+    </div>
+  </div>
+</section>
+
+<section id="example">
+  <div class="container">
+    <h2>One config. One report. One replay link per failure.</h2>
+    <p class="section-sub">Drop a config file, run the CLI, get HTML + JSON + JUnit + SARIF + scrubbable replays.</p>
+    <pre class="codeblock"><span class="c-com">// uxinspect.config.ts</span>
 <span class="c-key">export default</span> {
   url: <span class="c-str">'https://yourapp.com'</span>,
   viewports: [
-    { name: <span class="c-str">'mobile'</span>, width: 375, height: 667 },
     { name: <span class="c-str">'desktop'</span>, width: 1280, height: 800 },
+    { name: <span class="c-str">'mobile'</span>,  width: 375,  height: 667 },
   ],
-  flows: [
-    {
-      name: <span class="c-str">'signup'</span>,
-      steps: [
-        { goto: <span class="c-str">'https://yourapp.com'</span> },
-        { ai: <span class="c-str">'click Get Started'</span> },
-        { fill: { selector: <span class="c-str">'#email'</span>, text: <span class="c-str">'me@example.com'</span> } },
-        { ai: <span class="c-str">'click Continue'</span> },
-      ],
-    },
-  ],
-  checks: { a11y: <span class="c-key">true</span>, perf: <span class="c-key">true</span>, visual: <span class="c-key">true</span>, explore: <span class="c-key">false</span> },
-  ai: { enabled: <span class="c-key">true</span> },
+  flows: [{
+    name: <span class="c-str">'signup'</span>,
+    steps: [
+      { goto: <span class="c-str">'https://yourapp.com/signup'</span> },
+      { fill: { selector: <span class="c-str">'#email'</span>, text: <span class="c-str">'me@example.com'</span> } },
+      { click: <span class="c-str">'button[type=submit]'</span>,
+        assert: { console: <span class="c-str">'clean'</span>, network: <span class="c-str">'no-4xx'</span>, dom: <span class="c-str">'no-error'</span> } },
+      { waitFor: <span class="c-str">'.welcome'</span> },
+    ],
+  }],
+  checks: { a11y: <span class="c-key">true</span>, perf: <span class="c-key">true</span>, visual: <span class="c-key">true</span>, explore: <span class="c-key">true</span>, replay: <span class="c-key">true</span> },
   reporters: [<span class="c-str">'html'</span>, <span class="c-str">'json'</span>, <span class="c-str">'junit'</span>, <span class="c-str">'sarif'</span>],
 };</pre>
-    <div class="checks">
-      <div class="check">Multi-viewport snapshots</div>
-      <div class="check">Parallel flow execution</div>
-      <div class="check">Auth via storageState</div>
-      <div class="check">Local report viewer</div>
-      <div class="check">CI-ready (JUnit + SARIF)</div>
-      <div class="check">Zero API keys</div>
-    </div>
   </div>
 </section>
 
-<section>
+<section class="alt">
   <div class="container">
-    <h2>Why uxinspect</h2>
-    <p class="section-sub">Every other tool stops at one slice of the problem. uxinspect tests the whole thing.</p>
-    <div class="features">
-      <div class="feature"><h3>One install, six checks</h3><p>One npm install replaces five separate tools and the glue between them.</p></div>
-      <div class="feature"><h3>No external services</h3><p>Runs locally, in CI, or anywhere Node runs. No SaaS account required.</p></div>
-      <div class="feature"><h3>Real browser, real users</h3><p>Headless Chromium driving real user flows, not mocked HTTP requests.</p></div>
-      <div class="feature"><h3>MIT licensed</h3><p>Use it commercially, fork it, ship it. No restrictions.</p></div>
+    <h2>Pick a tier when you outgrow the free CLI</h2>
+    <p class="section-sub">Free CLI stays MIT forever. Paid tiers add replay, history, dashboard, and compliance.</p>
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>Capability</th>
+          <th class="tier">Free</th>
+          <th class="tier">Pro $19</th>
+          <th class="tier">Team $99</th>
+          <th class="tier">Enterprise $499</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>65+ local audits + auto-explore + AI locators</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Replay capture + viewer + failure link</td><td class="tier">—</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Per-step assertions + click attribution</td><td class="tier">—</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Auth-gated walker + coverage % + frustration signals</td><td class="tier">—</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>SQLite history + trends + anomaly detection</td><td class="tier">—</td><td class="tier yes">yes</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>Hosted dashboard + PR comment bot + monitor scheduler</td><td class="tier">—</td><td class="tier">—</td><td class="tier yes">yes</td><td class="tier yes">yes</td></tr>
+        <tr><td>SSO / SAML / SCIM / RBAC + audit log</td><td class="tier">—</td><td class="tier">—</td><td class="tier">—</td><td class="tier yes">yes</td></tr>
+        <tr><td>Legal-ready WCAG 2.2 PDF (VPAT) + custom packs + air-gap</td><td class="tier">—</td><td class="tier">—</td><td class="tier">—</td><td class="tier yes">yes</td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:32px; text-align:center;">
+      <a href="/pricing" class="btn btn-primary">Compare full pricing</a>
     </div>
   </div>
 </section>
 
 <footer>
   <div class="container footer-row">
-    <div>© 2026 uxinspect · MIT</div>
+    <div>&copy; 2026 uxinspect &middot; MIT core, commercial Pro / Team / Enterprise</div>
     <div class="footer-links">
+      <a href="/pricing">Pricing</a>
       <a href="https://github.com/V4lentin0/uxinspect">GitHub</a>
       <a href="https://github.com/V4lentin0/uxinspect/issues">Issues</a>
       <a href="https://www.npmjs.com/package/uxinspect">npm</a>

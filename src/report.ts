@@ -424,6 +424,10 @@ function renderHTML(r: InspectResult): string {
   .empty { color: var(--muted); font-style: italic; font-size: 13px; }
   .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
   .trunc { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: middle; }
+  .replay-btn { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--green); font-family: 'Inter', system-ui, sans-serif; font-size: 13px; font-weight: 600; text-decoration: none; transition: background 0.12s ease, border-color 0.12s ease; }
+  .replay-btn:hover { background: var(--green-bg); border-color: var(--green); }
+  .replay-btn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; }
+  .replay-offset { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 4px; }
 </style>
 </head>
 <body>
@@ -505,10 +509,44 @@ function renderUnknownSections(r: any): string {
   return out.join('');
 }
 
-function renderFlow(f: { name: string; passed: boolean; steps: any[]; error?: string }): string {
+function renderFlow(f: {
+  name: string;
+  passed: boolean;
+  steps: any[];
+  error?: string;
+  replayPath?: string;
+  replayViewerPath?: string;
+  failureTimestamp?: number;
+  replayStartedAt?: number;
+}): string {
+  // Compute a relative href from the report directory to the replay viewer or json,
+  // and a seek offset (ms) the viewer can pass to rrweb-player.goto(offset).
+  // Viewer URL takes precedence; JSON path is the fallback (CLI: `uxinspect replay <path>`).
+  const target = f.replayViewerPath ?? f.replayPath;
+  const seekMs =
+    f.failureTimestamp != null && f.replayStartedAt != null
+      ? Math.max(0, f.failureTimestamp - f.replayStartedAt)
+      : null;
+  const replayLink =
+    !f.passed && target
+      ? (() => {
+          const rel = path.relative('.', target).split(path.sep).join('/');
+          const href = seekMs != null ? `${rel}#t=${seekMs}` : rel;
+          const seekLabel = seekMs != null ? ` <span class="replay-offset">at ${(seekMs / 1000).toFixed(2)}s</span>` : '';
+          const hint = f.replayViewerPath
+            ? 'Opens the rrweb replay seeked to the failure'
+            : `Run: uxinspect replay ${escape(rel)}`;
+          return `<div class="row">
+        <a class="replay-btn" href="${escape(href)}" target="_blank" rel="noopener" title="${escape(hint)}">
+          <span class="replay-btn-dot"></span>Replay failure${seekLabel}
+        </a>
+      </div>`;
+        })()
+      : '';
   return `<div class="section">
     <div class="row"><strong>${escape(f.name)}</strong> <span class="${f.passed ? 'pass' : 'fail'}">${f.passed ? 'PASS' : 'FAIL'}</span></div>
     ${f.error ? `<pre>${escape(f.error)}</pre>` : ''}
+    ${replayLink}
     <div class="label">${f.steps.length} steps</div>
   </div>`;
 }

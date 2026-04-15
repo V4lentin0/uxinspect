@@ -58,7 +58,26 @@ export interface ApiFlowResult {
   error?: string;
 }
 
-export type Step =
+export interface AssertConfig {
+  /** No new console errors recorded between step start and end. */
+  console?: 'clean';
+  /** No new HTTP 4xx/5xx responses observed during the step. */
+  network?: 'no-4xx';
+  /** No new `[role="alert"]`, `.error`, or `.alert-danger` elements appeared. */
+  dom?: 'no-error';
+  /** Screenshot matches stored baseline; if no baseline exists, current is saved as baseline. */
+  visual?: 'matches';
+}
+
+export interface AssertionFailure {
+  kind: 'console' | 'network' | 'dom' | 'visual';
+  message: string;
+  details?: unknown;
+}
+
+export type Step = StepAction & { assert?: AssertConfig };
+
+export type StepAction =
   | { goto: string }
   | { click: string }
   | { type: { selector: string; text: string } }
@@ -290,6 +309,14 @@ export interface FlowResult {
   steps: StepResult[];
   screenshots: string[];
   error?: string;
+  /** Path to the rrweb replay JSON, e.g. `.uxinspect/replays/<flow>-<ts>.json` (P0 #3). */
+  replayPath?: string;
+  /** Path to the static replay-viewer HTML emitted by `uxinspect replay` (P0 #4). */
+  replayViewerPath?: string;
+  /** Epoch ms when the failure occurred — used to seek the rrweb player. */
+  failureTimestamp?: number;
+  /** Epoch ms when the replay started recording — used to compute seek offset. */
+  replayStartedAt?: number;
 }
 
 export interface StepResult {
@@ -297,6 +324,10 @@ export interface StepResult {
   passed: boolean;
   durationMs: number;
   error?: string;
+  assertions?: AssertionFailure[];
+  consoleErrors?: import('./console-errors.js').StepConsoleCapture;
+  /** Network 4xx/5xx responses observed during this step (P0 #7). */
+  networkFailures?: import('./network-attribution.js').NetworkFailure[];
 }
 
 export interface A11yResult {
@@ -349,4 +380,5 @@ export interface ExploreResult {
   errors: string[];
   consoleErrors: string[];
   networkErrors: string[];
+  replayPath?: string;
 }

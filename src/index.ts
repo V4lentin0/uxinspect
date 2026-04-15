@@ -1,4 +1,7 @@
 import path from 'node:path';
+import { promises as fs } from 'node:fs';
+import { PNG } from 'pngjs';
+import pixelmatch from 'pixelmatch';
 import { Driver, networkPresets } from './driver.js';
 import { checkA11y, annotateA11y } from './a11y.js';
 import { checkPerf } from './perf.js';
@@ -24,6 +27,7 @@ import { auditForms } from './forms-audit.js';
 import { checkStructuredData } from './structured-data.js';
 import { auditPassiveSecurity } from './passive-security.js';
 import { attachConsoleCapture } from './console-errors.js';
+import { startCapture as startNetworkAttribution } from './network-attribution.js';
 import { auditSitemap } from './sitemap.js';
 import { auditRedirects } from './redirects.js';
 import { scanExposedPaths } from './exposed-paths.js';
@@ -86,12 +90,15 @@ import { auditHydration } from './hydration-audit.js';
 import { auditStorage } from './storage-audit.js';
 import { auditCsrf } from './csrf-audit.js';
 import { auditErrorPages } from './error-page-audit.js';
+import { startReplay, stopReplay } from './replay.js';
 import type {
   InspectConfig,
   InspectResult,
   FlowResult,
   StepResult,
   Step,
+  AssertConfig,
+  AssertionFailure,
   A11yResult,
   PerfResult,
   VisualResult,
@@ -183,6 +190,8 @@ export { auditForms } from './forms-audit.js';
 export { checkStructuredData } from './structured-data.js';
 export { auditPassiveSecurity } from './passive-security.js';
 export { attachConsoleCapture } from './console-errors.js';
+export { startCapture as startNetworkAttribution } from './network-attribution.js';
+export type { NetworkFailure, NetworkAttributionCapture } from './network-attribution.js';
 export { auditSitemap } from './sitemap.js';
 export { auditRedirects } from './redirects.js';
 export { scanExposedPaths } from './exposed-paths.js';
@@ -475,8 +484,12 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
+        const network = startNetworkAttribution(page);
         if (config.ai?.enabled) await ai.init(page);
-        const flowResult = await runFlow(page, flow.name, flow.steps, ai);
+        const replaySession = await startReplay(page, `${flow.name}-${vp.name}`).catch(() => null);
+        const flowResult = await runFlow(page, flow.name, flow.steps, ai, { baselineDir, console, network });
+        const replayPath = await stopReplay(replaySession).catch(() => null);
+        if (replayPath) flowResult.replayPath = replayPath;
         const a11y = checks.a11y ? await checkA11y(page).catch((e) => emptyA11y(page.url(), e)) : undefined;
         if (a11y && a11y.violations.length > 0) {
           await annotateA11y(page, a11y, path.join(outputDir, 'a11y', `${flow.name}-${vp.name}.png`)).catch(() => {});
@@ -589,6 +602,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const errorPagesR = checks.errorPages ? await auditErrorPages(page.context(), config.url).catch(() => undefined) : undefined;
         const consoleR = console ? console.result() : undefined;
         if (console) console.detach();
+        network.stopCapture();
         if (!config.parallel) await page.close();
         return {
           flow: flowResult, a11y, visual,
@@ -709,8 +723,11 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
       if (checks.explore) {
         const opts = typeof checks.explore === 'object' ? checks.explore : {};
         const ePage = await driver.newPage();
+        const exploreReplay = await startReplay(ePage, `explore-${vp.name}`).catch(() => null);
         await ePage.goto(config.url);
         exploreResult = await explore(ePage, opts);
+        const exploreReplayPath = await stopReplay(exploreReplay).catch(() => null);
+        if (exploreResult && exploreReplayPath) exploreResult.replayPath = exploreReplayPath;
         await ePage.close();
       }
 
@@ -933,26 +950,264 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   return result;
 }
 
-async function runFlow(page: Page, name: string, steps: Step[], ai: AIHelper): Promise<FlowResult> {
+async function runFlow(
+  page: Page,
+  name: string,
+  steps: Step[],
+  ai: AIHelper,
+  opts: {
+    baselineDir?: string;
+    console?: ReturnType<typeof attachConsoleCapture> | null;
+    network?: ReturnType<typeof startNetworkAttribution> | null;
+  } = {},
+): Promise<FlowResult> {
   const stepResults: StepResult[] = [];
   const screenshots: string[] = [];
   let passed = true;
   let error: string | undefined;
 
-  for (const step of steps) {
-    const start = Date.now();
-    try {
-      await runStep(page, step, ai);
-      stepResults.push({ step, passed: true, durationMs: Date.now() - start });
-    } catch (e: any) {
-      passed = false;
-      error = e?.message ?? String(e);
-      stepResults.push({ step, passed: false, durationMs: Date.now() - start, error });
-      break;
+  // Drain anything captured before any step begins into a "setup" pseudo-step
+  // so pre-step errors aren't lost when per-step attribution is enabled.
+  if (opts.console || opts.network) {
+    if (opts.console) opts.console.beginStep('setup');
+    if (opts.network) opts.network.beginStep('setup');
+    const setupConsole = opts.console ? opts.console.endStep() : undefined;
+    const setupNetwork = opts.network ? await opts.network.endStep() : undefined;
+    const consoleNoise = !!(setupConsole && (setupConsole.errorCount > 0 || setupConsole.warningCount > 0));
+    const networkNoise = !!(setupNetwork && setupNetwork.length > 0);
+    if (consoleNoise || networkNoise) {
+      stepResults.push({
+        step: { goto: page.url() } as Step,
+        passed: true,
+        durationMs: 0,
+        consoleErrors: setupConsole,
+        networkFailures: networkNoise ? setupNetwork : undefined,
+      });
     }
   }
 
+  let index = 0;
+  for (const step of steps) {
+    const start = Date.now();
+    const stepLabel = `${index}:${describeStep(step)}`;
+    if (opts.console) opts.console.beginStep(stepLabel);
+    if (opts.network) opts.network.beginStep(stepLabel);
+    const assertTracker = step.assert ? attachStepAssertionTracker(page, step.assert) : null;
+    try {
+      await runStep(page, step, ai);
+      const consoleErrors = opts.console ? opts.console.endStep() : undefined;
+      const networkFailures = opts.network ? await opts.network.endStep() : undefined;
+      let assertions: AssertionFailure[] | undefined;
+      if (step.assert && assertTracker) {
+        assertions = await evaluateStepAssertions(page, step.assert, assertTracker, {
+          baselineDir: opts.baselineDir ?? './uxinspect-baselines',
+          flowName: name,
+          stepIndex: index,
+        });
+      }
+      const stepPassed = !assertions || assertions.length === 0;
+      const result: StepResult = {
+        step,
+        passed: stepPassed,
+        durationMs: Date.now() - start,
+        consoleErrors,
+        networkFailures: networkFailures && networkFailures.length > 0 ? networkFailures : undefined,
+      };
+      if (assertions && assertions.length > 0) {
+        result.assertions = assertions;
+        result.error = `assertion(s) failed: ${assertions.map((a) => a.kind).join(', ')}`;
+      }
+      stepResults.push(result);
+      if (!stepPassed) {
+        passed = false;
+        error = result.error;
+        break;
+      }
+    } catch (e: any) {
+      passed = false;
+      error = e?.message ?? String(e);
+      const consoleErrors = opts.console ? opts.console.endStep() : undefined;
+      const networkFailures = opts.network ? await opts.network.endStep() : undefined;
+      stepResults.push({
+        step,
+        passed: false,
+        durationMs: Date.now() - start,
+        error,
+        consoleErrors,
+        networkFailures: networkFailures && networkFailures.length > 0 ? networkFailures : undefined,
+      });
+      break;
+    } finally {
+      assertTracker?.detach();
+    }
+    index++;
+  }
+
   return { name, passed, steps: stepResults, screenshots, error };
+}
+
+interface StepAssertionTracker {
+  consoleErrors: { type: string; message: string }[];
+  badResponses: { url: string; status: number }[];
+  domBaseline: Promise<number>;
+  detach: () => void;
+}
+
+function attachStepAssertionTracker(page: Page, cfg: AssertConfig): StepAssertionTracker {
+  const consoleErrors: { type: string; message: string }[] = [];
+  const badResponses: { url: string; status: number }[] = [];
+
+  const onConsole = (msg: import('playwright').ConsoleMessage): void => {
+    if (msg.type() === 'error') consoleErrors.push({ type: 'error', message: msg.text() });
+  };
+  const onPageError = (err: Error): void => {
+    consoleErrors.push({ type: 'pageerror', message: err.message || String(err) });
+  };
+  const onResponse = (res: import('playwright').Response): void => {
+    const s = res.status();
+    if (s >= 400 && s < 600) badResponses.push({ url: res.url(), status: s });
+  };
+
+  if (cfg.console === 'clean') {
+    page.on('console', onConsole);
+    page.on('pageerror', onPageError);
+  }
+  if (cfg.network === 'no-4xx') {
+    page.on('response', onResponse);
+  }
+
+  const domBaseline =
+    cfg.dom === 'no-error'
+      ? page
+          .evaluate(() => document.querySelectorAll('[role="alert"], .error, .alert-danger').length)
+          .catch(() => 0)
+      : Promise.resolve(0);
+
+  return {
+    consoleErrors,
+    badResponses,
+    domBaseline,
+    detach: (): void => {
+      if (cfg.console === 'clean') {
+        page.off('console', onConsole);
+        page.off('pageerror', onPageError);
+      }
+      if (cfg.network === 'no-4xx') {
+        page.off('response', onResponse);
+      }
+    },
+  };
+}
+
+async function evaluateStepAssertions(
+  page: Page,
+  cfg: AssertConfig,
+  tracker: StepAssertionTracker,
+  opts: { baselineDir: string; flowName: string; stepIndex: number },
+): Promise<AssertionFailure[]> {
+  const failures: AssertionFailure[] = [];
+
+  if (cfg.console === 'clean' && tracker.consoleErrors.length > 0) {
+    failures.push({
+      kind: 'console',
+      message: `${tracker.consoleErrors.length} new console error(s) since step start`,
+      details: tracker.consoleErrors.slice(0, 10),
+    });
+  }
+
+  if (cfg.network === 'no-4xx' && tracker.badResponses.length > 0) {
+    failures.push({
+      kind: 'network',
+      message: `${tracker.badResponses.length} new 4xx/5xx response(s) during step`,
+      details: tracker.badResponses.slice(0, 10),
+    });
+  }
+
+  if (cfg.dom === 'no-error') {
+    const baseline = await tracker.domBaseline;
+    const after = await page
+      .evaluate(() => document.querySelectorAll('[role="alert"], .error, .alert-danger').length)
+      .catch(() => baseline);
+    if (after > baseline) {
+      failures.push({
+        kind: 'dom',
+        message: `${after - baseline} new DOM error element(s) appeared`,
+        details: { before: baseline, after },
+      });
+    }
+  }
+
+  if (cfg.visual === 'matches') {
+    const visualFailure = await assertVisualMatches(page, opts);
+    if (visualFailure) failures.push(visualFailure);
+  }
+
+  return failures;
+}
+
+async function assertVisualMatches(
+  page: Page,
+  opts: { baselineDir: string; flowName: string; stepIndex: number },
+): Promise<AssertionFailure | null> {
+  const safeFlow = opts.flowName.replace(/[^a-zA-Z0-9._-]+/g, '_');
+  const baselinePath = path.join(opts.baselineDir, 'steps', `${safeFlow}-step${opts.stepIndex}.png`);
+  await fs.mkdir(path.dirname(baselinePath), { recursive: true });
+  const currentBytes = await page.screenshot({ fullPage: true });
+
+  let baselineBytes: Buffer | null = null;
+  try {
+    baselineBytes = await fs.readFile(baselinePath);
+  } catch {
+    baselineBytes = null;
+  }
+
+  if (!baselineBytes) {
+    await fs.writeFile(baselinePath, currentBytes);
+    return null;
+  }
+
+  let baselinePng: PNG;
+  let currentPng: PNG;
+  try {
+    baselinePng = PNG.sync.read(baselineBytes);
+    currentPng = PNG.sync.read(currentBytes);
+  } catch (e: any) {
+    return { kind: 'visual', message: `screenshot decode failed: ${e?.message ?? String(e)}` };
+  }
+
+  if (baselinePng.width !== currentPng.width || baselinePng.height !== currentPng.height) {
+    return {
+      kind: 'visual',
+      message: `screenshot dimensions changed (baseline ${baselinePng.width}x${baselinePng.height}, current ${currentPng.width}x${currentPng.height})`,
+    };
+  }
+
+  const { width, height } = baselinePng;
+  const diff = new PNG({ width, height });
+  const diffPixels = pixelmatch(baselinePng.data, currentPng.data, diff.data, width, height, {
+    threshold: 0.1,
+  });
+  const ratio = diffPixels / (width * height);
+  if (ratio >= 0.001) {
+    return {
+      kind: 'visual',
+      message: `screenshot drift ${(ratio * 100).toFixed(3)}% above baseline`,
+      details: { diffPixels, ratio },
+    };
+  }
+  return null;
+}
+
+function describeStep(step: Step): string {
+  const keys = Object.keys(step).filter((k) => k !== 'assert');
+  const key = keys[0] ?? 'unknown';
+  const val = (step as any)[key];
+  if (typeof val === 'string') return `${key} ${val.slice(0, 60)}`;
+  if (val && typeof val === 'object') {
+    if ('selector' in val && typeof val.selector === 'string') return `${key} ${val.selector.slice(0, 60)}`;
+    if ('url' in val && typeof val.url === 'string') return `${key} ${val.url.slice(0, 60)}`;
+  }
+  return key;
 }
 
 async function runStep(page: Page, step: Step, ai: AIHelper): Promise<void> {

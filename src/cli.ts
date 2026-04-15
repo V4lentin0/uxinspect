@@ -6,7 +6,9 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
+import os from 'node:os';
 import { inspect } from './index.js';
+import { writeReplayViewer } from './replay-viewer.js';
 import type { InspectConfig } from './types.js';
 
 const STARTER_CONFIG = `import type { InspectConfig } from 'uxinspect';
@@ -181,6 +183,16 @@ const argv = await yargs(hideBin(process.argv))
       .option('config', { type: 'string', demandOption: true })
       .option('path', { type: 'string', default: '.', describe: 'Directory to watch' }),
   )
+  .command('replay <path>', 'Open a self-contained rrweb replay viewer for a recorded JSON', (y) =>
+    y
+      .positional('path', { type: 'string', demandOption: true, describe: 'Path to replay JSON (rrweb events array)' })
+      .option('out', { type: 'string', describe: 'Write the generated HTML to this path instead of a temp file' })
+      .option('open', { type: 'boolean', default: true, describe: 'Open the generated viewer in the default browser' })
+      .option('width', { type: 'number', describe: 'Player width in pixels (default 1024)' })
+      .option('height', { type: 'number', describe: 'Player height in pixels (default 576)' })
+      .option('no-autoplay', { type: 'boolean', describe: 'Do not auto-play the replay on load' })
+      .option('title', { type: 'string', describe: 'Custom title for the viewer page' }),
+  )
   .demandCommand(1)
   .strict()
   .help()
@@ -194,6 +206,7 @@ if (cmd === 'init') await initCmd();
 if (cmd === 'record') await recordCmd();
 if (cmd === 'accept') await acceptCmd();
 if (cmd === 'watch') await watchCmd();
+if (cmd === 'replay') await replayCmd();
 
 async function runCmd(): Promise<void> {
   const reporters = String((argv as any).reporters)
@@ -535,6 +548,51 @@ async function acceptCmd(): Promise<void> {
     count++;
   }
   console.log(`Accepted ${count} baseline(s) into ${baselines}`);
+}
+
+async function replayCmd(): Promise<void> {
+  const a = argv as any;
+  const inputPath = path.resolve(a.path as string);
+
+  const stat = await fs.stat(inputPath).catch(() => null);
+  if (!stat?.isFile()) {
+    console.error(`Replay JSON not found: ${inputPath}`);
+    process.exit(1);
+  }
+
+  const outPath = a.out
+    ? path.resolve(a.out as string)
+    : path.join(os.tmpdir(), `uxinspect-replay-${Date.now()}-${path.basename(inputPath, '.json')}.html`);
+
+  let htmlPath: string;
+  try {
+    htmlPath = await writeReplayViewer(inputPath, outPath, {
+      width: typeof a.width === 'number' ? a.width : undefined,
+      height: typeof a.height === 'number' ? a.height : undefined,
+      autoPlay: a['no-autoplay'] ? false : undefined,
+      title: typeof a.title === 'string' ? a.title : undefined,
+    });
+  } catch (e) {
+    console.error(`Replay viewer failed: ${(e as Error).message}`);
+    process.exit(1);
+  }
+
+  console.log(`Replay viewer: ${htmlPath}`);
+
+  if (a.open === false) return;
+
+  const opener = process.platform === 'darwin'
+    ? { cmd: 'open', args: [htmlPath] }
+    : process.platform === 'win32'
+      ? { cmd: 'cmd', args: ['/c', 'start', '""', htmlPath] }
+      : { cmd: 'xdg-open', args: [htmlPath] };
+
+  const child = spawn(opener.cmd, opener.args, { stdio: 'ignore', detached: true });
+  child.on('error', (err) => {
+    console.error(`Could not launch browser (${opener.cmd}): ${err.message}`);
+    console.error(`Open the file manually: ${htmlPath}`);
+  });
+  child.unref();
 }
 
 async function loadConfig(p: string): Promise<InspectConfig> {

@@ -46,12 +46,25 @@ function fingerprintOf(
   return createHash('sha256').update(key).digest('hex');
 }
 
+export interface StepConsoleCapture {
+  step: string;
+  issues: ConsoleIssue[];
+  errorCount: number;
+  warningCount: number;
+  passed: boolean;
+}
+
 export function attachConsoleCapture(page: Page): {
   result: () => ConsoleCapture;
+  beginStep: (stepName: string) => void;
+  endStep: () => StepConsoleCapture;
   detach: () => void;
 } {
   const attachedAt = performance.now();
   const issues = new Map<string, ConsoleIssue>();
+  let stepIssues: Map<string, ConsoleIssue> | null = null;
+  let currentStep = 'setup';
+  let stepStartedAt = performance.now();
 
   const record = (
     type: ConsoleIssue['type'],
@@ -68,19 +81,37 @@ export function attachConsoleCapture(page: Page): {
     const existing = issues.get(fp);
     if (existing) {
       existing.occurrences += 1;
-      return;
+    } else {
+      issues.set(fp, {
+        type,
+        message,
+        stack: extras.stack,
+        url: extras.url,
+        lineNumber: extras.lineNumber,
+        columnNumber: extras.columnNumber,
+        fingerprint: fp,
+        occurrences: 1,
+        firstSeenMs: performance.now() - attachedAt,
+      });
     }
-    issues.set(fp, {
-      type,
-      message,
-      stack: extras.stack,
-      url: extras.url,
-      lineNumber: extras.lineNumber,
-      columnNumber: extras.columnNumber,
-      fingerprint: fp,
-      occurrences: 1,
-      firstSeenMs: performance.now() - attachedAt,
-    });
+    if (stepIssues) {
+      const stepExisting = stepIssues.get(fp);
+      if (stepExisting) {
+        stepExisting.occurrences += 1;
+      } else {
+        stepIssues.set(fp, {
+          type,
+          message,
+          stack: extras.stack,
+          url: extras.url,
+          lineNumber: extras.lineNumber,
+          columnNumber: extras.columnNumber,
+          fingerprint: fp,
+          occurrences: 1,
+          firstSeenMs: performance.now() - stepStartedAt,
+        });
+      }
+    }
   };
 
   const onConsole = (msg: ConsoleMessage): void => {
@@ -130,6 +161,29 @@ export function attachConsoleCapture(page: Page): {
         warningCount,
         passed: errorCount === 0,
       };
+    },
+    beginStep: (stepName: string): void => {
+      currentStep = stepName;
+      stepIssues = new Map<string, ConsoleIssue>();
+      stepStartedAt = performance.now();
+    },
+    endStep: (): StepConsoleCapture => {
+      const list = stepIssues ? [...stepIssues.values()] : [];
+      const errorCount = list
+        .filter((i) => i.type !== 'warning')
+        .reduce((n, i) => n + i.occurrences, 0);
+      const warningCount = list
+        .filter((i) => i.type === 'warning')
+        .reduce((n, i) => n + i.occurrences, 0);
+      const captured: StepConsoleCapture = {
+        step: currentStep,
+        issues: list,
+        errorCount,
+        warningCount,
+        passed: errorCount === 0,
+      };
+      stepIssues = null;
+      return captured;
     },
     detach: (): void => {
       page.off('console', onConsole);

@@ -1,22 +1,17 @@
 # uxinspect
 
-> All-in-one UI/UX testing — tests like a real human, every click, every screen, every accessibility rule, in one CLI.
+> The robot user that clicks every button on your site and hands you a failure replay.
 
 [![npm](https://img.shields.io/npm/v/uxinspect.svg?color=10B981)](https://npmjs.com/package/uxinspect)
 [![license](https://img.shields.io/npm/l/uxinspect.svg?color=10B981)](LICENSE)
-[![checks](https://img.shields.io/badge/checks-38-10B981)](#checks)
+[![checks](https://img.shields.io/badge/checks-65%2B-10B981)](#checks)
 
-## What it does
+uxinspect drives a real browser through your app the way a person would — clicking every button, filling every form, walking every gated route. When something breaks, you get a click-by-click replay you can scrub, plus the console error and failed network call attributed to the exact step that triggered them.
 
-One command runs everything you need to ship a frontend with confidence:
-
-- **Real-user flows** — clicks, types, navigates, just like a person
-- **Accessibility audit** — full WCAG check on every page
-- **Performance scores** — Core Web Vitals, LCP, CLS, TBT
-- **Visual diff** — pixel-perfect regression detection across viewports
-- **Auto-exploration** — bot clicks every button, finds the bugs you forgot
-- **AI mode** (optional) — `act("checkout the cart")` survives UI redesigns
-- **One HTML report** — every result, every screenshot, in one place
+```
+demo gif here: replay capture --> viewer --> failure-link --> click reproduction
+(record once: ./uxinspect-report/report.html, click "Replay this failure")
+```
 
 ## Install
 
@@ -25,13 +20,79 @@ npm install -g uxinspect
 npx playwright install chromium
 ```
 
-## Quick start
+## Quickstart
 
 ```bash
-uxinspect run --url https://example.com --explore
+uxinspect run --url https://yourapp.com --explore --replay
+open ./uxinspect-report/report.html
 ```
 
-Open `./uxinspect-report/report.html` to see results.
+That single command:
+
+1. Loads your app in a real Chromium browser
+2. Discovers every interactive element (buttons, links, forms, menus)
+3. Clicks them all, in every viewport
+4. Records the DOM via rrweb so any failure has a scrubbable replay
+5. Attributes every console error + 4xx/5xx network call to the click that caused it
+6. Drops `report.html` with a "Replay this failure" link next to every red row
+
+## Pro features 💎
+
+The free MIT CLI runs every audit. Pro adds the parts that turn a green report into a debuggable failure.
+
+| Pro capability | What you get |
+|---|---|
+| **Replay capture (rrweb local)** | Every flow + every explore run is recorded to `.uxinspect/replays/<flow>-<ts>.json`. No cloud. No SaaS. |
+| **Static HTML replay viewer** | `uxinspect replay <path>` opens a single-file HTML player. Bundled rrweb-player, no CDN. Send the file in Slack and it just works. |
+| **"Replay this failure" link** | Failed flows in `report.html` link straight to the replay viewer at the failure timestamp. Click → see the broken click. |
+| **Per-step assertion DSL** | `assert: { console: 'clean', network: 'no-4xx', dom: 'no-error', visual: 'matches' }` per step. 27 step types finally have assertions. |
+| **Per-click console + network attribution** | Capture resets before every step. The error/4xx/5xx is pinned to the exact click. No more "where did this come from". |
+| **Stuck-spinner / aria-busy timeout** | Click → if `[aria-busy="true"]` or `.spinner` persists past 5s, flagged broken. |
+| **Disabled-button verifier** | Walks every `[disabled]` and `[aria-disabled="true"]`, attempts click, asserts no state change. |
+| **DOM error-state appearance** | Scans for new `[role="alert"]`, `.error`, error toasts after every click. |
+| **Auth-gated route walker** | `storageState` + auto-discovered gated routes via sitemap or config glob. Per-click verifier on every protected page. |
+| **Click coverage % per route** | Interactive-element count vs clicked count, per route. `--coverage-min 80` budget flag. |
+| **Frustration-signal heuristics** | Detects rage-click (3+ <500ms), u-turn (back <5s), dead-click, error-click in synthetic runs. |
+| **SQLite history + trend graph** | `.uxinspect/history.db` via better-sqlite3. Z-score anomaly detection on every metric. |
+| **Cross-browser matrix UI** | Side-by-side Chromium/Firefox/WebKit screenshots in the report with diff overlay toggle. |
+| **Heatmap from auto-explore** | SVG overlay: clicked (green) vs untested (red). Per page, per device. |
+| **SSIM perceptual visual diff** | Anti-alias tolerance config + ignore-region DSL alongside pixelmatch. |
+| **Locator caching + self-healing** | Cache resolved locators by selector hash. Retry neighboring strategies on miss. 2x faster reruns. |
+| **Diff-against-last-commit** | `uxinspect diff <baseline.json> [current.json]`. Auto-saves last run to `.uxinspect/last.json`. |
+| **Ollama bridge (opt-in)** | When heuristic locator fails, optionally POST to `localhost:11434/api/generate`. Zero outbound API keys. |
+
+## Tier comparison
+
+| Capability | Free MIT 🆓 | Pro $19 💎 | Team $99 🏢 | Enterprise $499 🏛️ |
+|---|:-:|:-:|:-:|:-:|
+| 65+ local audits (a11y, perf, security, SEO, visual) | yes | yes | yes | yes |
+| Auto-explore + AI keyless locators | yes | yes | yes | yes |
+| HTML / JSON / JUnit / SARIF / Allure / TAP reporters | yes | yes | yes | yes |
+| Watch mode + pre-commit hook | yes | yes | yes | yes |
+| Replay capture + viewer + failure link | — | yes | yes | yes |
+| Per-step assertions + click attribution | — | yes | yes | yes |
+| Auth-gated walker + coverage % + frustration signals | — | yes | yes | yes |
+| SQLite history + trend graph + anomaly detection | — | yes | yes | yes |
+| Cross-browser matrix + heatmap + SSIM diff | — | yes | yes | yes |
+| Hosted multi-repo dashboard | — | — | yes | yes |
+| PR comment bot (GitHub / GitLab / Bitbucket) | — | — | yes | yes |
+| Synthetic monitor scheduler + Slack/Discord/Teams alerts | — | — | yes | yes |
+| Branded HTML/PDF reports + public status page | — | — | yes | yes |
+| 24-hour email support SLA | — | — | yes | yes |
+| SSO / SAML / SCIM / RBAC | — | — | — | yes |
+| Tamper-evident audit log | — | — | — | yes |
+| WCAG 2.2 AA legal PDF (VPAT 2.5 INT) | — | — | — | yes |
+| Custom rule packs (private repo) | — | — | — | yes |
+| Self-hosted license server (air-gap) | — | — | — | yes |
+| DPA / MSA / SOC2 docs | — | — | — | yes |
+
+**Add-ons**
+
+- **Cloud Replay 🌐 — $49/mo** — drop-in `<5KB` JS collector + production rrweb session replay + real-user heatmaps + funnel analytics. Bolts onto any tier.
+- **Framework Packs 📦 — $49 one-time** — Stripe checkout, Next.js App Router, Shopify checkout, Remix, Webflow, WordPress, SvelteKit, Astro, Nuxt. Preset flows + assertions.
+- **Sponsor ⭐ — $9/mo** — 60-day early access to new audits, supporter role, monthly office hours.
+
+Full pricing: <https://uxinspect.com/pricing>
 
 ## Config file
 
@@ -40,7 +101,7 @@ Open `./uxinspect-report/report.html` to see results.
 import type { InspectConfig } from 'uxinspect';
 
 export default {
-  url: 'https://example.com',
+  url: 'https://yourapp.com',
   viewports: [
     { name: 'desktop', width: 1280, height: 800 },
     { name: 'mobile', width: 375, height: 667 },
@@ -49,14 +110,14 @@ export default {
     {
       name: 'signup',
       steps: [
-        { goto: 'https://example.com/signup' },
+        { goto: 'https://yourapp.com/signup' },
         { fill: { selector: '#email', text: 'me@example.com' } },
-        { click: 'button[type=submit]' },
+        { click: 'button[type=submit]', assert: { console: 'clean', network: 'no-4xx', dom: 'no-error' } },
         { waitFor: '.welcome' },
       ],
     },
   ],
-  checks: { a11y: true, visual: true, perf: true, explore: true },
+  checks: { a11y: true, visual: true, perf: true, explore: true, replay: true },
   parallel: true,
   reporters: ['html', 'json', 'junit', 'sarif', 'allure', 'tap'],
   ai: { enabled: true },
@@ -73,8 +134,8 @@ uxinspect run --config ./uxinspect.config.ts
 import { inspect } from 'uxinspect';
 
 const result = await inspect({
-  url: 'https://example.com',
-  checks: { a11y: true, visual: true, explore: true },
+  url: 'https://yourapp.com',
+  checks: { a11y: true, visual: true, explore: true, replay: true },
 });
 
 if (!result.passed) process.exit(1);
@@ -86,8 +147,6 @@ Composable helpers that sit alongside `inspect()` for specialized flows and inte
 
 ### `flaky` — retry with flake detection
 
-Re-runs a block until it passes, classifies intermittent failures as flakes.
-
 ```ts
 import { retryWithFlakeDetection, inspect } from 'uxinspect';
 
@@ -98,8 +157,6 @@ const result = await retryWithFlakeDetection(
 ```
 
 ### `websocket` — WebSocket flow support
-
-Drive WebSocket endpoints with a step-based flow.
 
 ```ts
 import { runWebSocketFlow } from 'uxinspect';
@@ -115,8 +172,6 @@ await runWebSocketFlow({
 
 ### `graphql` — GraphQL flow support
 
-Query/mutation steps with variable interpolation and assertions.
-
 ```ts
 import { runGraphQLFlow } from 'uxinspect';
 
@@ -130,8 +185,6 @@ await runGraphQLFlow({
 
 ### `service-worker` — Service Worker audit
 
-Checks registration, scope, cache strategy, and update flow.
-
 ```ts
 import { auditServiceWorker } from 'uxinspect';
 
@@ -140,20 +193,14 @@ const report = await auditServiceWorker(page);
 
 ### `rum` — Real User Monitoring
 
-Collect field metrics from a page, or inject the RUM client script into production.
-
 ```ts
 import { collectRUM, rumClientScript } from 'uxinspect';
 
 const metrics = await collectRUM(page);
-
-// In your production HTML:
-// <script>${rumClientScript()}</script>
+// In your production HTML: <script>${rumClientScript()}</script>
 ```
 
 ### `github-annotations` — GitHub Actions PR annotations
-
-Emits `::error` / `::warning` workflow commands so findings surface as inline PR annotations.
 
 ```ts
 import { emitGitHubAnnotations } from 'uxinspect';
@@ -163,8 +210,6 @@ emitGitHubAnnotations(result);
 
 ### `amp` — AMP HTML validation
 
-Validates AMP markup on the current page.
-
 ```ts
 import { validateAmp } from 'uxinspect';
 
@@ -172,8 +217,6 @@ const ampReport = await validateAmp(page);
 ```
 
 ### `bdd` — Gherkin feature file runner
-
-Parse Gherkin syntax, map steps to flows, and hand them to `inspect()`.
 
 ```ts
 import { readFileSync } from 'node:fs';
@@ -185,8 +228,6 @@ await inspect({ url: 'https://example.com', flows });
 ```
 
 ### `mailbox` — email intercept for signup flows
-
-Wait for a verification email during a test run.
 
 ```ts
 import { waitForEmail } from 'uxinspect';
@@ -399,7 +440,7 @@ Pick any combination via `reporters: [...]` or `--reporters html,json,...`.
 
 | Reporter | Output | Use |
 |---|---|---|
-| `html` | `report.html` | Human-readable dashboard with screenshots |
+| `html` | `report.html` | Human-readable dashboard with screenshots + replay links |
 | `json` | `report.json` | Machine-readable full result tree |
 | `junit` | `junit.xml` | CI test result ingestion |
 | `sarif` | `report.sarif` | Code scanning / security tab ingestion |
@@ -441,23 +482,6 @@ Local files still mirror; R2 is the source of truth.
 uxinspect report ./uxinspect-report --port 4173
 ```
 
-## How it compares
-
-| Capability | uxinspect | E2E frameworks | Visual SaaS | A11y plugins |
-|---|:-:|:-:|:-:|:-:|
-| Real-user clicks | yes | yes | — | — |
-| Multi-browser | yes | partial | — | — |
-| Accessibility | yes | plugin | — | yes |
-| Performance | yes | — | — | — |
-| Visual diff | yes | plugin | paid | — |
-| Security headers | yes | — | — | — |
-| Vuln JS scan | yes | — | — | — |
-| SEO / structured data | yes | — | — | — |
-| Auto-explore | yes | — | — | — |
-| AI helpers | yes | — | — | — |
-| One report | yes | — | — | — |
-| Open source | MIT | mixed | no | yes |
-
 ## License
 
-MIT
+MIT for the core CLI. Pro / Team / Enterprise add proprietary modules under commercial license. See [pricing](https://uxinspect.com/pricing).
