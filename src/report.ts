@@ -506,10 +506,22 @@ function renderUnknownSections(r: any): string {
 }
 
 function renderFlow(f: { name: string; passed: boolean; steps: any[]; error?: string }): string {
+  const stepNetFails = f.steps
+    .map((s, i) => {
+      const fails = s?.networkFailures;
+      if (!Array.isArray(fails) || fails.length === 0) return '';
+      const label = Object.keys(s?.step ?? {})[0] ?? `step-${i + 1}`;
+      const items = fails
+        .map((x: any) => `<li>${escape(String(x.method))} ${escape(String(x.url))} — <span class="fail">${escape(String(x.status || 'failed'))}</span> ${escape(String(x.statusText ?? ''))}</li>`)
+        .join('');
+      return `<div class="step-network-fails"><span class="fail">[${fails.length} network errors]</span> step ${i + 1} (${escape(label)}) <details><summary>details</summary><ul>${items}</ul></details></div>`;
+    })
+    .join('');
   return `<div class="section">
     <div class="row"><strong>${escape(f.name)}</strong> <span class="${f.passed ? 'pass' : 'fail'}">${f.passed ? 'PASS' : 'FAIL'}</span></div>
     ${f.error ? `<pre>${escape(f.error)}</pre>` : ''}
     <div class="label">${f.steps.length} steps</div>
+    ${stepNetFails}
   </div>`;
 }
 

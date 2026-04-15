@@ -24,6 +24,8 @@ import { auditForms } from './forms-audit.js';
 import { checkStructuredData } from './structured-data.js';
 import { auditPassiveSecurity } from './passive-security.js';
 import { attachConsoleCapture } from './console-errors.js';
+import { attachNetworkCapture, stepLabelFor } from './network-attribution.js';
+import type { NetworkHandle } from './network-attribution.js';
 import { auditSitemap } from './sitemap.js';
 import { auditRedirects } from './redirects.js';
 import { scanExposedPaths } from './exposed-paths.js';
@@ -475,8 +477,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
+        const network = attachNetworkCapture(page);
         if (config.ai?.enabled) await ai.init(page);
-        const flowResult = await runFlow(page, flow.name, flow.steps, ai);
+        const flowResult = await runFlow(page, flow.name, flow.steps, ai, network);
         const a11y = checks.a11y ? await checkA11y(page).catch((e) => emptyA11y(page.url(), e)) : undefined;
         if (a11y && a11y.violations.length > 0) {
           await annotateA11y(page, a11y, path.join(outputDir, 'a11y', `${flow.name}-${vp.name}.png`)).catch(() => {});
@@ -933,7 +936,13 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   return result;
 }
 
-async function runFlow(page: Page, name: string, steps: Step[], ai: AIHelper): Promise<FlowResult> {
+async function runFlow(
+  page: Page,
+  name: string,
+  steps: Step[],
+  ai: AIHelper,
+  network?: NetworkHandle,
+): Promise<FlowResult> {
   const stepResults: StepResult[] = [];
   const screenshots: string[] = [];
   let passed = true;
@@ -941,13 +950,29 @@ async function runFlow(page: Page, name: string, steps: Step[], ai: AIHelper): P
 
   for (const step of steps) {
     const start = Date.now();
+    const stepCap = network?.markStepStart(stepLabelFor(step));
     try {
       await runStep(page, step, ai);
-      stepResults.push({ step, passed: true, durationMs: Date.now() - start });
+      const cap = stepCap?.end();
+      stepResults.push({
+        step,
+        passed: true,
+        durationMs: Date.now() - start,
+        ...(cap && cap.failures.length > 0 ? { networkFailures: cap.failures } : {}),
+        ...(cap ? { networkSummary: cap.count } : {}),
+      });
     } catch (e: any) {
       passed = false;
       error = e?.message ?? String(e);
-      stepResults.push({ step, passed: false, durationMs: Date.now() - start, error });
+      const cap = stepCap?.end();
+      stepResults.push({
+        step,
+        passed: false,
+        durationMs: Date.now() - start,
+        error,
+        ...(cap && cap.failures.length > 0 ? { networkFailures: cap.failures } : {}),
+        ...(cap ? { networkSummary: cap.count } : {}),
+      });
       break;
     }
   }

@@ -297,6 +297,8 @@ export interface StepResult {
   passed: boolean;
   durationMs: number;
   error?: string;
+  networkFailures?: import('./network-attribution.js').NetworkFailure[];
+  networkSummary?: import('./network-attribution.js').NetworkSummary;
 }
 
 export interface A11yResult {
