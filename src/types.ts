@@ -423,4 +423,11 @@ export interface ExploreResult {
     missed: Array<{ selector: string; snippet: string }>;
   };
   frustrationSignals?: import('./frustration-signals.js').FrustrationSignalResult;
+  heatmap?: {
+    viewport: { name: string; width: number; height: number };
+    clicks: import('./heatmap.js').ClickRecord[];
+    untested: import('./heatmap.js').UntestedRecord[];
+    hoverOnly?: import('./heatmap.js').HoverOnlyRecord[];
+    screenshotUrl?: string;
+  };
 }

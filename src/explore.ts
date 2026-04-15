@@ -12,6 +12,12 @@ import {
 } from './error-state-audit.js';
 import { measureClickCoverage, listInteractiveElements } from './coverage.js';
 import { attachFrustrationSignals, type FrustrationSignalResult, type FrustrationSignalOptions } from './frustration-signals.js';
+import {
+  logClick,
+  logUntested,
+  type ClickRecord,
+  type UntestedRecord,
+} from './heatmap.js';
 
 export interface ExploreOptions {
   maxClicks?: number;
@@ -57,6 +63,43 @@ export async function explore(
   const pagesVisited = new Set<string>([page.url()]);
   const tried = new Set<string>();
   const clickedKeys = new Set<string>();
+  const clickLog: ClickRecord[] = [];
+  const untestedLog: UntestedRecord[] = [];
+  // Capture bounding boxes of the baseline snapshot keyed by element key so we
+  // can record coords for untested elements after the BFS completes without
+  // re-querying a potentially-navigated page.
+  const baselineBoxes = new Map<string, { x: number; y: number; w: number; h: number; selector: string }>();
+  try {
+    const boxes = await page.evaluate((selector: string) => {
+      const els = Array.from(document.querySelectorAll<HTMLElement>(selector));
+      const out: Array<{ key: string; x: number; y: number; w: number; h: number; selector: string }> = [];
+      for (const el of els) {
+        if ((el as HTMLInputElement | HTMLButtonElement).disabled) continue;
+        if (el.getAttribute('aria-disabled') === 'true') continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) continue;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+        const tag = el.tagName.toLowerCase();
+        const id = el.id ? `#${el.id}` : '';
+        const cls = el.className && typeof el.className === 'string' ? `.${el.className.slice(0, 40)}` : '';
+        const txt = (el.textContent ?? '').trim().slice(0, 40);
+        const href = (el as HTMLAnchorElement).href ?? '';
+        const key = `${tag}${id}${cls}|${txt}|${href}`;
+        const cssSelector = id ? `#${el.id}` : tag + (cls ? cls : '');
+        out.push({ key, x: rect.x, y: rect.y, w: rect.width, h: rect.height, selector: cssSelector });
+      }
+      return out;
+    }, 'button, a[href], input:not([type=hidden]), select, textarea, [role=button], [role=link], [role=tab], [role=menuitem], [tabindex]:not([tabindex="-1"]), [onclick]');
+    for (const b of boxes) {
+      if (!baselineBoxes.has(b.key)) {
+        baselineBoxes.set(b.key, { x: b.x, y: b.y, w: b.w, h: b.h, selector: b.selector });
+      }
+    }
+  } catch {
+    // evaluate failed; heatmap will be empty for this run
+  }
+  const viewportSize = page.viewportSize() ?? { width: 1280, height: 800 };
 
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text());
@@ -80,6 +123,11 @@ export async function explore(
     const target = await pickNextClickable(page, tried);
     if (!target) break;
     tried.add(target.key);
+    // Capture the bounding box BEFORE clicking — after a click the page may
+    // navigate, re-render, or unmount the element so boundingBox() would fail.
+    const box = await target.locator
+      .boundingBox()
+      .catch(() => null);
     try {
       const before = page.url();
       const errBefore = errorStateOn
@@ -88,6 +136,22 @@ export async function explore(
       await target.locator.click({ timeout: 5000, noWaitAfter: true });
       buttonsClicked++;
       clickedKeys.add(target.key);
+      if (box) {
+        logClick(clickLog, {
+          x: box.x,
+          y: box.y,
+          w: box.width,
+          h: box.height,
+          selector: target.key.split('|')[0] ?? target.key,
+          result: 'clicked',
+        });
+      } else {
+        // Fall back to the baseline snapshot if boundingBox() raced.
+        const fallback = baselineBoxes.get(target.key);
+        if (fallback) {
+          logClick(clickLog, { ...fallback, result: 'clicked' });
+        }
+      }
       await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
       await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
       const after = page.url();
@@ -116,7 +180,20 @@ export async function explore(
         }
       }
     } catch {
-      // click failed — skip
+      // click failed — record as a failed attempt so the heatmap surfaces it
+      if (box) {
+        logClick(clickLog, {
+          x: box.x,
+          y: box.y,
+          w: box.width,
+          h: box.height,
+          selector: target.key.split('|')[0] ?? target.key,
+          result: 'failed',
+        });
+      } else {
+        const fallback = baselineBoxes.get(target.key);
+        if (fallback) logClick(clickLog, { ...fallback, result: 'failed' });
+      }
     }
   }
 
@@ -127,6 +204,18 @@ export async function explore(
     .filter((e) => !clickedKeys.has(e.key))
     .slice(0, 50)
     .map((e) => ({ selector: e.selector, snippet: e.snippet }));
+
+  // Record every baseline element we never clicked as "untested" on the heatmap.
+  for (const [key, box] of baselineBoxes) {
+    if (clickedKeys.has(key)) continue;
+    logUntested(untestedLog, {
+      x: box.x,
+      y: box.y,
+      w: box.w,
+      h: box.h,
+      selector: box.selector,
+    });
+  }
 
   let frustrationResult: FrustrationSignalResult | undefined;
   if (frustrationHandle) {
@@ -151,6 +240,18 @@ export async function explore(
       missed,
     },
     frustrationSignals: frustrationResult,
+    heatmap:
+      clickLog.length || untestedLog.length
+        ? {
+            viewport: {
+              name: `${viewportSize.width}x${viewportSize.height}`,
+              width: viewportSize.width,
+              height: viewportSize.height,
+            },
+            clicks: clickLog,
+            untested: untestedLog,
+          }
+        : undefined,
   };
 }
 

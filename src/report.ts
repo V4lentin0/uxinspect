@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import type { InspectResult } from './types.js';
+import { renderHeatmapSVG } from './heatmap.js';
 
 const _pathRef = path;
 
@@ -644,6 +645,16 @@ function renderExplore(e: any): string {
   const missedRow = c && c.missed && c.missed.length
     ? `<h3>Missed elements (${c.missed.length})</h3><pre>${c.missed.slice(0, 20).map((m: any) => `${escape(m.selector)}  ${escape(m.snippet).slice(0, 120)}`).join('\n')}</pre>`
     : '';
+  const heatmapRow = e.heatmap
+    ? `<h3>Click heatmap (${escape(e.heatmap.viewport?.name ?? 'viewport')})</h3>` +
+      `<div style="max-width:960px;margin:8px 0;">${renderHeatmapSVG({
+        viewport: e.heatmap.viewport,
+        clicks: e.heatmap.clicks ?? [],
+        untested: e.heatmap.untested ?? [],
+        hoverOnly: e.heatmap.hoverOnly ?? [],
+        screenshotUrl: e.heatmap.screenshotUrl,
+      })}</div>`
+    : '';
   return `<div class="section">
     <div class="grid">
       <div><div class="label">Pages</div><div class="stat">${e.pagesVisited}</div></div>
@@ -653,6 +664,7 @@ function renderExplore(e: any): string {
       <div><div class="label">Network errors</div><div class="stat ${e.networkErrors.length ? 'fail' : 'pass'}">${e.networkErrors.length}</div></div>
     </div>
     ${byTagRow}
+    ${heatmapRow}
     ${missedRow}
     ${e.consoleErrors.length ? `<h3>Console errors</h3><pre>${e.consoleErrors.map((s: string) => escape(s)).join('\n')}</pre>` : ''}
     ${e.networkErrors.length ? `<h3>Network errors</h3><pre>${e.networkErrors.map((s: string) => escape(s)).join('\n')}</pre>` : ''}
