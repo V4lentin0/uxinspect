@@ -73,7 +73,7 @@ function buildChecksSchema(): JsonSchema {
     a11y: boolOrOpts(),
     perf: boolOrOpts(),
     visual: boolOrOpts(),
-    explore: boolOrOpts({ maxClicks: num() }),
+    explore: boolOrOpts({ maxClicks: num(), maxPages: num(), sameOrigin: bool(), submitForms: bool(), coverageMin: num({ minimum: 0, maximum: 100 }) }),
     seo: boolOrOpts(),
     links: boolOrOpts({ maxLinks: num(), sameOriginOnly: bool() }),
     pwa: boolOrOpts(),

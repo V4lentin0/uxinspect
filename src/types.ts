@@ -349,4 +349,11 @@ export interface ExploreResult {
   errors: string[];
   consoleErrors: string[];
   networkErrors: string[];
+  coverage?: {
+    clicked: number;
+    total: number;
+    percent: number;
+    byTag: Record<string, number>;
+    missed: Array<{ selector: string; snippet: string }>;
+  };
 }

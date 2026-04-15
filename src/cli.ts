@@ -152,6 +152,7 @@ const argv = await yargs(hideBin(process.argv))
       .option('publish', { type: 'string', describe: 'Dashboard URL to upload report' })
       .option('publish-token', { type: 'string', describe: 'Bearer token for dashboard upload' })
       .option('budget', { type: 'string', describe: 'Path to budget JSON (perf/metrics/a11y/visual thresholds)' })
+      .option('coverage-min', { type: 'number', describe: 'Minimum click coverage % (explore). Build fails if actual < threshold.' })
       .option('slack', { type: 'string', describe: 'Slack webhook URL for notifications' })
       .option('discord', { type: 'string', describe: 'Discord webhook URL for notifications' })
       .option('webhook', { type: 'string', describe: 'Generic JSON webhook URL' })
@@ -328,7 +329,19 @@ async function runCmd(): Promise<void> {
     }
   }
 
-  process.exit(result.passed ? 0 : 1);
+  const coverageMin = (argv as any)['coverage-min'] as number | undefined;
+  let coverageFailed = false;
+  if (typeof coverageMin === 'number' && result.explore?.coverage) {
+    const pct = result.explore.coverage.percent;
+    if (pct < coverageMin) {
+      console.log(`\nCoverage ${pct}% < required ${coverageMin}% (clicked ${result.explore.coverage.clicked}/${result.explore.coverage.total})`);
+      coverageFailed = true;
+    } else {
+      console.log(`\nCoverage ${pct}% >= required ${coverageMin}%`);
+    }
+  }
+
+  process.exit(result.passed && !coverageFailed ? 0 : 1);
 }
 
 function notifyCfg() {

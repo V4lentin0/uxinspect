@@ -596,13 +596,26 @@ function renderBudget(v: any[]): string {
 }
 
 function renderExplore(e: any): string {
+  const c = e.coverage;
+  const coverageBadge = c
+    ? `<div><div class="label">Click coverage</div><div class="stat ${c.percent >= 80 ? 'pass' : c.percent >= 50 ? '' : 'fail'}">${c.percent}% <span style="font-size:0.6em;opacity:0.7">(${c.clicked}/${c.total})</span></div></div>`
+    : '';
+  const byTagRow = c && c.byTag && Object.keys(c.byTag).length
+    ? `<h3>Interactive elements by tag</h3><pre>${Object.entries(c.byTag).map(([t, n]) => `${escape(t)}: ${n}`).join('\n')}</pre>`
+    : '';
+  const missedRow = c && c.missed && c.missed.length
+    ? `<h3>Missed elements (${c.missed.length})</h3><pre>${c.missed.slice(0, 20).map((m: any) => `${escape(m.selector)}  ${escape(m.snippet).slice(0, 120)}`).join('\n')}</pre>`
+    : '';
   return `<div class="section">
     <div class="grid">
       <div><div class="label">Pages</div><div class="stat">${e.pagesVisited}</div></div>
       <div><div class="label">Buttons clicked</div><div class="stat">${e.buttonsClicked}</div></div>
+      ${coverageBadge}
       <div><div class="label">Console errors</div><div class="stat ${e.consoleErrors.length ? 'fail' : 'pass'}">${e.consoleErrors.length}</div></div>
       <div><div class="label">Network errors</div><div class="stat ${e.networkErrors.length ? 'fail' : 'pass'}">${e.networkErrors.length}</div></div>
     </div>
+    ${byTagRow}
+    ${missedRow}
     ${e.consoleErrors.length ? `<h3>Console errors</h3><pre>${e.consoleErrors.map((s: string) => escape(s)).join('\n')}</pre>` : ''}
     ${e.networkErrors.length ? `<h3>Network errors</h3><pre>${e.networkErrors.map((s: string) => escape(s)).join('\n')}</pre>` : ''}
   </div>`;

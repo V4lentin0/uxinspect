@@ -1,5 +1,6 @@
 import type { Page } from 'playwright';
 import type { ExploreResult } from './types.js';
+import { measureClickCoverage, listInteractiveElements } from './coverage.js';
 
 export interface ExploreOptions {
   maxClicks?: number;
@@ -22,6 +23,7 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
   let formsSubmitted = 0;
   const pagesVisited = new Set<string>([page.url()]);
   const tried = new Set<string>();
+  const clickedKeys = new Set<string>();
 
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text());
@@ -30,6 +32,11 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
   page.on('response', (res) => {
     if (res.status() >= 400) networkErrors.push(`${res.status()} ${res.url()}`);
   });
+
+  // Snapshot the universe of interactive elements BEFORE we start clicking, so
+  // navigation doesn't invalidate the total-for-this-route figure.
+  const baseline = await measureClickCoverage(page).catch(() => ({ totalInteractive: 0, byTag: {} as Record<string, number> }));
+  const baselineElements = await listInteractiveElements(page).catch(() => [] as Awaited<ReturnType<typeof listInteractiveElements>>);
 
   if (submitForms) {
     formsSubmitted += await fillAndSubmitForms(page, errors);
@@ -44,6 +51,7 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
       const before = page.url();
       await target.locator.click({ timeout: 5000, noWaitAfter: true });
       buttonsClicked++;
+      clickedKeys.add(target.key);
       await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
       await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
       const after = page.url();
@@ -60,6 +68,14 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
     }
   }
 
+  const total = baseline.totalInteractive;
+  const clicked = clickedKeys.size;
+  const percent = total > 0 ? Math.round((clicked / total) * 10000) / 100 : 0;
+  const missed = baselineElements
+    .filter((e) => !clickedKeys.has(e.key))
+    .slice(0, 50)
+    .map((e) => ({ selector: e.selector, snippet: e.snippet }));
+
   return {
     pagesVisited: pagesVisited.size,
     buttonsClicked,
@@ -67,6 +83,13 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
     errors,
     consoleErrors,
     networkErrors,
+    coverage: {
+      clicked,
+      total,
+      percent,
+      byTag: baseline.byTag,
+      missed,
+    },
   };
 }
 
