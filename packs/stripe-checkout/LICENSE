@@ -1,0 +1,55 @@
+uxinspect Commercial License
+Copyright (c) 2026 uxinspect
+
+PROPRIETARY — PAID COMMERCIAL PACK
+
+This software and its associated files (the "Pack") are commercial
+software distributed under a paid license. Access is granted only to
+customers who have purchased a valid license via the official
+uxinspect distribution channel (Lemon Squeezy — https://uxinspect.com).
+
+1. GRANT OF LICENSE
+   Subject to payment of the one-time license fee and continued
+   compliance with this License, the Licensor grants the Licensee a
+   non-exclusive, non-transferable, worldwide license to:
+   (a) install and use the Pack in Licensee's own development, CI,
+       and production testing pipelines;
+   (b) modify the Pack for Licensee's internal use.
+
+2. RESTRICTIONS
+   Licensee SHALL NOT:
+   (a) redistribute, sublicense, sell, rent, lease, or otherwise
+       transfer the Pack or any portion thereof to any third party;
+   (b) publish the Pack to any public package registry, mirror, or
+       source repository;
+   (c) use the Pack to build a competing product;
+   (d) remove or obscure any copyright, trademark, or license notice.
+
+3. ONE-TIME FEE
+   This Pack is sold for a single one-time license fee. No recurring
+   subscription is required. Future major versions may be offered as
+   separate purchases.
+
+4. NO WARRANTY
+   THE PACK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NONINFRINGEMENT.
+
+5. LIMITATION OF LIABILITY
+   IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
+   ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+   CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+   WITH THE PACK OR THE USE OR OTHER DEALINGS IN THE PACK.
+
+6. TERMINATION
+   This License terminates automatically if Licensee breaches any of
+   its terms. Upon termination Licensee must cease all use of the
+   Pack and destroy all copies.
+
+7. THIRD-PARTY TRADEMARKS
+   Any third-party names referenced in this Pack are the property of
+   their respective owners. Use of those names is nominative only and
+   does not imply endorsement.
+
+For licensing questions: licensing@uxinspect.com

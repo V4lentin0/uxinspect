@@ -1,0 +1,46 @@
+{
+  "name": "@uxinspect/pack-stripe",
+  "version": "0.1.0",
+  "description": "uxinspect framework pack with preset flows and assertions for Stripe checkout integrations. Commercial pack sold via Lemon Squeezy.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "node --test dist/test/*.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "uxinspect",
+    "stripe",
+    "checkout",
+    "e2e",
+    "testing",
+    "pack"
+  ],
+  "license": "SEE LICENSE",
+  "author": "uxinspect",
+  "homepage": "https://uxinspect.com/packs/stripe",
+  "repository": "github:uxinspect/uxinspect",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

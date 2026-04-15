@@ -1,0 +1,10 @@
+src/
+test/
+example/
+tsconfig.json
+.npmignore
+*.tsbuildinfo
+node_modules/
+coverage/
+.DS_Store
+*.log
