@@ -149,6 +149,7 @@ const argv = await yargs(hideBin(process.argv))
       .option('debug', { type: 'boolean', default: false, describe: 'Headed + slowMo (step-by-step)' })
       .option('slow-mo', { type: 'number', describe: 'Slow each action by N ms' })
       .option('parallel', { type: 'boolean', default: false, describe: 'Run flows in parallel' })
+      .option('fast', { type: 'boolean', default: false, describe: 'Fast inner-loop mode (P3 #31): skip slow audits, force parallel, target <30s' })
       .option('browser', { type: 'string', choices: ['chromium', 'firefox', 'webkit'], default: 'chromium' })
       .option('device', { type: 'string', describe: 'Device preset name (e.g. "iPhone 13", "Pixel 5")' })
       .option('locale', { type: 'string', describe: 'Locale override (e.g. en-US, ja-JP)' })
@@ -194,7 +195,9 @@ const argv = await yargs(hideBin(process.argv))
   .command('watch', 'Re-run inspection on file changes', (y) =>
     y
       .option('config', { type: 'string', demandOption: true })
-      .option('path', { type: 'string', default: '.', describe: 'Directory to watch' }),
+      .option('path', { type: 'string', default: '.', describe: 'Directory to watch' })
+      .option('full', { type: 'boolean', default: false, describe: 'Disable fast mode (run every audit, no <30s target)' })
+      .option('slow', { type: 'boolean', default: false, describe: 'Alias for --full' }),
   )
   .command('replay <path>', 'Open a self-contained rrweb replay viewer for a recorded JSON', (y) =>
     y
@@ -341,6 +344,7 @@ async function runCmd(): Promise<void> {
     debug: (argv as any).debug,
     slowMo: (argv as any)['slow-mo'],
     parallel: (argv as any).parallel,
+    fast: (argv as any).fast,
     browser: (argv as any).browser,
     device: (argv as any).device,
     locale: (argv as any).locale,
@@ -588,6 +592,9 @@ async function appendFlowToConfig(configPath: string, name: string, steps: any[]
 async function watchCmd(): Promise<void> {
   const configPath = (argv as any).config as string;
   const watchPath = path.resolve((argv as any).path as string);
+  // Watch mode defaults to fast (P3 #31): a 5-minute Lighthouse cycle on every
+  // file save defeats the purpose of an inner loop. `--full`/`--slow` opts out.
+  const fastModeDefault = !((argv as any).full || (argv as any).slow);
   let running = false;
   let queued = false;
 
@@ -598,7 +605,12 @@ async function watchCmd(): Promise<void> {
     }
     running = true;
     try {
-      const config = await loadConfig(configPath);
+      const loaded = await loadConfig(configPath);
+      // Honour explicit `fast: false` in the config; otherwise default to fast.
+      const config: InspectConfig = {
+        ...loaded,
+        fast: loaded.fast ?? fastModeDefault,
+      };
       console.log(`[${new Date().toLocaleTimeString()}] running…`);
       const result = await inspect(config);
       const status = result.passed ? 'PASS' : 'FAIL';
@@ -613,7 +625,8 @@ async function watchCmd(): Promise<void> {
     }
   };
 
-  console.log(`Watching ${watchPath}. Editing any file triggers a re-run.`);
+  const modeBanner = fastModeDefault ? ' (fast mode — pass --full to disable)' : ' (full mode)';
+  console.log(`Watching ${watchPath}. Editing any file triggers a re-run.${modeBanner}`);
   await run();
   const { watch } = await import('node:fs');
   let debounce: NodeJS.Timeout | null = null;

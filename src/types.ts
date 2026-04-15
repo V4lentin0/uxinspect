@@ -47,6 +47,15 @@ export interface InspectConfig {
    * outside the CLI can set this manually to scope a run.
    */
   changedRoutes?: string[];
+  /**
+   * Fast inner-loop mode (P3 #31). Skips slow audits (Lighthouse perf, link
+   * crawler, site crawl, exposed-paths probe, bundle-size, TLS, sitemap,
+   * redirects, compression, robots), forces flow parallelization, and pins the
+   * browser to chromium. Targets sub-30s wall-clock runs for watch/dev loops.
+   * Audits that are explicitly enabled via `checks` are still skipped — pass
+   * `fast: false` to opt back into a full run.
+   */
+  fast?: boolean;
 }
 
 export interface RouteMock {
@@ -350,6 +359,19 @@ export interface InspectResult {
   frustrationSignals?: import('./frustration-signals.js').FrustrationSignalResult[];
   /** Self-heal events emitted by the AI helper when a locator drifts (P2 #26). */
   selfHealEvents?: import('./ai.js').SelfHealEvent[];
+  /**
+   * Fast mode metadata (P3 #31). Present only when the run was started with
+   * `config.fast === true`. Lists which audits were skipped and surfaces a
+   * warning when the run exceeded the 30s target.
+   */
+  fastMeta?: {
+    /** Camel-case audit names that fast mode forced off (e.g. 'perf', 'links'). */
+    skippedAudits: string[];
+    /** Wall-clock target in milliseconds (always 30_000 today). */
+    targetMs: number;
+    /** Filled when `durationMs > targetMs`. */
+    warning?: string;
+  };
   passed: boolean;
 }
 
