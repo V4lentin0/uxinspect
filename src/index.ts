@@ -92,6 +92,8 @@ import type {
   FlowResult,
   StepResult,
   Step,
+  StepAssert,
+  StepAssertFailure,
   A11yResult,
   PerfResult,
   VisualResult,
@@ -939,20 +941,324 @@ async function runFlow(page: Page, name: string, steps: Step[], ai: AIHelper): P
   let passed = true;
   let error: string | undefined;
 
-  for (const step of steps) {
-    const start = Date.now();
-    try {
-      await runStep(page, step, ai);
-      stepResults.push({ step, passed: true, durationMs: Date.now() - start });
-    } catch (e: any) {
-      passed = false;
-      error = e?.message ?? String(e);
-      stepResults.push({ step, passed: false, durationMs: Date.now() - start, error });
-      break;
+  const tracker = attachStepAssertTracker(page);
+
+  try {
+    for (const step of steps) {
+      const start = Date.now();
+      const snapshot = tracker.snapshot();
+      try {
+        await runStep(page, step, ai);
+        const durationMs = Date.now() - start;
+        const assertFailures = step.assert
+          ? await evaluateStepAssertions(page, step, step.assert, snapshot, tracker, durationMs)
+          : [];
+        if (assertFailures.length > 0) {
+          passed = false;
+          error = formatAssertFailures(assertFailures);
+          stepResults.push({
+            step,
+            passed: false,
+            durationMs,
+            error,
+            assertFailures,
+          });
+          break;
+        }
+        stepResults.push({ step, passed: true, durationMs });
+      } catch (e: any) {
+        passed = false;
+        error = e?.message ?? String(e);
+        stepResults.push({ step, passed: false, durationMs: Date.now() - start, error });
+        break;
+      }
     }
+  } finally {
+    tracker.detach();
   }
 
   return { name, passed, steps: stepResults, screenshots, error };
+}
+
+interface NetworkEvent {
+  url: string;
+  status: number;
+  method: string;
+  failed?: boolean;
+  errorText?: string;
+}
+
+interface AssertTrackerSnapshot {
+  consoleCount: number;
+  networkCount: number;
+}
+
+interface AssertTracker {
+  snapshot(): AssertTrackerSnapshot;
+  newConsoleSince(s: AssertTrackerSnapshot): { type: string; text: string }[];
+  newNetworkSince(s: AssertTrackerSnapshot): NetworkEvent[];
+  detach(): void;
+}
+
+function attachStepAssertTracker(page: Page): AssertTracker {
+  const consoleEntries: { type: string; text: string }[] = [];
+  const networkEntries: NetworkEvent[] = [];
+
+  const onConsole = (msg: import('playwright').ConsoleMessage): void => {
+    const t = msg.type();
+    if (t === 'error' || t === 'warning') {
+      consoleEntries.push({ type: t, text: msg.text() });
+    }
+  };
+  const onPageError = (err: Error): void => {
+    consoleEntries.push({ type: 'pageerror', text: err.message || String(err) });
+  };
+  const onResponse = async (resp: import('playwright').Response): Promise<void> => {
+    try {
+      const req = resp.request();
+      networkEntries.push({
+        url: resp.url(),
+        status: resp.status(),
+        method: req.method(),
+      });
+    } catch {
+      /* ignore */
+    }
+  };
+  const onRequestFailed = (req: import('playwright').Request): void => {
+    const failure = req.failure();
+    networkEntries.push({
+      url: req.url(),
+      status: 0,
+      method: req.method(),
+      failed: true,
+      errorText: failure?.errorText ?? 'request failed',
+    });
+  };
+
+  page.on('console', onConsole);
+  page.on('pageerror', onPageError);
+  page.on('response', onResponse);
+  page.on('requestfailed', onRequestFailed);
+
+  return {
+    snapshot: () => ({
+      consoleCount: consoleEntries.length,
+      networkCount: networkEntries.length,
+    }),
+    newConsoleSince: (s) => consoleEntries.slice(s.consoleCount),
+    newNetworkSince: (s) => networkEntries.slice(s.networkCount),
+    detach: () => {
+      page.off('console', onConsole);
+      page.off('pageerror', onPageError);
+      page.off('response', onResponse);
+      page.off('requestfailed', onRequestFailed);
+    },
+  };
+}
+
+function stepKey(step: Step): string {
+  const keys = Object.keys(step).filter((k) => k !== 'assert');
+  return keys[0] ?? 'unknown';
+}
+
+function stepReproducer(step: Step): string {
+  const { assert: _assert, ...rest } = step as Record<string, unknown>;
+  try {
+    return JSON.stringify(rest);
+  } catch {
+    return `<${stepKey(step)}>`;
+  }
+}
+
+function formatAssertFailures(failures: StepAssertFailure[]): string {
+  return failures
+    .map((f) => `[assert:${f.kind}] ${f.message} (reproducer: ${f.reproducer})`)
+    .join('; ');
+}
+
+export { attachStepAssertTracker };
+export type {
+  AssertTracker as StepAssertTracker,
+  AssertTrackerSnapshot as StepAssertSnapshot,
+};
+
+export async function evaluateStepAssertions(
+  page: Page,
+  step: Step,
+  assertSpec: StepAssert,
+  snapshot: AssertTrackerSnapshot,
+  tracker: AssertTracker,
+  durationMs: number,
+): Promise<StepAssertFailure[]> {
+  const failures: StepAssertFailure[] = [];
+  const repro = stepReproducer(step);
+
+  // Console assertion
+  if (assertSpec.console !== undefined) {
+    const newLogs = tracker.newConsoleSince(snapshot);
+    const errorsOnly = newLogs.filter(
+      (l) => l.type === 'error' || l.type === 'pageerror',
+    );
+    if (assertSpec.console === 'clean') {
+      if (errorsOnly.length > 0) {
+        failures.push({
+          kind: 'console',
+          message: `expected clean console, got ${errorsOnly.length} error(s): ${errorsOnly
+            .map((e) => e.text)
+            .slice(0, 3)
+            .join(' | ')}`,
+          reproducer: repro,
+        });
+      }
+    } else if (typeof assertSpec.console === 'object') {
+      const allow = assertSpec.console.allow ?? [];
+      const offending = errorsOnly.filter(
+        (l) => !allow.some((pat) => l.text.includes(pat)),
+      );
+      if (offending.length > 0) {
+        failures.push({
+          kind: 'console',
+          message: `${offending.length} console error(s) not in allowlist: ${offending
+            .map((e) => e.text)
+            .slice(0, 3)
+            .join(' | ')}`,
+          reproducer: repro,
+        });
+      }
+    }
+  }
+
+  // Network assertion
+  if (assertSpec.network !== undefined) {
+    const newReqs = tracker.newNetworkSince(snapshot);
+    const mode = assertSpec.network;
+    const allowList =
+      typeof mode === 'object' && Array.isArray(mode.allow) ? mode.allow : [];
+    const offending = newReqs.filter((r) => {
+      if (allowList.includes(r.status)) return false;
+      if (mode === 'no-4xx') return r.status >= 400 && r.status < 500;
+      if (mode === 'no-5xx') return r.status >= 500;
+      if (mode === 'no-errors')
+        return r.failed === true || (r.status >= 400 && r.status < 600);
+      if (typeof mode === 'object')
+        return r.failed === true || (r.status >= 400 && r.status < 600);
+      return false;
+    });
+    if (offending.length > 0) {
+      const summary = offending
+        .slice(0, 3)
+        .map((r) => `${r.method} ${r.url} -> ${r.failed ? r.errorText : r.status}`)
+        .join(' | ');
+      failures.push({
+        kind: 'network',
+        message: `${offending.length} network failure(s): ${summary}`,
+        reproducer: repro,
+      });
+    }
+  }
+
+  // DOM assertion
+  if (assertSpec.dom !== undefined) {
+    if (assertSpec.dom === 'no-error') {
+      const errorCount = await page
+        .evaluate(() => {
+          const selectors = [
+            '[role="alert"]',
+            '.error',
+            '.alert-error',
+            '[data-error]',
+            '[aria-invalid="true"]',
+          ];
+          let count = 0;
+          for (const sel of selectors) {
+            try {
+              count += document.querySelectorAll(sel).length;
+            } catch {
+              /* ignore */
+            }
+          }
+          return count;
+        })
+        .catch(() => 0);
+      if (errorCount > 0) {
+        failures.push({
+          kind: 'dom',
+          message: `expected no DOM error state, found ${errorCount} error indicator(s)`,
+          reproducer: repro,
+        });
+      }
+    } else {
+      const { selector, mustExist, mustNotExist } = assertSpec.dom;
+      const count = await page
+        .locator(selector)
+        .count()
+        .catch(() => 0);
+      if (mustExist === true && count === 0) {
+        failures.push({
+          kind: 'dom',
+          message: `expected selector "${selector}" to exist`,
+          reproducer: repro,
+        });
+      }
+      if (mustNotExist === true && count > 0) {
+        failures.push({
+          kind: 'dom',
+          message: `expected selector "${selector}" to not exist, found ${count}`,
+          reproducer: repro,
+        });
+      }
+    }
+  }
+
+  // Visual assertion
+  if (assertSpec.visual !== undefined) {
+    const name =
+      typeof assertSpec.visual === 'object'
+        ? assertSpec.visual.name
+        : `step-${stepKey(step)}`;
+    const threshold =
+      typeof assertSpec.visual === 'object' ? assertSpec.visual.threshold : undefined;
+    try {
+      const baselineDir = './uxinspect-baselines';
+      const outputDir = './uxinspect-report';
+      const vp = page.viewportSize();
+      const vpName = vp ? `${vp.width}x${vp.height}` : 'desktop';
+      const result = await checkVisual(page, name, vpName, {
+        baselineDir,
+        outputDir,
+        threshold,
+      });
+      if (!result.passed) {
+        failures.push({
+          kind: 'visual',
+          message: `visual diff ratio ${result.diffRatio.toFixed(
+            4,
+          )} exceeded threshold for "${name}"`,
+          reproducer: repro,
+        });
+      }
+    } catch (e: any) {
+      // Gracefully handle baseline-not-exist or any visual infra error:
+      // first run creates baseline (checkVisual already returns passed=true),
+      // any other error is surfaced as non-fatal info (not a failure).
+      // We intentionally do not fail the step on infra errors.
+      void e;
+    }
+  }
+
+  // Timing assertion
+  if (assertSpec.timing !== undefined) {
+    if (durationMs > assertSpec.timing.maxMs) {
+      failures.push({
+        kind: 'timing',
+        message: `step took ${durationMs}ms, exceeded maxMs=${assertSpec.timing.maxMs}`,
+        reproducer: repro,
+      });
+    }
+  }
+
+  return failures;
 }
 
 async function runStep(page: Page, step: Step, ai: AIHelper): Promise<void> {

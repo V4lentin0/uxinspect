@@ -61,8 +61,46 @@ function enumStr(values: string[]): JsonSchema {
   return { type: 'string', enum: values };
 }
 
+function buildStepAssertSchema(): JsonSchema {
+  const consoleSchema: JsonSchema = {
+    oneOf: [{ const: 'clean' }, obj({ allow: arr(str()) })],
+  };
+  const networkSchema: JsonSchema = {
+    oneOf: [
+      enumStr(['no-4xx', 'no-5xx', 'no-errors']),
+      obj({ allow: arr(num()) }),
+    ],
+  };
+  const domSchema: JsonSchema = {
+    oneOf: [
+      { const: 'no-error' },
+      obj(
+        { selector: str(), mustExist: bool(), mustNotExist: bool() },
+        ['selector'],
+      ),
+    ],
+  };
+  const visualSchema: JsonSchema = {
+    oneOf: [
+      { const: 'matches' },
+      obj({ name: str(), threshold: num() }, ['name']),
+    ],
+  };
+  const timingSchema: JsonSchema = obj({ maxMs: num() }, ['maxMs']);
+  return obj({
+    console: consoleSchema,
+    network: networkSchema,
+    dom: domSchema,
+    visual: visualSchema,
+    timing: timingSchema,
+  });
+}
+
 function singleKeyStep(key: string, valueSchema: JsonSchema, description?: string): JsonSchema {
-  const properties: Record<string, JsonSchema> = { [key]: valueSchema };
+  const properties: Record<string, JsonSchema> = {
+    [key]: valueSchema,
+    assert: { $ref: '#/definitions/StepAssert' },
+  };
   const s = obj(properties, [key]);
   if (description) s.description = description;
   return s;
@@ -310,6 +348,7 @@ export function generateConfigSchema(): JsonSchema {
   const definitions: Record<string, JsonSchema> = {
     Step: stepSchema,
     ApiStep: stepSchema,
+    StepAssert: buildStepAssertSchema(),
     Flow: buildFlow(),
     ApiFlow: buildApiFlow(),
     Viewport: buildViewport(),

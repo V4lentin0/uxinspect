@@ -58,40 +58,69 @@ export interface ApiFlowResult {
   error?: string;
 }
 
+export interface StepAssert {
+  console?: 'clean' | { allow?: string[] };
+  network?: 'no-4xx' | 'no-5xx' | 'no-errors' | { allow?: number[] };
+  dom?:
+    | 'no-error'
+    | { selector: string; mustExist?: boolean; mustNotExist?: boolean };
+  visual?: 'matches' | { name: string; threshold?: number };
+  timing?: { maxMs: number };
+}
+
+type WithAssert<T> = T & { assert?: StepAssert };
+
 export type Step =
-  | { goto: string }
-  | { click: string }
-  | { type: { selector: string; text: string } }
-  | { fill: { selector: string; text: string } }
-  | { waitFor: string }
-  | { screenshot: string }
-  | { ai: string }
-  | { drag: { from: string; to: string } }
-  | { upload: { selector: string; files: string | string[] } }
-  | { dialog: 'accept' | 'dismiss' | { accept?: boolean; text?: string } }
-  | { scroll: { selector?: string; x?: number; y?: number } }
-  | { select: { selector: string; value: string | string[] } }
-  | { key: string }
-  | { eval: string }
-  | { waitForResponse: string | { url: string; status?: number } }
-  | { waitForRequest: string }
-  | { hover: string }
-  | { check: string }
-  | { uncheck: string }
-  | { focus: string }
-  | { blur: string }
-  | { reload: true }
-  | { back: true }
-  | { forward: true }
-  | { newTab: string }
-  | { switchTab: number | string }
-  | { closeTab: true }
-  | { iframe: { selector: string; steps: Step[] } }
-  | { sleep: number }
-  | { waitForDownload: { trigger: string; saveAs: string } }
-  | { waitForPopup: { trigger: string; switchTo?: boolean } }
-  | { cookie: { name: string; value: string; domain?: string; path?: string; expires?: number; httpOnly?: boolean; secure?: boolean; sameSite?: 'Strict' | 'Lax' | 'None' } }
-  | { clearCookies: true };
+  | WithAssert<{ goto: string }>
+  | WithAssert<{ click: string }>
+  | WithAssert<{ type: { selector: string; text: string } }>
+  | WithAssert<{ fill: { selector: string; text: string } }>
+  | WithAssert<{ waitFor: string }>
+  | WithAssert<{ screenshot: string }>
+  | WithAssert<{ ai: string }>
+  | WithAssert<{ drag: { from: string; to: string } }>
+  | WithAssert<{ upload: { selector: string; files: string | string[] } }>
+  | WithAssert<{ dialog: 'accept' | 'dismiss' | { accept?: boolean; text?: string } }>
+  | WithAssert<{ scroll: { selector?: string; x?: number; y?: number } }>
+  | WithAssert<{ select: { selector: string; value: string | string[] } }>
+  | WithAssert<{ key: string }>
+  | WithAssert<{ eval: string }>
+  | WithAssert<{ waitForResponse: string | { url: string; status?: number } }>
+  | WithAssert<{ waitForRequest: string }>
+  | WithAssert<{ hover: string }>
+  | WithAssert<{ check: string }>
+  | WithAssert<{ uncheck: string }>
+  | WithAssert<{ focus: string }>
+  | WithAssert<{ blur: string }>
+  | WithAssert<{ reload: true }>
+  | WithAssert<{ back: true }>
+  | WithAssert<{ forward: true }>
+  | WithAssert<{ newTab: string }>
+  | WithAssert<{ switchTab: number | string }>
+  | WithAssert<{ closeTab: true }>
+  | WithAssert<{ iframe: { selector: string; steps: Step[] } }>
+  | WithAssert<{ sleep: number }>
+  | WithAssert<{ waitForDownload: { trigger: string; saveAs: string } }>
+  | WithAssert<{ waitForPopup: { trigger: string; switchTo?: boolean } }>
+  | WithAssert<{
+      cookie: {
+        name: string;
+        value: string;
+        domain?: string;
+        path?: string;
+        expires?: number;
+        httpOnly?: boolean;
+        secure?: boolean;
+        sameSite?: 'Strict' | 'Lax' | 'None';
+      };
+    }>
+  | WithAssert<{ clearCookies: true }>;
+
+export interface StepAssertFailure {
+  kind: 'console' | 'network' | 'dom' | 'visual' | 'timing';
+  message: string;
+  reproducer: string;
+}
 
 export interface Viewport {
   name: string;
@@ -297,6 +326,7 @@ export interface StepResult {
   passed: boolean;
   durationMs: number;
   error?: string;
+  assertFailures?: StepAssertFailure[];
 }
 
 export interface A11yResult {
