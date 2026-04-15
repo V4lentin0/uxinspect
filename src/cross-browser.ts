@@ -28,11 +28,33 @@ export interface ScreenshotDiff {
   diffPath: string;
 }
 
+/** Per-engine capture for a flow+viewport combo, used by the HTML report grid. */
+export interface EngineShot {
+  engine: BrowserEngine;
+  /** Absolute path to the raw screenshot PNG for this engine. Absent if engine failed. */
+  screenshotPath?: string;
+  /** Absolute path to the pixel-diff PNG vs baseline engine (first engine). Only set for non-baseline engines when a diff exists. */
+  diffPath?: string;
+  /** Fraction of pixels differing vs baseline engine (0..1). */
+  diffRatio?: number;
+}
+
+/** One flow+viewport row in the cross-browser report grid. */
+export interface FlowShots {
+  flow: string;
+  viewport: string;
+  /** Baseline engine used for diff comparison (first engine in the matrix). */
+  baseline: BrowserEngine;
+  shots: EngineShot[];
+}
+
 export interface CrossBrowserReport {
   url: string;
   engines: BrowserEngine[];
   outcomes: EngineOutcome[];
   screenshotDiffs: ScreenshotDiff[];
+  /** Per flow+viewport captures for each engine with optional pixel-diff overlay (P2 #21). */
+  flowShots: FlowShots[];
   metricDeltas: Array<{
     metric: string;
     engineA: BrowserEngine;
@@ -368,6 +390,7 @@ export async function runCrossBrowser(
 
   const metricDeltas = buildMetricDeltas(outcomes);
   const divergent = buildDivergenceLines(config, perEngineResults, outcomes);
+  const flowShots = await buildFlowShots(outDir, engines, perEngineResults, flowVpPairs, screenshotDiffs);
 
   const allEnginesPassed = outcomes.every((o) => o.passed);
   const allDiffsUnderThreshold = screenshotDiffs.every((d) => d.diffRatio <= threshold);
@@ -378,9 +401,269 @@ export async function runCrossBrowser(
     engines,
     outcomes,
     screenshotDiffs,
+    flowShots,
     metricDeltas,
     divergent,
     passed,
     outDir,
   };
+}
+
+async function buildFlowShots(
+  outDir: string,
+  engines: BrowserEngine[],
+  perEngineResults: Map<BrowserEngine, InspectResult | null>,
+  flowVpPairs: Array<{ flow: string; viewport: string }>,
+  screenshotDiffs: ScreenshotDiff[],
+): Promise<FlowShots[]> {
+  const baseline = engines[0];
+  if (!baseline) return [];
+  // Index diffs by (baseline vs other engine) for quick lookup.
+  const diffIndex = new Map<string, ScreenshotDiff>();
+  for (const d of screenshotDiffs) {
+    if (d.engineA !== baseline) continue;
+    diffIndex.set(`${d.engineB}|${d.flow}|${d.viewport}`, d);
+  }
+  const out: FlowShots[] = [];
+  for (const { flow, viewport } of flowVpPairs) {
+    const shots: EngineShot[] = [];
+    for (const engine of engines) {
+      const ran = perEngineResults.get(engine);
+      const shotPath = screenshotPath(outDir, engine, flow, viewport);
+      const exists = ran ? await fileExists(shotPath) : false;
+      const shot: EngineShot = {
+        engine,
+        ...(exists ? { screenshotPath: shotPath } : {}),
+      };
+      if (engine !== baseline) {
+        const d = diffIndex.get(`${engine}|${flow}|${viewport}`);
+        if (d) {
+          shot.diffPath = d.diffPath;
+          shot.diffRatio = d.diffRatio;
+        }
+      }
+      shots.push(shot);
+    }
+    out.push({ flow, viewport, baseline, shots });
+  }
+  return out;
+}
+
+/**
+ * Emits a standalone `cross-browser.html` into `report.outDir` that renders a
+ * 3-column grid of chromium | firefox | webkit thumbnails per flow+viewport
+ * with a Raw/Diff toggle in the enlarged lightbox view (P2 #21).
+ *
+ * When only a single engine ran, the grid collapses to a single column.
+ * Returns the absolute path to the written HTML file.
+ */
+export async function writeCrossBrowserHtmlReport(
+  report: CrossBrowserReport,
+  opts?: { htmlPath?: string },
+): Promise<string> {
+  const htmlPath = opts?.htmlPath ?? path.join(report.outDir, 'cross-browser.html');
+  const html = renderCrossBrowserHtml(report, path.dirname(htmlPath));
+  await fs.mkdir(path.dirname(htmlPath), { recursive: true });
+  await fs.writeFile(htmlPath, html);
+  return htmlPath;
+}
+
+function esc(s: string): string {
+  return (s ?? '').toString()
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function relFrom(fromDir: string, target: string): string {
+  return path.relative(fromDir, target).split(path.sep).join('/');
+}
+
+export function renderCrossBrowserHtml(report: CrossBrowserReport, fromDir: string): string {
+  const status = report.passed ? 'PASS' : 'FAIL';
+  const statusColor = report.passed ? '#10B981' : '#EF4444';
+  const engineCount = report.engines.length;
+  const cols = Math.max(1, Math.min(3, engineCount));
+  const outcomesByEngine = new Map(report.outcomes.map((o) => [o.engine, o]));
+
+  const outcomeCards = report.engines.map((engine) => {
+    const o = outcomesByEngine.get(engine);
+    const passed = o?.passed ?? false;
+    const dur = o ? `${Math.round(o.durationMs / 100) / 10}s` : '—';
+    const err = o?.error ? `<div class="mono" style="color:var(--red);font-size:11px;margin-top:4px">${esc(o.error)}</div>` : '';
+    return `<div class="card">
+      <div class="label">${esc(engine)}</div>
+      <div class="stat ${passed ? 'pass' : 'fail'}">${passed ? 'PASS' : 'FAIL'}</div>
+      <div class="label" style="margin-top:4px">${dur} · a11y ${o?.a11yCriticals ?? 0} · vis ${o?.visualDiffs ?? 0}</div>
+      ${err}
+    </div>`;
+  }).join('');
+
+  const rowsHtml = report.flowShots.map((row) => {
+    const cells = row.shots.map((shot) => {
+      const engine = shot.engine;
+      const isBaseline = engine === row.baseline;
+      const raw = shot.screenshotPath ? relFrom(fromDir, shot.screenshotPath) : '';
+      const diff = shot.diffPath ? relFrom(fromDir, shot.diffPath) : '';
+      const diffPct = typeof shot.diffRatio === 'number'
+        ? `${(shot.diffRatio * 100).toFixed(2)}% diff`
+        : '';
+      const badge = isBaseline
+        ? `<span class="pill pill-baseline">baseline</span>`
+        : diff
+          ? `<span class="pill ${shot.diffRatio! > 0.02 ? 'pill-fail' : 'pill-ok'}">${esc(diffPct)}</span>`
+          : `<span class="pill pill-ok">match</span>`;
+      const noShot = !raw
+        ? `<div class="thumb empty">n/a</div>`
+        : `<button type="button" class="thumb"
+            data-raw="${esc(raw)}"
+            data-diff="${esc(diff)}"
+            data-engine="${esc(engine)}"
+            data-flow="${esc(row.flow)}"
+            data-viewport="${esc(row.viewport)}">
+            <img src="${esc(raw)}" alt="${esc(engine)} ${esc(row.flow)} ${esc(row.viewport)}" loading="lazy">
+          </button>`;
+      return `<div class="cell">
+        <div class="cell-head"><span class="engine">${esc(engine)}</span> ${badge}</div>
+        ${noShot}
+      </div>`;
+    }).join('');
+    return `<div class="flow-row">
+      <div class="flow-head">
+        <strong>${esc(row.flow)}</strong>
+        <span class="label">${esc(row.viewport)}</span>
+      </div>
+      <div class="grid-shots" style="grid-template-columns: repeat(${cols}, 1fr);">${cells}</div>
+    </div>`;
+  }).join('');
+
+  const divergenceHtml = report.divergent.length
+    ? `<h2>Divergence</h2><div class="section"><ul>${report.divergent.map((d) => `<li>${esc(d)}</li>`).join('')}</ul></div>`
+    : '';
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uxinspect cross-browser — ${esc(report.url)}</title>
+<link rel="preconnect" href="https://rsms.me/">
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<style>
+  :root { --bg:#FAFAFA; --card:#FFFFFF; --border:#E5E7EB; --text:#1D1D1F; --muted:#6B7280;
+          --green:#10B981; --green-bg:#ECFDF5; --blue:#3B82F6; --blue-bg:#EFF6FF; --red:#EF4444; --red-bg:#FEF2F2; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 32px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 13px; margin: 28px 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .url { color: var(--muted); margin-bottom: 20px; font-size: 13px; }
+  .badge { display: inline-block; padding: 4px 12px; border-radius: 6px; font-weight: 600; color: white; background: ${statusColor}; margin-left: 8px; font-size: 13px; vertical-align: 2px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+  .stat { font-size: 22px; font-weight: 700; margin-top: 2px; }
+  .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .pass { color: var(--green); }
+  .fail { color: var(--red); }
+  .section { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+  .flow-row { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+  .flow-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+  .grid-shots { display: grid; gap: 16px; }
+  .cell { display: flex; flex-direction: column; gap: 8px; }
+  .cell-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+  .engine { font-weight: 600; text-transform: capitalize; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .pill-baseline { background: var(--blue-bg); color: var(--blue); }
+  .pill-ok { background: var(--green-bg); color: var(--green); }
+  .pill-fail { background: var(--red-bg); color: var(--red); }
+  .thumb { width: 100%; height: 150px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: #F9FAFB; overflow: hidden; cursor: zoom-in; font-family: inherit; transition: border-color .12s ease, box-shadow .12s ease; }
+  .thumb:hover { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-bg); }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .thumb.empty { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; cursor: default; background: #F3F4F6; }
+  ul { margin: 4px 0; padding-left: 20px; font-size: 13px; }
+  /* Lightbox */
+  #lb { position: fixed; inset: 0; background: rgba(0,0,0,0.72); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 32px; }
+  #lb.open { display: flex; flex-direction: column; }
+  #lb-head { display: flex; align-items: center; justify-content: space-between; width: min(100%, 1200px); color: white; margin-bottom: 12px; font-size: 14px; gap: 12px; }
+  #lb-title { font-weight: 600; }
+  .toggle-group { display: inline-flex; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); border-radius: 6px; overflow: hidden; }
+  .toggle-group button { background: transparent; color: #D1D5DB; border: none; padding: 6px 14px; font-family: inherit; font-size: 12px; cursor: pointer; font-weight: 600; }
+  .toggle-group button.active { background: var(--green); color: white; }
+  .toggle-group button:disabled { opacity: 0.35; cursor: not-allowed; }
+  #lb-close { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-family: inherit; font-size: 12px; }
+  #lb-img-wrap { flex: 1; width: min(100%, 1200px); display: flex; align-items: center; justify-content: center; overflow: auto; background: white; border-radius: 6px; }
+  #lb-img { max-width: 100%; max-height: 100%; display: block; }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+</style>
+</head>
+<body>
+  <h1>Cross-browser matrix <span class="badge">${status}</span></h1>
+  <div class="url">${esc(report.url)} · ${report.engines.length} engines · baseline ${esc(report.engines[0] ?? '')}</div>
+
+  <div class="summary-grid">${outcomeCards}</div>
+  ${divergenceHtml}
+
+  ${report.flowShots.length ? `<h2>Flows</h2>${rowsHtml}` : '<div class="section"><div class="label">No captures available.</div></div>'}
+
+  <div id="lb" role="dialog" aria-modal="true" aria-labelledby="lb-title">
+    <div id="lb-head">
+      <div id="lb-title"></div>
+      <div class="toggle-group" role="tablist" aria-label="View mode">
+        <button type="button" id="lb-raw" class="active" role="tab">Raw</button>
+        <button type="button" id="lb-diff" role="tab">Diff</button>
+      </div>
+      <button type="button" id="lb-close" aria-label="Close">Close</button>
+    </div>
+    <div id="lb-img-wrap"><img id="lb-img" alt=""></div>
+  </div>
+
+<script>
+(function(){
+  var lb = document.getElementById('lb');
+  var lbImg = document.getElementById('lb-img');
+  var lbTitle = document.getElementById('lb-title');
+  var btnRaw = document.getElementById('lb-raw');
+  var btnDiff = document.getElementById('lb-diff');
+  var btnClose = document.getElementById('lb-close');
+  var cur = { raw: '', diff: '' };
+
+  function setMode(mode) {
+    if (mode === 'diff' && !cur.diff) return;
+    lbImg.src = mode === 'diff' ? cur.diff : cur.raw;
+    btnRaw.classList.toggle('active', mode === 'raw');
+    btnDiff.classList.toggle('active', mode === 'diff');
+  }
+  function open(raw, diff, title) {
+    cur.raw = raw; cur.diff = diff;
+    lbTitle.textContent = title;
+    btnDiff.disabled = !diff;
+    btnDiff.title = diff ? '' : 'No diff (baseline engine)';
+    setMode('raw');
+    lb.classList.add('open');
+  }
+  function close() { lb.classList.remove('open'); lbImg.src = ''; }
+
+  document.querySelectorAll('.thumb').forEach(function(btn){
+    if (btn.classList.contains('empty')) return;
+    btn.addEventListener('click', function(){
+      open(
+        btn.getAttribute('data-raw') || '',
+        btn.getAttribute('data-diff') || '',
+        (btn.getAttribute('data-engine')||'') + ' · ' + (btn.getAttribute('data-flow')||'') + ' @ ' + (btn.getAttribute('data-viewport')||'')
+      );
+    });
+  });
+  btnRaw.addEventListener('click', function(){ setMode('raw'); });
+  btnDiff.addEventListener('click', function(){ setMode('diff'); });
+  btnClose.addEventListener('click', close);
+  lb.addEventListener('click', function(e){ if (e.target === lb) close(); });
+  document.addEventListener('keydown', function(e){
+    if (!lb.classList.contains('open')) return;
+    if (e.key === 'Escape') close();
+    else if (e.key === 'ArrowLeft') setMode('raw');
+    else if (e.key === 'ArrowRight') setMode('diff');
+  });
+})();
+</script>
+</body>
+</html>`;
 }
