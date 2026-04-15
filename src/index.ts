@@ -86,6 +86,8 @@ import { auditHydration } from './hydration-audit.js';
 import { auditStorage } from './storage-audit.js';
 import { auditCsrf } from './csrf-audit.js';
 import { auditErrorPages } from './error-page-audit.js';
+import { auditConcurrency } from './concurrency-audit.js';
+import { chromium } from 'playwright';
 import type {
   InspectConfig,
   InspectResult,
@@ -162,6 +164,7 @@ import type { HydrationAuditResult } from './hydration-audit.js';
 import type { StorageAuditResult } from './storage-audit.js';
 import type { CsrfAuditResult } from './csrf-audit.js';
 import type { ErrorPageAuditResult } from './error-page-audit.js';
+import type { ConcurrencyResult } from './concurrency-audit.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -287,6 +290,7 @@ export { auditHydration } from './hydration-audit.js';
 export { auditStorage } from './storage-audit.js';
 export { auditCsrf } from './csrf-audit.js';
 export { auditErrorPages } from './error-page-audit.js';
+export { auditConcurrency } from './concurrency-audit.js';
 export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfall.js';
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
@@ -753,11 +757,27 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
 
   let compressionResult: InspectResult['compression'];
   let robotsAuditResult: InspectResult['robotsAudit'];
+  let concurrencyResult: ConcurrencyResult | undefined;
   if (checks.compression) {
     compressionResult = await auditCompression(config.url).catch(() => undefined);
   }
   if (checks.robotsAudit) {
     robotsAuditResult = await auditRobots(config.url).catch(() => undefined);
+  }
+  if (checks.concurrency) {
+    const concOpts =
+      typeof checks.concurrency === 'object'
+        ? { ...checks.concurrency, url: checks.concurrency.url ?? config.url, storageStatePath: checks.concurrency.storageStatePath ?? config.storageState }
+        : { url: config.url, storageStatePath: config.storageState };
+    let concBrowser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
+    try {
+      concBrowser = await chromium.launch({ headless: true });
+      concurrencyResult = await auditConcurrency(concBrowser, concOpts).catch(() => undefined);
+    } catch {
+      concurrencyResult = undefined;
+    } finally {
+      if (concBrowser) await concBrowser.close().catch(() => {});
+    }
   }
 
   const finishedAt = new Date();
@@ -818,7 +838,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     printResults.every((r) => (r as any).passed !== false) &&
     canonicalResults.every((r) => (r as any).passed !== false) &&
     (compressionResult === undefined || (compressionResult as any).passed !== false) &&
-    (robotsAuditResult === undefined || (robotsAuditResult as any).passed !== false);
+    (robotsAuditResult === undefined || (robotsAuditResult as any).passed !== false) &&
+    (concurrencyResult === undefined || (concurrencyResult as any).passed !== false);
 
   const result: InspectResult = {
     url: config.url,
@@ -906,6 +927,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     storage: checks.storage ? storageResults : undefined,
     csrf: checks.csrf ? csrfResults : undefined,
     errorPages: checks.errorPages ? errorPagesResults : undefined,
+    concurrency: concurrencyResult,
     passed: baselinePassed,
   };
 

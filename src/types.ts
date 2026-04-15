@@ -180,6 +180,7 @@ export interface ChecksConfig {
   storage?: boolean;
   csrf?: boolean;
   errorPages?: boolean;
+  concurrency?: boolean | import('./concurrency-audit.js').ConcurrencyAuditOptions;
 }
 
 export interface OutputConfig {
@@ -281,6 +282,7 @@ export interface InspectResult {
   storage?: import('./storage-audit.js').StorageAuditResult[];
   csrf?: import('./csrf-audit.js').CsrfAuditResult[];
   errorPages?: import('./error-page-audit.js').ErrorPageAuditResult[];
+  concurrency?: import('./concurrency-audit.js').ConcurrencyResult;
   passed: boolean;
 }
 
