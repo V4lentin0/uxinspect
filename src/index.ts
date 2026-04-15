@@ -397,7 +397,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
       });
       const ai = new AIHelper({
         model: config.ai?.model,
-        cachePath: path.join(outputDir, 'ai-cache.json'),
+        cachePath: config.ai?.cachePath ?? path.join(outputDir, 'ai-cache.json'),
+        cacheTtlMs: config.ai?.cacheTtlMs,
+        fallback: config.ai?.fallback,
       });
 
       const runOne = async (flow: { name: string; steps: Step[] }): Promise<{

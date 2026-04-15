@@ -191,6 +191,16 @@ export interface OutputConfig {
 export interface AIConfig {
   enabled?: boolean;
   model?: string;
+  cachePath?: string;
+  cacheTtlMs?: number;
+  fallback?: {
+    ollama?: {
+      enabled?: boolean;
+      url?: string;
+      model?: string;
+      timeoutMs?: number;
+    };
+  };
 }
 
 export interface InspectResult {

@@ -329,7 +329,20 @@ export function generateConfigSchema(): JsonSchema {
       baselineDir: str(),
       reportFormat: enumStr(['html', 'json', 'both']),
     }),
-    ai: obj({ enabled: bool(), model: str() }),
+    ai: obj({
+      enabled: bool(),
+      model: str(),
+      cachePath: str(),
+      cacheTtlMs: num({ minimum: 0 }),
+      fallback: obj({
+        ollama: obj({
+          enabled: bool(),
+          url: str({ format: 'uri' }),
+          model: str(),
+          timeoutMs: num({ minimum: 0 }),
+        }),
+      }),
+    }),
     headed: bool(),
     parallel: bool(),
     storageState: str(),
