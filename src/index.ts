@@ -86,6 +86,7 @@ import { auditHydration } from './hydration-audit.js';
 import { auditStorage } from './storage-audit.js';
 import { auditCsrf } from './csrf-audit.js';
 import { auditErrorPages } from './error-page-audit.js';
+import { walkAuthGatedRoutes } from './auth-walker.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -287,6 +288,7 @@ export { auditHydration } from './hydration-audit.js';
 export { auditStorage } from './storage-audit.js';
 export { auditCsrf } from './csrf-audit.js';
 export { auditErrorPages } from './error-page-audit.js';
+export { walkAuthGatedRoutes, resolveRoutes } from './auth-walker.js';
 export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfall.js';
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
@@ -760,6 +762,21 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     robotsAuditResult = await auditRobots(config.url).catch(() => undefined);
   }
 
+  let authWalkResult: InspectResult['authWalk'];
+  if (config.storageState && config.gatedRoutes !== undefined) {
+    authWalkResult = await walkAuthGatedRoutes({
+      storageStatePath: config.storageState,
+      routes: config.gatedRoutes,
+      baseUrl: config.url,
+      browser: config.browser,
+      headless: !config.headed && !config.debug,
+      concurrency: config.gatedRoutesOptions?.concurrency,
+      explore: config.gatedRoutesOptions?.explore,
+      navigationTimeoutMs: config.gatedRoutesOptions?.navigationTimeoutMs,
+      checkErrorStates: config.gatedRoutesOptions?.checkErrorStates,
+    }).catch(() => undefined);
+  }
+
   const finishedAt = new Date();
   const baselinePassed =
     flowResults.every((f) => f.passed) &&
@@ -906,8 +923,13 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     storage: checks.storage ? storageResults : undefined,
     csrf: checks.csrf ? csrfResults : undefined,
     errorPages: checks.errorPages ? errorPagesResults : undefined,
+    authWalk: authWalkResult,
     passed: baselinePassed,
   };
+
+  if (authWalkResult && authWalkResult.failed.length > 0) {
+    result.passed = false;
+  }
 
   if (config.apiFlows?.length) {
     const apiResults = await runApiFlows(config.apiFlows).catch(() => []);

@@ -29,6 +29,13 @@ export interface InspectConfig {
   debug?: boolean;
   slowMo?: number;
   apiFlows?: ApiFlow[];
+  gatedRoutes?: string[] | string;
+  gatedRoutesOptions?: {
+    concurrency?: number;
+    explore?: boolean | import('./explore.js').ExploreOptions;
+    navigationTimeoutMs?: number;
+    checkErrorStates?: boolean;
+  };
 }
 
 export interface RouteMock {
@@ -281,6 +288,7 @@ export interface InspectResult {
   storage?: import('./storage-audit.js').StorageAuditResult[];
   csrf?: import('./csrf-audit.js').CsrfAuditResult[];
   errorPages?: import('./error-page-audit.js').ErrorPageAuditResult[];
+  authWalk?: import('./auth-walker.js').AuthWalkResult;
   passed: boolean;
 }
 
