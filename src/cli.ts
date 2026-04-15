@@ -8,6 +8,7 @@ import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { inspect } from './index.js';
 import type { InspectConfig } from './types.js';
+import { getChangedRoutes, filterFlowsByChangedRoutes } from './git-diff-mode.js';
 
 const STARTER_CONFIG = `import type { InspectConfig } from 'uxinspect';
 
@@ -155,7 +156,10 @@ const argv = await yargs(hideBin(process.argv))
       .option('slack', { type: 'string', describe: 'Slack webhook URL for notifications' })
       .option('discord', { type: 'string', describe: 'Discord webhook URL for notifications' })
       .option('webhook', { type: 'string', describe: 'Generic JSON webhook URL' })
-      .option('notify-on-fail', { type: 'boolean', default: true, describe: 'Only notify on failure' }),
+      .option('notify-on-fail', { type: 'boolean', default: true, describe: 'Only notify on failure' })
+      .option('changed', { type: 'boolean', default: false, describe: 'Only run flows whose routes are affected by the current git diff' })
+      .option('changed-base', { type: 'string', describe: 'Base ref for --changed (default: HEAD~1 or $GITHUB_BASE_REF)' })
+      .option('repo-root', { type: 'string', describe: 'Repo root for --changed (default: cwd)' }),
   )
   .command('report <dir>', 'Serve a generated report on localhost', (y) =>
     y
@@ -293,6 +297,23 @@ async function runCmd(): Promise<void> {
   const config: InspectConfig = (argv as any).config
     ? { ...(await loadConfig((argv as any).config)), ...cliConfig }
     : cliConfig;
+
+  if ((argv as any).changed === true) {
+    const repoRoot = ((argv as any)['repo-root'] as string | undefined) ?? process.cwd();
+    const baseRef = (argv as any)['changed-base'] as string | undefined;
+    const changedRoutes = await getChangedRoutes(repoRoot, baseRef, config.routeMap);
+    console.log(`Changed routes: ${changedRoutes.length ? changedRoutes.join(', ') : '(none detected)'}`);
+    if (config.flows && config.flows.length > 0) {
+      const originalCount = config.flows.length;
+      const filtered = filterFlowsByChangedRoutes(config.flows, changedRoutes);
+      if (filtered.length === 0) {
+        console.log('no relevant flows for this changeset');
+        process.exit(0);
+      }
+      config.flows = filtered;
+      console.log(`Running ${filtered.length} of ${originalCount} flows: ${filtered.map((f) => f.name).join(', ')}`);
+    }
+  }
 
   console.log(`Inspecting ${config.url}...`);
   const result = await inspect(config);

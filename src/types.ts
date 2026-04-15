@@ -29,6 +29,12 @@ export interface InspectConfig {
   debug?: boolean;
   slowMo?: number;
   apiFlows?: ApiFlow[];
+  // Explicit file-to-routes mapping used by `--changed` mode.
+  // Any repo file that isn't captured by the built-in conventions
+  // (app/routes/<seg>/page.tsx, pages/<seg>.tsx) can be mapped here to
+  // the routes it should invalidate.
+  // Example: { 'src/components/Header.tsx': ['/'] }
+  routeMap?: Record<string, string[]>;
 }
 
 export interface RouteMock {

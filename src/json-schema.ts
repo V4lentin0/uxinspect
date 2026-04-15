@@ -349,6 +349,12 @@ export function generateConfigSchema(): JsonSchema {
     debug: bool(),
     slowMo: num({ minimum: 0 }),
     apiFlows: arr({ $ref: '#/definitions/ApiFlow' }),
+    routeMap: {
+      type: 'object',
+      description:
+        'Map of repo-relative file paths to the routes they invalidate (for --changed git-diff mode).',
+      additionalProperties: arr(str()),
+    },
   };
 
   return {
