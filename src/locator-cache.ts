@@ -33,6 +33,10 @@ export interface CacheEntry {
   strategy: 'testid' | 'css' | 'role' | 'text' | 'label' | 'placeholder' | 'title';
   /** Verb the selector was stored against (click/fill/etc). */
   verb: string;
+  /** Self-heal counter: bumps each time this entry is rewritten by P2 #26. */
+  heals?: number;
+  /** Epoch ms of most recent self-heal rewrite. */
+  lastHealAt?: number;
 }
 
 export interface CacheStats {
@@ -135,7 +139,7 @@ export class LocatorCache {
       ensureLocatorSchema(db);
       const rows = db
         .prepare(
-          `SELECT key, resolved_selector, confidence, last_used, hits, strategy, verb
+          `SELECT key, resolved_selector, confidence, last_used, hits, strategy, verb, heals, last_heal_at
            FROM ${TABLE}`,
         )
         .all() as Array<{
@@ -146,6 +150,8 @@ export class LocatorCache {
           hits: number;
           strategy: string;
           verb: string;
+          heals: number | null;
+          last_heal_at: number | null;
         }>;
       for (const r of rows) {
         this.mem.set(r.key, {
@@ -156,6 +162,8 @@ export class LocatorCache {
           hits: r.hits,
           strategy: r.strategy as CacheEntry['strategy'],
           verb: r.verb,
+          heals: r.heals ?? undefined,
+          lastHealAt: r.last_heal_at ?? undefined,
         });
       }
       const statRow = db
@@ -203,6 +211,15 @@ export class LocatorCache {
     return entry;
   }
 
+  /**
+   * Non-incrementing lookup — does NOT bump hit/miss counters. Used by
+   * internal bookkeeping (e.g. self-heal carrying heals forward) where the
+   * stats should reflect caller-facing activity only.
+   */
+  peek(key: string): CacheEntry | null {
+    return this.mem.get(key) ?? null;
+  }
+
   /** Record a miss without a subsequent `put()` (e.g. resolver returned null). */
   recordMiss(): void {
     this.stats.misses++;
@@ -218,6 +235,8 @@ export class LocatorCache {
       verb: entry.verb,
       lastUsed: entry.lastUsed ?? Date.now(),
       hits: entry.hits ?? 0,
+      heals: entry.heals,
+      lastHealAt: entry.lastHealAt,
     };
     this.mem.set(full.key, full);
     while (this.mem.size > this.maxEntries) this.evictOne();
@@ -261,22 +280,34 @@ export class LocatorCache {
       ensureLocatorSchema(db);
       const upsert = db.prepare(
         `INSERT INTO ${TABLE}
-           (key, resolved_selector, confidence, last_used, hits, strategy, verb)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
+           (key, resolved_selector, confidence, last_used, hits, strategy, verb, heals, last_heal_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(key) DO UPDATE SET
            resolved_selector=excluded.resolved_selector,
            confidence=excluded.confidence,
            last_used=excluded.last_used,
            hits=excluded.hits,
            strategy=excluded.strategy,
-           verb=excluded.verb`,
+           verb=excluded.verb,
+           heals=excluded.heals,
+           last_heal_at=excluded.last_heal_at`,
       );
       const del = db.prepare(`DELETE FROM ${TABLE} WHERE key NOT IN (SELECT key FROM ${TABLE})`);
       const existing = db.prepare(`SELECT key FROM ${TABLE}`).all() as Array<{ key: string }>;
       const keepSet = new Set(this.mem.keys());
       const tx = db.transaction(() => {
         for (const e of this.mem.values()) {
-          upsert.run(e.key, e.resolvedSelector, e.confidence, e.lastUsed, e.hits, e.strategy, e.verb);
+          upsert.run(
+            e.key,
+            e.resolvedSelector,
+            e.confidence,
+            e.lastUsed,
+            e.hits,
+            e.strategy,
+            e.verb,
+            e.heals ?? null,
+            e.lastHealAt ?? null,
+          );
         }
         for (const r of existing) {
           if (!keepSet.has(r.key)) {
@@ -343,7 +374,9 @@ function ensureLocatorSchema(db: BetterSqliteDatabase): void {
       last_used INTEGER NOT NULL,
       hits INTEGER NOT NULL DEFAULT 0,
       strategy TEXT NOT NULL,
-      verb TEXT NOT NULL
+      verb TEXT NOT NULL,
+      heals INTEGER,
+      last_heal_at INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_${TABLE}_last_used ON ${TABLE}(last_used);
 
@@ -355,6 +388,15 @@ function ensureLocatorSchema(db: BetterSqliteDatabase): void {
     );
     `,
   );
+  // P2 #26 online migration: add heal columns if the table pre-dates them.
+  try {
+    const cols = db.prepare(`PRAGMA table_info(${TABLE})`).all() as Array<{ name: string }>;
+    const names = new Set(cols.map((c) => c.name));
+    if (!names.has('heals')) db.prepare(`ALTER TABLE ${TABLE} ADD COLUMN heals INTEGER`).run();
+    if (!names.has('last_heal_at')) db.prepare(`ALTER TABLE ${TABLE} ADD COLUMN last_heal_at INTEGER`).run();
+  } catch {
+    /* non-fatal: schema already up to date or pragma unsupported */
+  }
 }
 
 /**
