@@ -95,6 +95,7 @@ import { startReplay, stopReplay } from './replay.js';
 import { auditStuckSpinners } from './stuck-spinner-audit.js';
 import { auditErrorStateAppearance } from './error-state-audit.js';
 import { walkAuthGatedRoutes } from './auth-walker.js';
+import { attachFrustrationSignals } from './frustration-signals.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -176,6 +177,7 @@ import type { CsrfAuditResult } from './csrf-audit.js';
 import type { ErrorPageAuditResult } from './error-page-audit.js';
 import type { StuckSpinnerResult } from './stuck-spinner-audit.js';
 import type { ErrorStateResult } from './error-state-audit.js';
+import type { FrustrationSignalResult } from './frustration-signals.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -307,6 +309,7 @@ export { auditErrorPages } from './error-page-audit.js';
 export { auditStuckSpinners, DEFAULT_STUCK_SPINNER_SELECTORS } from './stuck-spinner-audit.js';
 export { auditErrorStateAppearance, snapshotErrorState, diffErrorStateAppearance, DEFAULT_ERROR_STATE_SELECTORS } from './error-state-audit.js';
 export { walkAuthGatedRoutes, resolveRoutes } from './auth-walker.js';
+export { attachFrustrationSignals } from './frustration-signals.js';
 export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfall.js';
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
@@ -397,6 +400,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const csrfResults: CsrfAuditResult[] = [];
   const errorPagesResults: ErrorPageAuditResult[] = [];
   const stuckSpinnerResults: StuckSpinnerResult[] = [];
+  const frustrationSignalResults: FrustrationSignalResult[] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
   let errorStateResult: ErrorStateResult | undefined;
@@ -498,10 +502,17 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         storage?: StorageAuditResult;
         csrf?: CsrfAuditResult;
         errorPages?: ErrorPageAuditResult;
+        frustrationSignals?: FrustrationSignalResult;
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
         const network = startNetworkAttribution(page);
+        const frustration = checks.frustrationSignals
+          ? await attachFrustrationSignals(
+              page,
+              typeof checks.frustrationSignals === 'object' ? checks.frustrationSignals : {},
+            ).catch(() => null)
+          : null;
         if (config.ai?.enabled) await ai.init(page);
         const replaySession = await startReplay(page, `${flow.name}-${vp.name}`).catch(() => null);
         const flowResult = await runFlow(page, flow.name, flow.steps, ai, { baselineDir, console, network });
@@ -629,6 +640,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const consoleR = console ? console.result() : undefined;
         if (console) console.detach();
         network.stopCapture();
+        const frustrationR = frustration ? await frustration.result().catch(() => undefined) : undefined;
+        if (frustration) frustration.detach();
         if (!config.parallel) await page.close();
         return {
           flow: flowResult, a11y, visual,
@@ -659,6 +672,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           sourcemapScan: sourcemapScanR, secretScan: secretScanR, trackerSniff: trackerSniffR,
           zIndex: zIndexR, hydration: hydrationR, storage: storageR,
           csrf: csrfR, errorPages: errorPagesR,
+          frustrationSignals: frustrationR,
         };
       };
 
@@ -738,6 +752,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.storage) storageResults.push(r.storage);
         if (r.csrf) csrfResults.push(r.csrf);
         if (r.errorPages) errorPagesResults.push(r.errorPages);
+        if (r.frustrationSignals) frustrationSignalResults.push(r.frustrationSignals);
       }
 
       if (checks.perf) {
@@ -753,6 +768,12 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const opts = typeof checks.explore === 'object' ? checks.explore : {};
         const ePage = await driver.newPage();
         const exploreReplay = await startReplay(ePage, `explore-${vp.name}`).catch(() => null);
+        const eFrustration = checks.frustrationSignals
+          ? await attachFrustrationSignals(
+              ePage,
+              typeof checks.frustrationSignals === 'object' ? checks.frustrationSignals : {},
+            ).catch(() => null)
+          : null;
         await ePage.goto(config.url);
         const errorStateOpts = typeof checks.errorState === 'object' ? checks.errorState : undefined;
         exploreResult = await explore(ePage, {
@@ -762,6 +783,11 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           errorState: Boolean(checks.errorState),
           errorStateSelectors: errorStateOpts?.selectors,
         });
+        if (eFrustration) {
+          const fr = await eFrustration.result().catch(() => undefined);
+          eFrustration.detach();
+          if (fr) frustrationSignalResults.push(fr);
+        }
         const exploreReplayPath = await stopReplay(exploreReplay).catch(() => null);
         if (exploreResult && exploreReplayPath) exploreResult.replayPath = exploreReplayPath;
         await ePage.close();
@@ -1006,6 +1032,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     stuckSpinners: checks.stuckSpinners ? stuckSpinnerResults : undefined,
     errorState: checks.errorState ? errorStateResult : undefined,
     authWalk: authWalkResult,
+    frustrationSignals: checks.frustrationSignals ? frustrationSignalResults : undefined,
     passed: baselinePassed,
   };
 

@@ -11,6 +11,7 @@ import {
   DEFAULT_ERROR_STATE_SELECTORS,
 } from './error-state-audit.js';
 import { measureClickCoverage, listInteractiveElements } from './coverage.js';
+import { attachFrustrationSignals, type FrustrationSignalResult, type FrustrationSignalOptions } from './frustration-signals.js';
 
 export interface ExploreOptions {
   maxClicks?: number;
@@ -23,9 +24,13 @@ export interface ExploreOptions {
   stuckSpinner?: StuckSpinnerOptions;
   errorState?: boolean;
   errorStateSelectors?: string[];
+  frustrationSignals?: boolean | FrustrationSignalOptions;
 }
 
-export async function explore(page: Page, opts: ExploreOptions = {}): Promise<ExploreResult> {
+export async function explore(
+  page: Page,
+  opts: ExploreOptions = {},
+): Promise<ExploreResult & { frustrationSignals?: FrustrationSignalResult }> {
   const maxClicks = opts.maxClicks ?? 50;
   const maxPages = opts.maxPages ?? 20;
   const sameOrigin = opts.sameOrigin ?? true;
@@ -34,6 +39,13 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
   const errorStateOn = opts.errorState ?? false;
   const errorStateSelectors = opts.errorStateSelectors ?? [...DEFAULT_ERROR_STATE_SELECTORS];
   const startOrigin = new URL(page.url()).origin;
+
+  const frustrationHandle = opts.frustrationSignals
+    ? await attachFrustrationSignals(
+        page,
+        typeof opts.frustrationSignals === 'object' ? opts.frustrationSignals : {},
+      ).catch(() => null)
+    : null;
 
   const consoleErrors: string[] = [];
   const networkErrors: string[] = [];
@@ -116,6 +128,12 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
     .slice(0, 50)
     .map((e) => ({ selector: e.selector, snippet: e.snippet }));
 
+  let frustrationResult: FrustrationSignalResult | undefined;
+  if (frustrationHandle) {
+    frustrationResult = await frustrationHandle.result().catch(() => undefined);
+    frustrationHandle.detach();
+  }
+
   return {
     pagesVisited: pagesVisited.size,
     buttonsClicked,
@@ -132,6 +150,7 @@ export async function explore(page: Page, opts: ExploreOptions = {}): Promise<Ex
       byTag: baseline.byTag,
       missed,
     },
+    frustrationSignals: frustrationResult,
   };
 }
 

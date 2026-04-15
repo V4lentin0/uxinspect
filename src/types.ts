@@ -210,6 +210,15 @@ export interface ChecksConfig {
   errorPages?: boolean;
   stuckSpinners?: boolean | { timeoutMs?: number; selectors?: string[]; pollIntervalMs?: number; captureScreenshot?: boolean; screenshotDir?: string };
   errorState?: boolean | { selectors?: string[]; allowExisting?: boolean };
+  frustrationSignals?: boolean | {
+    rageClickWindowMs?: number;
+    rageClickThreshold?: number;
+    deadClickWaitMs?: number;
+    uTurnWindowMs?: number;
+    errorClickWindowMs?: number;
+    thrashedCursorWindowMs?: number;
+    thrashedCursorThreshold?: number;
+  };
 }
 
 export interface OutputConfig {
@@ -316,6 +325,7 @@ export interface InspectResult {
   stuckSpinners?: import('./stuck-spinner-audit.js').StuckSpinnerResult[];
   errorState?: import('./error-state-audit.js').ErrorStateResult;
   authWalk?: import('./auth-walker.js').AuthWalkResult;
+  frustrationSignals?: import('./frustration-signals.js').FrustrationSignalResult[];
   passed: boolean;
 }
 
@@ -412,4 +422,5 @@ export interface ExploreResult {
     byTag: Record<string, number>;
     missed: Array<{ selector: string; snippet: string }>;
   };
+  frustrationSignals?: import('./frustration-signals.js').FrustrationSignalResult;
 }

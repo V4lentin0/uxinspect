@@ -145,6 +145,15 @@ function buildChecksSchema(): JsonSchema {
       screenshotDir: str(),
     }),
     errorState: boolOrOpts({ selectors: arr(str()), allowExisting: bool() }),
+    frustrationSignals: boolOrOpts({
+      rageClickWindowMs: num(),
+      rageClickThreshold: num(),
+      deadClickWaitMs: num(),
+      uTurnWindowMs: num(),
+      errorClickWindowMs: num(),
+      thrashedCursorWindowMs: num(),
+      thrashedCursorThreshold: num(),
+    }),
   };
   return obj(properties);
 }
