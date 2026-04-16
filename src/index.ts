@@ -1212,12 +1212,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     errorState: checks.errorState ? errorStateResult : undefined,
     authWalk: authWalkResult,
     frustrationSignals: checks.frustrationSignals ? frustrationSignalResults : undefined,
-<<<<<<< HEAD
     i18n: checks.i18n ? i18nResults : undefined,
     contrastStates: checks.contrastStates ? contrastStatesResults : undefined,
-=======
     emailAudit: emailAuditResult,
->>>>>>> worktree-agent-af1901a2
     selfHealEvents: selfHealEvents && selfHealEvents.length ? selfHealEvents : undefined,
     passed: baselinePassed,
   };

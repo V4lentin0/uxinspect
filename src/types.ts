@@ -47,7 +47,6 @@ export interface InspectConfig {
   };
   /** Visual diff algorithm + ignore-region DSL (P2 #23). */
   visualDiff?: VisualDiffConfig;
-<<<<<<< HEAD
   /** Map of changed-file glob patterns → route patterns (P3 #30 — git-diff mode). */
   routeMap?: import('./git-diff-mode.js').RouteMap;
   /**
@@ -66,10 +65,8 @@ export interface InspectConfig {
    * `fast: false` to opt back into a full run.
    */
   fast?: boolean;
-=======
   /** Email rendering audit (P4 #42). Requires `checks.emailAudit === true`. */
   emailAuditConfig?: EmailConfig;
->>>>>>> worktree-agent-af1901a2
 }
 
 export interface RouteMock {
@@ -262,17 +259,14 @@ export interface ChecksConfig {
     thrashedCursorWindowMs?: number;
     thrashedCursorThreshold?: number;
   };
-<<<<<<< HEAD
   /** P4 #36 — Per-locale i18n / RTL / text-overflow audit. */
   i18n?: boolean | import('./i18n-audit.js').I18nConfig;
   /** P4 #38 — Per-state colour contrast audit (default/hover/focus/active/disabled). */
   contrastStates?: boolean | ContrastConfig;
   /** P4 #40 — Offline / flaky-network audit. Boolean turns it on with defaults; object passes through to `runOfflineAudit`. */
   offline?: boolean | OfflineConfig;
-=======
   /** Email rendering audit (P4 #42) — requires `emailAuditConfig` on the root InspectConfig. */
   emailAudit?: boolean;
->>>>>>> worktree-agent-af1901a2
 }
 
 /** P4 #38 — Interaction states measured by {@link runContrastStatesAudit}. */
@@ -441,17 +435,14 @@ export interface InspectResult {
   errorState?: import('./error-state-audit.js').ErrorStateResult;
   authWalk?: import('./auth-walker.js').AuthWalkResult;
   frustrationSignals?: import('./frustration-signals.js').FrustrationSignalResult[];
-<<<<<<< HEAD
   /** Per-locale i18n / RTL / overflow audit results (P4 #36). */
   i18n?: import('./i18n-audit.js').I18nResult[];
   /** Per-state colour contrast findings (P4 #38). */
   contrastStates?: ContrastResult[];
   /** P4 #40 — Offline / flaky-network audit results, one per page that was tested. */
   offline?: import('./offline-audit.js').OfflineResult[];
-=======
   /** Email rendering audit (P4 #42). */
   emailAudit?: EmailResult;
->>>>>>> worktree-agent-af1901a2
   /** Self-heal events emitted by the AI helper when a locator drifts (P2 #26). */
   selfHealEvents?: import('./ai.js').SelfHealEvent[];
   /**
