@@ -1,0 +1,37 @@
+name = "uxinspect-github-bot"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+
+# GitHub App webhook handler. Receives pull_request events, fetches CI-uploaded
+# uxinspect result.json artifacts, diffs against main baseline via
+# api.uxinspect.com, and upserts a summary comment on the PR.
+#
+# Required Worker secrets (set via `wrangler secret put ...`):
+#   GITHUB_APP_ID          numeric App id issued by GitHub when you create the App
+#   GITHUB_PRIVATE_KEY     PEM-encoded RSA private key for the App (full file, BEGIN/END lines included)
+#   GITHUB_WEBHOOK_SECRET  random 32+ char string registered in the App's webhook settings
+#   API_INTERNAL_TOKEN     bearer used to call api.uxinspect.com/internal/diff
+#
+# Optional KV binding caches installation access tokens (<1h TTL) so we don't
+# mint a fresh JWT+token pair on every webhook delivery.
+#   wrangler kv namespace create UXINSPECT_GHB_TOKENS
+[[kv_namespaces]]
+binding = "TOKENS"
+id = "REPLACE_WITH_KV_ID"
+
+[vars]
+# Marker kept at the top of the bot's own comment body. Used to find the
+# existing comment on subsequent pushes and edit it in place.
+COMMENT_MARKER = "<!-- uxinspect:pr-bot -->"
+# uxinspect API base used for the baseline diff lookup.
+UXINSPECT_API_BASE = "https://api.uxinspect.com"
+# GitHub REST base (overridable for GHES in future).
+GITHUB_API_BASE = "https://api.github.com"
+# Workflow artifact file we look for in the PR's latest check run.
+ARTIFACT_NAME = "uxinspect-result"
+ARTIFACT_FILE = "result.json"
+
+[[routes]]
+pattern = "pr.uxinspect.com/webhooks/*"
+custom_domain = false
+zone_name = "uxinspect.com"
