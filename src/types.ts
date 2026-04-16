@@ -225,6 +225,8 @@ export interface ChecksConfig {
   deadImages?: boolean;
   pagination?: boolean | { scrollProbes?: number };
   print?: boolean | { screenshotPath?: string };
+  /** P4 #43 — Chromium-only PDF audit. Renders via `page.pdf()` and inspects bytes via `pdfjs-dist`. */
+  pdf?: boolean | import('./pdf-audit.js').PdfConfig;
   canonical?: boolean | { followChain?: boolean };
   sri?: boolean;
   webWorkers?: boolean;
@@ -408,6 +410,7 @@ export interface InspectResult {
   deadImages?: import('./dead-images.js').DeadImageResult[];
   pagination?: import('./pagination-audit.js').PaginationResult[];
   print?: import('./print-audit.js').PrintAuditResult[];
+  pdf?: import('./pdf-audit.js').PdfResult[];
   canonical?: import('./canonical-audit.js').CanonicalAuditResult[];
   sri?: import('./sri-audit.js').SriAuditResult[];
   webWorkers?: import('./web-worker-audit.js').WebWorkerAuditResult[];
@@ -642,6 +645,63 @@ export interface EmailViewport {
   height: number;
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// P4 #43 — PDF audit types
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Configuration for {@link import('./pdf-audit.js').runPdfAudit}.
+ *
+ * CHROMIUM-ONLY: `page.pdf()` is implemented exclusively in Chromium.
+ * Non-Chromium pages are short-circuited with a `wrong-browser` issue.
+ */
+export interface PdfConfig {
+  /** Routes to audit; default = current page only. Reserved for batch mode. */
+  routes?: string[];
+  /** Paper size. Custom sizes given in PostScript points (1in = 72pt). */
+  pageSize?: 'A4' | 'Letter' | { w: number; h: number };
+  /**
+   * Pixels / points reserved at top / bottom for headers and footers.
+   * Any rendered PDF text landing inside these strips is flagged as bleed.
+   * Defaults: 36pt (~0.5in) top AND bottom.
+   */
+  headerFooterAllowedYs?: { top: number; bottom: number };
+  /** Where to save the generated `.pdf` (for debugging / CI artifacts). Default `.uxinspect/pdf/`. */
+  outDir?: string;
+  /** Flag runs that exceed this many pages (e.g. unbounded report explosion). */
+  expectedMaxPages?: number;
+}
+
+export type PdfIssueType =
+  | 'wrong-browser'
+  | 'pdf-render-failed'
+  | 'pdf-parse-failed'
+  | 'pdfjs-missing'
+  | 'too-many-pages'
+  | 'header-bleed'
+  | 'footer-bleed'
+  | 'break-inside-straddle'
+  | 'image-overflow'
+  | 'no-page-rule'
+  | 'print-rule-no-effect';
+
+export interface PdfIssue {
+  type: PdfIssueType;
+  severity: 'info' | 'warn' | 'error';
+  selector?: string;
+  detail: string;
+}
+
+export interface PdfTextItem {
+  text: string;
+  /** x position in PDF points (origin top-left, after coord inversion). */
+  x: number;
+  /** y position in PDF points from page top. */
+  y: number;
+  width: number;
+  height: number;
+}
+
 /**
  * Cross-client rendering profiles. Each profile transforms the captured HTML
  * in a way that approximates a common webmail quirk so the reviewer can see
@@ -718,5 +778,30 @@ export interface EmailResult {
   scanned: number;
   emails: EmailRecord[];
   issues: EmailIssue[];
+export interface PdfPage {
+  pageNumber: number;
+  widthPt: number;
+  heightPt: number;
+  items: PdfTextItem[];
+}
+
+export interface PdfLayoutDrift {
+  selector: string;
+  hadPrintRule: boolean;
+  changed: boolean;
+  screen: { x: number; y: number; w: number; h: number; display: string; visible: boolean };
+  print: { x: number; y: number; w: number; h: number; display: string; visible: boolean };
+}
+
+export interface PdfResult {
+  page: string;
+  startedAt: string;
+  browser: string;
+  pageCount: number;
+  pages: PdfPage[];
+  issues: PdfIssue[];
+  layoutDrift: PdfLayoutDrift[];
+  pdfPath?: string;
+  sizeBytes: number;
   passed: boolean;
 }
