@@ -100,6 +100,8 @@ import { attachFrustrationSignals } from './frustration-signals.js';
 import { filterFlowsByRoutes, summarizeChangedRun } from './git-diff-mode.js';
 import { applyFastMode, fastModeWarning, FAST_MODE_TARGET_MS } from './fast-mode.js';
 import { runI18nAudit } from './i18n-audit.js';
+import { runContrastStatesAudit } from './contrast-states-audit.js';
+import type { ContrastResult } from './types.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -356,6 +358,7 @@ export { auditStuckSpinners, DEFAULT_STUCK_SPINNER_SELECTORS } from './stuck-spi
 export { auditErrorStateAppearance, snapshotErrorState, diffErrorStateAppearance, DEFAULT_ERROR_STATE_SELECTORS } from './error-state-audit.js';
 export { walkAuthGatedRoutes, resolveRoutes } from './auth-walker.js';
 export { attachFrustrationSignals } from './frustration-signals.js';
+export { runContrastStatesAudit } from './contrast-states-audit.js';
 export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfall.js';
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
@@ -475,6 +478,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const gdprResults: GdprResult[] = [];
   const frustrationSignalResults: FrustrationSignalResult[] = [];
   const i18nResults: I18nResult[] = [];
+  const contrastStatesResults: ContrastResult[] = [];
   const selfHealEvents: InspectResult['selfHealEvents'] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
@@ -583,6 +587,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         errorPages?: ErrorPageAuditResult;
         frustrationSignals?: FrustrationSignalResult;
         i18n?: I18nResult;
+        contrastStates?: ContrastResult;
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
@@ -728,6 +733,12 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const i18nR = checks.i18n
           ? await runI18nAudit(page, typeof checks.i18n === 'object' ? checks.i18n : {}).catch(() => undefined)
           : undefined;
+        const contrastStatesR = checks.contrastStates
+          ? await runContrastStatesAudit(
+              page,
+              typeof checks.contrastStates === 'object' ? checks.contrastStates : {},
+            ).catch(() => undefined)
+          : undefined;
         const consoleR = console ? console.result() : undefined;
         if (console) console.detach();
         network.stopCapture();
@@ -765,6 +776,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           csrf: csrfR, errorPages: errorPagesR,
           frustrationSignals: frustrationR,
           i18n: i18nR,
+          contrastStates: contrastStatesR,
         };
       };
 
@@ -846,6 +858,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.errorPages) errorPagesResults.push(r.errorPages);
         if (r.frustrationSignals) frustrationSignalResults.push(r.frustrationSignals);
         if (r.i18n) i18nResults.push(r.i18n);
+        if (r.contrastStates) contrastStatesResults.push(r.contrastStates);
       }
 
       if (checks.perf) {
@@ -1054,7 +1067,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     (robotsAuditResult === undefined || (robotsAuditResult as any).passed !== false) &&
     stuckSpinnerResults.every((r) => (r as any).passed !== false) &&
     i18nResults.every((r) => (r as any).passed !== false) &&
-    gdprResults.every((r) => (r as any).passed !== false);
+    gdprResults.every((r) => (r as any).passed !== false) &&
+    contrastStatesResults.every((r) => (r as any).passed !== false);
 
   const result: InspectResult = {
     url: config.url,
@@ -1150,6 +1164,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     authWalk: authWalkResult,
     frustrationSignals: checks.frustrationSignals ? frustrationSignalResults : undefined,
     i18n: checks.i18n ? i18nResults : undefined,
+    contrastStates: checks.contrastStates ? contrastStatesResults : undefined,
     selfHealEvents: selfHealEvents && selfHealEvents.length ? selfHealEvents : undefined,
     passed: baselinePassed,
   };

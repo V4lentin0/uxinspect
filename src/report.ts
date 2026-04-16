@@ -483,6 +483,7 @@ function renderHTML(r: InspectResult): string {
   ${(r as any).motionPrefs?.length ? `<h2>Motion preferences</h2>${(r as any).motionPrefs.map(renderMotionPrefs).join('')}` : ''}
   ${r.explore ? `<h2>Exploration</h2>${renderExplore(r.explore)}` : ''}
   ${(r as any).i18n?.length ? `<h2>i18n / RTL / locale overflow</h2>${(r as any).i18n.map(renderI18n).join('')}` : ''}
+  ${(r as any).contrastStates?.length ? `<h2>Contrast per state</h2>${(r as any).contrastStates.map(renderContrastStates).join('')}` : ''}
   ${r.selfHealEvents?.length ? `<h2>Self-heal events</h2>${renderSelfHealEvents(r.selfHealEvents)}` : ''}
   ${renderUnknownSections(r)}
 </body>
@@ -497,7 +498,7 @@ const KNOWN_RESULT_KEYS = new Set([
   'exposedPaths', 'tls', 'crawl', 'contentQuality', 'resourceHints', 'mixedContent',
   'compression', 'cacheHeaders', 'cookieBanner', 'thirdParty', 'bundleSize',
   'openGraph', 'robotsAudit', 'imageAudit', 'webfonts', 'motionPrefs', 'explore',
-  'apiFlows', 'selfHealEvents', 'i18n', 'passed',
+  'apiFlows', 'selfHealEvents', 'i18n', 'contrastStates', 'passed',
 ]);
 
 interface SelfHealEventLike {
@@ -596,6 +597,72 @@ function renderI18n(r: any): string {
     <div style="margin-top: 16px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em;">Issues</div>
     ${issueRows}
   </details>`;
+}
+
+interface ContrastStatesResultLike {
+  page: string;
+  scanned: number;
+  states: string[];
+  targetLevel: 'AA' | 'AAA';
+  violations: Array<{
+    selector: string;
+    state: string;
+    kind: 'text' | 'focus-ring';
+    level: 'AA' | 'AAA';
+    ratio: number;
+    required: number;
+    foreground: string;
+    background: string;
+    isLarge: boolean;
+    fontSizePx?: number;
+    snippet?: string;
+    message: string;
+  }>;
+  stateCounts: Record<string, number>;
+  passed: boolean;
+}
+
+function renderContrastStates(c: ContrastStatesResultLike): string {
+  const status = c.passed ? 'PASS' : 'FAIL';
+  const statusClass = c.passed ? 'pass' : 'fail';
+  const header = `<div class="row">
+      <strong>${escape(c.page)}</strong>
+      <span class="${statusClass}">${status} — ${c.violations.length} violation${c.violations.length === 1 ? '' : 's'} · target ${c.targetLevel}</span>
+    </div>
+    <div class="label">${c.scanned} interactive elements scanned · states: ${c.states.map(s => escape(s)).join(', ')}</div>`;
+
+  if (c.violations.length === 0) {
+    return `<div class="section">${header}</div>`;
+  }
+
+  const rows = c.violations.map((v) => {
+    const pillClass = v.kind === 'focus-ring' ? 'pill-warn' : 'pill-error';
+    const swatch = (hex: string): string =>
+      `<span style="display:inline-block;width:10px;height:10px;border:1px solid var(--border);border-radius:2px;background:${escape(hex)};vertical-align:middle;margin-right:4px"></span>`;
+    return `<tr>
+        <td><span class="pill pill-info">${escape(v.state)}</span></td>
+        <td><span class="pill ${pillClass}">${escape(v.kind)}</span></td>
+        <td class="mono trunc" title="${escape(v.selector)}">${escape(v.selector)}</td>
+        <td><strong class="${v.ratio >= v.required ? 'pass' : 'fail'}">${v.ratio.toFixed(2)}:1</strong> <span class="label">need ${v.required}:1</span>${v.isLarge ? ' <span class="pill pill-info">large</span>' : ''}</td>
+        <td class="mono">${swatch(v.foreground)}<code>${escape(v.foreground)}</code> on ${swatch(v.background)}<code>${escape(v.background)}</code></td>
+      </tr>`;
+  }).join('');
+
+  return `<div class="section">
+    ${header}
+    <table>
+      <thead>
+        <tr>
+          <th>State</th>
+          <th>Kind</th>
+          <th>Selector</th>
+          <th>Ratio</th>
+          <th>Colours</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
 }
 
 function renderUnknownSections(r: any): string {
