@@ -4,7 +4,9 @@ export type Plan = 'free' | 'pro' | 'team' | 'enterprise';
 export type TeamStatus = 'active' | 'cancelled' | 'past_due' | 'revoked';
 
 export interface Env {
+  DB: D1Database;
   UXINSPECT_DB: D1Database;
+  REPLAYS: R2Bucket;
   UXINSPECT_REPLAYS: R2Bucket;
   UXINSPECT_CACHE: KVNamespace;
 
@@ -18,6 +20,11 @@ export interface Env {
   JWT_ISSUER: string;
   REPLAY_MAX_BYTES: string;
   INGEST_MAX_BYTES: string;
+
+  // P5 #53 email digest
+  EMAIL_API_URL?: string;
+  EMAIL_API_KEY?: string;
+  EMAIL_FROM?: string;
 }
 
 export interface TeamRow {
