@@ -1,0 +1,26 @@
+{
+  "name": "card-checkout-declined",
+  "steps": [
+    { "goto": "{{checkoutUrl}}" },
+    { "waitFor": "form" },
+    {
+      "fill": { "selector": "{{selectors.email}}", "text": "{{customer.email}}" }
+    },
+    {
+      "fill": { "selector": "{{selectors.name}}", "text": "{{customer.name}}" }
+    },
+    {
+      "iframe": {
+        "selector": "{{selectors.cardIframe}}",
+        "steps": [
+          { "fill": { "selector": "{{selectors.cardNumber}}", "text": "{{cards.declined}}" } },
+          { "fill": { "selector": "{{selectors.cardExpiry}}", "text": "{{cards.expiry}}" } },
+          { "fill": { "selector": "{{selectors.cardCvc}}", "text": "{{cards.cvc}}" } },
+          { "fill": { "selector": "{{selectors.cardPostal}}", "text": "{{cards.postalCode}}" } }
+        ]
+      }
+    },
+    { "click": "{{selectors.submit}}" },
+    { "waitFor": "{{selectors.errorRegion}}" }
+  ]
+}

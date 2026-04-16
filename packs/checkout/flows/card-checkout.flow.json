@@ -1,0 +1,34 @@
+{
+  "name": "card-checkout-happy-path",
+  "steps": [
+    { "goto": "{{checkoutUrl}}" },
+    { "waitFor": "form" },
+    {
+      "fill": { "selector": "{{selectors.email}}", "text": "{{customer.email}}" },
+      "assert": { "console": "clean" }
+    },
+    {
+      "fill": { "selector": "{{selectors.name}}", "text": "{{customer.name}}" }
+    },
+    {
+      "iframe": {
+        "selector": "{{selectors.cardIframe}}",
+        "steps": [
+          { "fill": { "selector": "{{selectors.cardNumber}}", "text": "{{cards.success}}" } },
+          { "fill": { "selector": "{{selectors.cardExpiry}}", "text": "{{cards.expiry}}" } },
+          { "fill": { "selector": "{{selectors.cardCvc}}", "text": "{{cards.cvc}}" } },
+          { "fill": { "selector": "{{selectors.cardPostal}}", "text": "{{cards.postalCode}}" } }
+        ]
+      }
+    },
+    {
+      "click": "{{selectors.submit}}",
+      "assert": { "network": "no-4xx" }
+    },
+    { "waitFor": "{{selectors.successRegion}}" },
+    {
+      "waitForResponse": { "url": "{{successRedirectPattern}}", "status": 200 },
+      "assert": { "console": "clean", "network": "no-4xx", "dom": "no-error" }
+    }
+  ]
+}

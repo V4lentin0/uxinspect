@@ -1,0 +1,43 @@
+{
+  "name": "card-checkout-3ds-challenge",
+  "steps": [
+    { "goto": "{{checkoutUrl}}" },
+    { "waitFor": "form" },
+    {
+      "fill": { "selector": "{{selectors.email}}", "text": "{{customer.email}}" }
+    },
+    {
+      "fill": { "selector": "{{selectors.name}}", "text": "{{customer.name}}" }
+    },
+    {
+      "iframe": {
+        "selector": "{{selectors.cardIframe}}",
+        "steps": [
+          { "fill": { "selector": "{{selectors.cardNumber}}", "text": "{{cards.threeDS}}" } },
+          { "fill": { "selector": "{{selectors.cardExpiry}}", "text": "{{cards.expiry}}" } },
+          { "fill": { "selector": "{{selectors.cardCvc}}", "text": "{{cards.cvc}}" } },
+          { "fill": { "selector": "{{selectors.cardPostal}}", "text": "{{cards.postalCode}}" } }
+        ]
+      }
+    },
+    {
+      "click": "{{selectors.submit}}",
+      "assert": { "console": "clean" }
+    },
+    { "waitFor": "{{selectors.threeDSFrame}}" },
+    {
+      "iframe": {
+        "selector": "{{selectors.threeDSFrame}}",
+        "steps": [
+          { "waitFor": "{{selectors.threeDSComplete}}" },
+          { "click": "{{selectors.threeDSComplete}}" }
+        ]
+      }
+    },
+    { "waitFor": "{{selectors.successRegion}}" },
+    {
+      "waitForResponse": { "url": "{{successRedirectPattern}}", "status": 200 },
+      "assert": { "console": "clean", "network": "no-4xx", "dom": "no-error" }
+    }
+  ]
+}

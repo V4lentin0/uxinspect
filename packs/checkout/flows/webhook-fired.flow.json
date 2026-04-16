@@ -1,0 +1,36 @@
+{
+  "name": "card-checkout-webhook-fired",
+  "steps": [
+    { "goto": "{{checkoutUrl}}" },
+    { "waitFor": "form" },
+    {
+      "fill": { "selector": "{{selectors.email}}", "text": "{{customer.email}}" }
+    },
+    {
+      "fill": { "selector": "{{selectors.name}}", "text": "{{customer.name}}" }
+    },
+    {
+      "iframe": {
+        "selector": "{{selectors.cardIframe}}",
+        "steps": [
+          { "fill": { "selector": "{{selectors.cardNumber}}", "text": "{{cards.success}}" } },
+          { "fill": { "selector": "{{selectors.cardExpiry}}", "text": "{{cards.expiry}}" } },
+          { "fill": { "selector": "{{selectors.cardCvc}}", "text": "{{cards.cvc}}" } },
+          { "fill": { "selector": "{{selectors.cardPostal}}", "text": "{{cards.postalCode}}" } }
+        ]
+      }
+    },
+    {
+      "click": "{{selectors.submit}}",
+      "assert": { "network": "no-4xx" }
+    },
+    { "waitFor": "{{selectors.successRegion}}" },
+    {
+      "waitForResponse": { "url": "{{successRedirectPattern}}", "status": 200 }
+    },
+    {
+      "eval": "await (async () => { const deadline = Date.now() + (globalThis.__uxinspectWebhookTimeoutMs || 30000); const url = globalThis.__uxinspectWebhookUrl; if (!url) throw new Error('webhookCatcherUrl not configured'); while (Date.now() < deadline) { const res = await fetch(url, { cache: 'no-store' }); if (res.ok) { const body = await res.json().catch(() => null); if (body && (body.received || (Array.isArray(body) && body.length > 0))) return; } await new Promise(r => setTimeout(r, 1000)); } throw new Error('webhook not received within timeout'); })()",
+      "assert": { "console": "clean", "network": "no-4xx" }
+    }
+  ]
+}

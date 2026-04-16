@@ -1,0 +1,15 @@
+{
+  "flow": "card-checkout-webhook-fired",
+  "assert": {
+    "console": "clean",
+    "network": "no-4xx",
+    "dom": "no-error"
+  },
+  "requiredRedirects": [
+    {
+      "fromPattern": "{{checkoutUrl}}",
+      "toPattern": "{{successRedirectPattern}}",
+      "status": 200
+    }
+  ]
+}

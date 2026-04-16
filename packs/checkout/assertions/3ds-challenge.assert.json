@@ -1,0 +1,15 @@
+{
+  "flow": "card-checkout-3ds-challenge",
+  "assert": {
+    "console": "clean",
+    "network": "no-4xx",
+    "dom": "no-error"
+  },
+  "requiredRedirects": [
+    {
+      "fromPattern": "{{checkoutUrl}}",
+      "toPattern": "{{successRedirectPattern}}",
+      "status": 200
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "flow": "card-checkout-declined",
+  "assert": {
+    "console": "clean",
+    "network": "no-4xx"
+  },
+  "requiredRedirects": []
+}

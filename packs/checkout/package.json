@@ -1,0 +1,49 @@
+{
+  "name": "@uxinspect/pack-checkout",
+  "version": "0.1.0",
+  "description": "uxinspect flow pack for hosted card-checkout flows: happy path, 3DS challenge, declined card, webhook verification.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./flows/*.json": "./flows/*.json",
+    "./assertions/*.json": "./assertions/*.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "flows",
+    "assertions",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test dist/test/*.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "uxinspect",
+    "checkout",
+    "payment",
+    "3ds",
+    "e2e",
+    "pack"
+  ],
+  "license": "MIT",
+  "author": "uxinspect",
+  "peerDependencies": {
+    "uxinspect": ">=0.15.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
