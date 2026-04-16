@@ -30,9 +30,9 @@ On flow failure, embed link in report HTML pointing to replay viewer at failure 
 Reset capture before each step, attribute errors to specific click.
 `src/console-errors.ts` + `src/console-errors.test.ts` (7 tests: fingerprinting, per-step attribution, pageerror/unhandledrejection, normalize path+number, detach).
 
-### 6. Per-click network failure attribution — PARTIAL
+### 6. Per-click network failure attribution — DONE (passed-p0-6-v1)
 Same pattern as #5 for 4xx/5xx per click.
-new `src/network-attribution.ts`.
+`src/network-attribution.ts` + `src/network-attribution.test.ts` (7 tests: per-step attribution, 2xx/3xx ignored, 5xx method/url/requestId, drop outside-window, step separation, in-flight drain, stopCapture idempotency).
 
 ---
 
