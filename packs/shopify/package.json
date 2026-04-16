@@ -1,0 +1,1 @@
+{"name":"@uxinspect/pack-shopify","version":"0.1.0","description":"Shopify checkout pack: theme sections, app embeds, checkout extensibility","main":"src/index.ts","files":["src","flows"],"license":"MIT"}

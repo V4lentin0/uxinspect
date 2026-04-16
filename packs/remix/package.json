@@ -1,0 +1,1 @@
+{"name":"@uxinspect/pack-remix","version":"0.1.0","description":"remix framework audit pack","main":"src/index.ts","files":["src","flows"],"license":"MIT"}

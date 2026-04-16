@@ -1,0 +1,1 @@
+{"name":"@uxinspect/pack-sveltekit","version":"0.1.0","description":"sveltekit framework audit pack","main":"src/index.ts","files":["src","flows"],"license":"MIT"}

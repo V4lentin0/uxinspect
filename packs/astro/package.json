@@ -1,0 +1,1 @@
+{"name":"@uxinspect/pack-astro","version":"0.1.0","description":"astro framework audit pack","main":"src/index.ts","files":["src","flows"],"license":"MIT"}

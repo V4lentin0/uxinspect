@@ -1,0 +1,1 @@
+{"name":"@uxinspect/pack-nextjs","version":"0.1.0","description":"App Router audit pack: RSC patterns, hydration mismatches, server actions, streaming, route groups","main":"src/index.ts","files":["src","flows"],"license":"MIT"}

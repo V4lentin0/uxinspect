@@ -1,0 +1,1 @@
+{"name":"@uxinspect/pack-wordpress","version":"0.1.0","description":"wordpress framework audit pack","main":"src/index.ts","files":["src","flows"],"license":"MIT"}
