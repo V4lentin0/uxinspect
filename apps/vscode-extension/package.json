@@ -1,0 +1,96 @@
+{
+  "name": "uxinspect-vscode",
+  "displayName": "uxinspect",
+  "description": "Show broken uxinspect flows inline in your editor and jump to flow definitions.",
+  "version": "0.1.0",
+  "publisher": "uxinspect",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0",
+    "node": ">=18"
+  },
+  "categories": [
+    "Testing",
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "uxinspect",
+    "ux",
+    "testing",
+    "playwright",
+    "a11y"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "workspaceContains:.uxinspect/last.json",
+    "workspaceContains:uxinspect.config.ts",
+    "workspaceContains:uxinspect.config.js",
+    "workspaceContains:uxinspect.config.json",
+    "onCommand:uxinspect.runFlows",
+    "onCommand:uxinspect.jumpToFlow",
+    "onCommand:uxinspect.showLastReport"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "uxinspect.runFlows",
+        "title": "uxinspect: Run Flows",
+        "category": "uxinspect"
+      },
+      {
+        "command": "uxinspect.jumpToFlow",
+        "title": "uxinspect: Jump to Flow Definition",
+        "category": "uxinspect"
+      },
+      {
+        "command": "uxinspect.showLastReport",
+        "title": "uxinspect: Show Last Report",
+        "category": "uxinspect"
+      }
+    ],
+    "configuration": {
+      "title": "uxinspect",
+      "properties": {
+        "uxinspect.flowsDir": {
+          "type": "string",
+          "default": "flows/",
+          "description": "Directory (relative to the workspace root) where flow files live. Used when resolving flow names to files."
+        },
+        "uxinspect.showDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Emit VS Code diagnostics for failed flows in the last uxinspect run."
+        },
+        "uxinspect.configFile": {
+          "type": "string",
+          "default": "uxinspect.config.ts",
+          "description": "Fallback config file to open when a flow cannot be located in the flowsDir."
+        },
+        "uxinspect.runCommand": {
+          "type": "string",
+          "default": "npx uxinspect run",
+          "description": "Shell command used by 'uxinspect: Run Flows'."
+        },
+        "uxinspect.lastResultFile": {
+          "type": "string",
+          "default": ".uxinspect/last.json",
+          "description": "Path (relative to the workspace root) of the uxinspect result JSON watched for diagnostics."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "typecheck": "tsc --noEmit -p ./",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.6.0"
+  }
+}
