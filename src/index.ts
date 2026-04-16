@@ -514,6 +514,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const xssResults: import('./xss-audit.js').XssAuditResult[] = [];
   const clockRaceResults: import('./clock-race-audit.js').ClockRaceResult[] = [];
   const jitterResults: import('./jitter-audit.js').JitterResult[] = [];
+  const srAnnouncementsResults: import('./sr-announcements-audit.js').SrAuditResult[] = [];
+  const pseudoLocaleResults: import('./pseudo-locale-audit.js').PseudoAuditResult[] = [];
   const selfHealEvents: InspectResult['selfHealEvents'] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
@@ -630,6 +632,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         xss?: import('./xss-audit.js').XssAuditResult;
         clockRace?: import('./clock-race-audit.js').ClockRaceResult;
         jitter?: import('./jitter-audit.js').JitterResult;
+        srAnnouncements?: import('./sr-announcements-audit.js').SrAuditResult;
+        pseudoLocale?: import('./pseudo-locale-audit.js').PseudoAuditResult;
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
@@ -685,6 +689,12 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           : undefined;
         const jitterR = checks.jitter
           ? await (await import('./jitter-audit.js')).runJitterAudit(page, typeof checks.jitter === 'object' ? checks.jitter : {}).catch(() => undefined)
+          : undefined;
+        const srR = checks.srAnnouncements
+          ? await (await import('./sr-announcements-audit.js')).runSrAnnouncementsAudit(page, typeof checks.srAnnouncements === 'object' ? checks.srAnnouncements : {}).catch(() => undefined)
+          : undefined;
+        const pseudoR = checks.pseudoLocale
+          ? await (await import('./pseudo-locale-audit.js')).runPseudoLocaleAudit(page, typeof checks.pseudoLocale === 'object' ? checks.pseudoLocale : {}).catch(() => undefined)
           : undefined;
         const formBehaviorR = checks.formBehavior
           ? await auditFormBehavior(
@@ -836,6 +846,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           i18n: i18nR,
           contrastStates: contrastStatesR,
           xss: xssR, clockRace: clockRaceR, jitter: jitterR,
+          srAnnouncements: srR, pseudoLocale: pseudoR,
         };
       };
 
@@ -923,6 +934,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.xss) xssResults.push(r.xss);
         if (r.clockRace) clockRaceResults.push(r.clockRace);
         if (r.jitter) jitterResults.push(r.jitter);
+        if (r.srAnnouncements) srAnnouncementsResults.push(r.srAnnouncements);
+        if (r.pseudoLocale) pseudoLocaleResults.push(r.pseudoLocale);
       }
 
       if (checks.perf) {
@@ -1179,6 +1192,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     xss: checks.xss ? xssResults : undefined,
     clockRace: checks.clockRace ? clockRaceResults : undefined,
     jitter: checks.jitter ? jitterResults : undefined,
+    srAnnouncements: checks.srAnnouncements ? srAnnouncementsResults : undefined,
+    pseudoLocale: checks.pseudoLocale ? pseudoLocaleResults : undefined,
     formBehavior: checks.formBehavior ? formBehaviorResults : undefined,
     structuredData: checks.structuredData ? structuredDataResults : undefined,
     passiveSecurity: checks.passiveSecurity ? passiveSecurityResults : undefined,

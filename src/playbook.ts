@@ -102,6 +102,8 @@ export const PLAYBOOK_ENTRIES: readonly PlaybookEntry[] = [
   { check: 'xss', catches: 'unsafe HTML-sink reflections / payload execution in form inputs' },
   { check: 'clockRace', catches: 'stale relative-time text after clock fast-forward' },
   { check: 'jitter', catches: 'buttons that silently fail on ±px click offsets' },
+  { check: 'srAnnouncements', catches: 'missing accessible names / empty live regions / unlabeled landmarks' },
+  { check: 'pseudoLocale', catches: 'text truncation + clipped buttons under stretched pseudo-locale' },
 ];
 
 /**

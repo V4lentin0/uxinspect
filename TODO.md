@@ -192,13 +192,13 @@ User ask: "all relevant frontend tests in 1 plugin so I won't need to use so man
 ### 49. Jitter / human-misclick simulation — DONE (passed-p6-49-v1)
 `src/jitter-audit.ts` + tests. ±N-px click offsets + MutationObserver, flags silent-click / inconsistent-response / off-target-trigger. Wired into ChecksConfig.jitter + InspectResult + playbook.
 
-### 50. Virtual screen-reader announcements — MISSING
-Playbook gap: `@guidepup/virtual-screen-reader` style announcements for component-level SR output.
-new `src/sr-announcements-audit.ts`.
+### 50. Virtual screen-reader announcements — DONE (passed-p6-50-v1)
+`src/sr-announcements-audit.ts` + tests. Native AccName 1.2 + role + state computation. Flags missing-accessible-name, empty-live-region, role-without-state, landmark-unlabeled, button-label-mismatch, announcement-empty. Wired into ChecksConfig.srAnnouncements + InspectResult + playbook.
 
-### 51. Pseudo-locale long-string audit — MISSING
-Playbook gap: force `i18next-pseudo`-style stretched text locale to surface truncation/overflow.
-extend `src/i18n-audit.ts`.
+### 51. Pseudo-locale long-string audit — DONE (passed-p6-51-v1)
+`src/pseudo-locale-audit.ts` + tests. `toPseudoLocale` transform (accented + stretched + bracketed), walks text nodes via TreeWalker, flags truncated-text / clipped-button / overflowing-container / hidden-by-overflow. Non-destructive (restores originals). Wired into ChecksConfig.pseudoLocale + InspectResult + playbook.
+
+**Frontend playbook: 77/77 gates complete.**
 
 ---
 

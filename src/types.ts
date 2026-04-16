@@ -318,6 +318,10 @@ export interface ChecksConfig {
   clockRace?: boolean | import('./clock-race-audit.js').ClockRaceAuditOptions;
   /** P6 #49 — Jitter / human-misclick audit. Re-clicks buttons with ±N-px offsets, flags silent/inconsistent handlers. */
   jitter?: boolean | import('./jitter-audit.js').JitterAuditOptions;
+  /** P6 #50 — Virtual screen-reader announcements audit. */
+  srAnnouncements?: boolean | import('./sr-announcements-audit.js').SrAuditOptions;
+  /** P6 #51 — Pseudo-locale long-string audit (truncation / clipping / overflow). */
+  pseudoLocale?: boolean | import('./pseudo-locale-audit.js').PseudoAuditOptions;
 }
 
 /** P4 #38 — Interaction states measured by {@link runContrastStatesAudit}. */
@@ -546,6 +550,10 @@ export interface InspectResult {
   clockRace?: import('./clock-race-audit.js').ClockRaceResult[];
   /** P6 #49 — Jitter audit results (one per page probed). */
   jitter?: import('./jitter-audit.js').JitterResult[];
+  /** P6 #50 — Virtual screen-reader audit results (one per page probed). */
+  srAnnouncements?: import('./sr-announcements-audit.js').SrAuditResult[];
+  /** P6 #51 — Pseudo-locale audit results (one per page probed). */
+  pseudoLocale?: import('./pseudo-locale-audit.js').PseudoAuditResult[];
   /** Self-heal events emitted by the AI helper when a locator drifts (P2 #26). */
   selfHealEvents?: import('./ai.js').SelfHealEvent[];
   /**
