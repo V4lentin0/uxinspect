@@ -13,6 +13,7 @@ import { diffResults, formatDiff, loadResult, saveLastRun, LAST_RUN_FILE } from 
 import { getChangedFiles, matchFilesToRoutes } from './git-diff-mode.js';
 import { installHook, uninstallHook, type HookType } from './precommit.js';
 import { runSelfTest, formatSelfTest } from './self-test.js';
+import { applyPlaybookChecks, formatPlaybook } from './playbook.js';
 import type { InspectConfig } from './types.js';
 
 const STARTER_CONFIG = `import type { InspectConfig } from 'uxinspect';
@@ -82,6 +83,8 @@ const argv = await yargs(hideBin(process.argv))
       .option('url', { type: 'string', demandOption: true, describe: 'URL to inspect' })
       .option('config', { type: 'string', describe: 'Path to config file (.ts/.js/.json)' })
       .option('all', { type: 'boolean', describe: 'Enable every check' })
+      .option('playbook', { type: 'boolean', describe: 'Enable the full frontend testing playbook (consolidated FE gates in one pass)' })
+      .option('playbook-list', { type: 'boolean', describe: 'Print the playbook coverage map and exit' })
       .option('a11y', { type: 'boolean', describe: 'Run accessibility checks' })
       .option('perf', { type: 'boolean', describe: 'Run performance audit' })
       .option('visual', { type: 'boolean', describe: 'Run visual diff' })
@@ -274,6 +277,10 @@ async function runCmd(): Promise<void> {
     : undefined;
 
   const a = argv as any;
+  if (a['playbook-list'] === true) {
+    console.log(formatPlaybook());
+    return;
+  }
   const all: boolean | undefined = a.all === true ? true : undefined;
   const pick = (v: unknown): boolean | undefined =>
     v === undefined ? all : Boolean(v);
@@ -341,9 +348,12 @@ async function runCmd(): Promise<void> {
     frustrationSignals: pick(a.frustration),
     i18n: pick(a.i18n),
   };
+  // --playbook fills in every frontend gate the user did not explicitly set
+  // (including --no-<check>) so one flag covers the consolidated FE playbook.
+  const finalChecks = a.playbook === true ? applyPlaybookChecks(checks) : checks;
   const cliConfig: InspectConfig = {
     url: a.url,
-    checks: checks as InspectConfig['checks'],
+    checks: finalChecks as InspectConfig['checks'],
     output: { dir: (argv as any).out, baselineDir: (argv as any).baselines },
     ai: (argv as any).ai ? { enabled: true } : undefined,
     headed: (argv as any).headed,

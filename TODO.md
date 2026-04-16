@@ -164,9 +164,8 @@ reuse already-deployed `apps/dashboard` at app.uxinspect.com for this.
 CF Cron runs flows on schedule against my prod URLs. Alert on regression.
 `apps/api/src/scheduled.ts` already live.
 
-### 43. Personal alert webhooks — PARTIAL
-Slack/Discord/Telegram on my prod URL regressions. Keep templates simple (my own use).
-extend `apps/api/`.
+### 43. Personal alert webhooks — DONE (passed-p5-43-v1)
+`src/alerts.ts` renders Slack / Discord / Teams / Telegram payloads + `sendAlert` + `sendTelegram`. 10 tests in `src/alerts.test.ts`.
 
 ### 44. CLI self-test against fixture — DONE (passed-p5-44-v1)
 `src/self-test.ts` + `src/self-test.test.ts` + `examples/fixture-site/`.
