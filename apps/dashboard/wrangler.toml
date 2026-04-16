@@ -1,0 +1,18 @@
+name = "uxinspect-dashboard"
+compatibility_date = "2025-04-01"
+pages_build_output_dir = "dist"
+
+# Cloudflare Pages project serving the React dashboard SPA.
+# Deploy via: npm run build && wrangler pages deploy dist --project-name=uxinspect-dashboard
+# Custom domain app.uxinspect.com is attached to the Pages project in the CF dashboard.
+
+[vars]
+VITE_API_BASE = "https://api.uxinspect.com"
+VITE_KEYS_BASE = "https://keys.uxinspect.com"
+
+# SPA fallback: all non-asset routes serve index.html (react-router handles routing).
+# Pages auto-serves a _redirects file from dist; see public/_redirects.
+
+[[routes]]
+pattern = "app.uxinspect.com"
+custom_domain = true
