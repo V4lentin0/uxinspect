@@ -1,0 +1,40 @@
+name = "uxinspect-api"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Route: api.uxinspect.com/*
+[[routes]]
+pattern = "api.uxinspect.com/*"
+zone_name = "uxinspect.com"
+
+# D1: primary datastore for teams, runs, flows, replays index, audits, api_keys.
+# Create with: wrangler d1 create uxinspect-db
+[[d1_databases]]
+binding = "UXINSPECT_DB"
+database_name = "uxinspect-db"
+database_id = "REPLACE_WITH_D1_ID"
+migrations_dir = "migrations"
+
+# R2: replay blob storage (rrweb JSON bundles, screenshots, artifacts).
+# Create with: wrangler r2 bucket create uxinspect-replays
+[[r2_buckets]]
+binding = "UXINSPECT_REPLAYS"
+bucket_name = "uxinspect-replays"
+
+# KV: short-lived auth cache + per-key rate-limit counters.
+# Create with: wrangler kv namespace create UXINSPECT_CACHE
+[[kv_namespaces]]
+binding = "UXINSPECT_CACHE"
+id = "REPLACE_WITH_KV_ID"
+
+[vars]
+ALLOWED_ORIGIN = "https://app.uxinspect.com"
+JWT_ISSUER = "keys.uxinspect.com"
+REPLAY_MAX_BYTES = "52428800"   # 50 MB per replay upload
+INGEST_MAX_BYTES = "10485760"   # 10 MB per run payload
+
+# Secrets (set with `wrangler secret put`):
+#   POLAR_WEBHOOK_SECRET   Polar.sh webhook HMAC secret
+#   JWT_PUBLIC_KEY         Ed25519 public key from keys-worker (hex or base64url, 32 bytes raw)
+#   POLAR_API_TOKEN        (optional) read-only Polar API token for plan reconciliation
