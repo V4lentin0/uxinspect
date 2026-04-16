@@ -1172,6 +1172,62 @@ export async function observe(
   return actions.slice(0, limit);
 }
 
+// ─────────────────────────────────────────────────────────────────
+// P3 #34 — AI-narrated step name generation
+// ─────────────────────────────────────────────────────────────────
+
+export interface DomContext {
+  visibleText?: string;
+  ariaLabel?: string;
+  role?: string;
+  tag?: string;
+  name?: string;
+  placeholder?: string;
+  labelText?: string;
+}
+
+const TAG_FRIENDLY: Record<string, string> = {
+  a: 'link', button: 'button', input: 'field', select: 'dropdown',
+  textarea: 'text area', img: 'image', form: 'form', nav: 'navigation',
+  dialog: 'dialog', details: 'details',
+};
+
+/**
+ * Generate a human-readable step label from action type + target + DOM context.
+ * Pure heuristic — no LLM call by default.
+ */
+export function generateStepName(
+  action: string,
+  target: string,
+  ctx: DomContext = {},
+): string {
+  const label = ctx.ariaLabel || ctx.visibleText || ctx.labelText || target;
+  const shortLabel = label.length > 40 ? label.slice(0, 37) + '...' : label;
+  const kind = TAG_FRIENDLY[ctx.tag || ''] || ctx.role || ctx.tag || 'element';
+
+  switch (action) {
+    case 'click': return `Click '${shortLabel}' ${kind}`;
+    case 'fill': return `Fill '${ctx.placeholder || ctx.name || shortLabel}' with value`;
+    case 'type': return `Type in '${ctx.placeholder || ctx.name || shortLabel}' ${kind}`;
+    case 'goto': return `Navigate to ${target}`;
+    case 'select': return `Select from '${ctx.name || shortLabel}' dropdown`;
+    case 'check': return `Check '${shortLabel}'`;
+    case 'uncheck': return `Uncheck '${shortLabel}'`;
+    case 'key': return `Press ${target}`;
+    case 'scroll': return `Scroll to '${shortLabel}'`;
+    case 'hover': return `Hover over '${shortLabel}' ${kind}`;
+    case 'focus': return `Focus '${shortLabel}' ${kind}`;
+    case 'drag': return `Drag '${shortLabel}'`;
+    case 'upload': return `Upload file to '${shortLabel}'`;
+    case 'screenshot': return `Screenshot '${shortLabel}'`;
+    case 'waitfor': return `Wait for '${shortLabel}'`;
+    case 'reload': return 'Reload page';
+    case 'back': return 'Navigate back';
+    case 'forward': return 'Navigate forward';
+    default: return `${action} '${shortLabel}'`;
+  }
+}
+
 function classifyElementType(el: { tag: string; role: string; type: string }): string {
   if (el.role) return el.role;
   if (el.tag === 'a') return 'link';

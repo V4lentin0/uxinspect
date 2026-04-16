@@ -115,6 +115,8 @@ export interface AssertionFailure {
 
 export type Step = StepAction & {
   assert?: AssertConfig;
+  /** P3 #34 — Human-readable step label (auto-generated or user-provided). */
+  label?: string;
   /** P2 #24 — Apply stable-capture options (freeze animations, wait fonts,
    *  lazy-load auto-scroll, scroll-and-stitch) to screenshot-taking steps
    *  and to the visual-assertion screenshot. Has no effect on non-capturing
@@ -664,6 +666,8 @@ export interface ExploreResult {
     hoverOnly?: import('./heatmap.js').HoverOnlyRecord[];
     screenshotUrl?: string;
   };
+  /** P3 #34 — Auto-generated step labels from BFS explore. */
+  stepLabels?: string[];
 }
 
 /* ─────────────────────────────────────────────────────────────────
