@@ -22,9 +22,9 @@ Record DOM events during every flow + explore. Save `.uxinspect/replays/<flow>-<
 Single-file HTML with `rrweb-player` bundled inline. CLI: `uxinspect replay <path>`.
 `src/replay-viewer.ts` + `src/replay-viewer.test.ts`.
 
-### 4. Replay link in HTML report — MISSING
+### 4. Replay link in HTML report — DONE (passed-p0-4-v1)
 On flow failure, embed link in report HTML pointing to replay viewer at failure timestamp.
-`src/report.ts` extend `renderFlow()`.
+`src/report.ts` `renderFlow()` + 3 new cases in `src/report.test.ts`.
 
 ### 5. Per-click console error attribution — PARTIAL
 Reset capture before each step, attribute errors to specific click.
