@@ -94,40 +94,32 @@ Extended `src/forms-audit.ts`, `src/forms-behavior.test.ts` covers empty/invalid
 
 # P3 — dev loop integration
 
-### 23. Ollama bridge (fuzzy locator fallback) — MISSING
-When heuristic fails, POST to `localhost:11434/api/generate` with DOM snippet.
-extend `src/ai.ts`, config `ai.fallback.ollama`.
+### 23. Ollama bridge (fuzzy locator fallback) — DONE (passed-p3-23-v1)
+`src/ai.ts` `ollamaFallback`, `createOllamaHealHook`. Config `ai.fallback.ollama`. `src/ollama.test.ts`.
 
-### 24. NL `extract()` with Zod schema — MISSING
-New step type: extract structured data from page via Zod.
-new `src/extract.ts`, extend `src/types.ts`.
+### 24. NL `extract()` with Zod schema — DONE (passed-p3-24-v1)
+`src/extract.ts` + test. Extract step type in `src/types.ts`.
 
-### 25. NL `observe()` to discover actions — MISSING
-Returns list of clickable/interactive elements with descriptions.
-extend `src/ai.ts`.
+### 25. NL `observe()` to discover actions — DONE (passed-p3-25-v1)
+`src/ai.ts` `observe()` export. Returns clickable/interactive elements + descriptions.
 
-### 26. Git diff mode (test only changed routes) — MISSING
-Read `git diff --name-only HEAD~1`, map files → routes, run only those flows. `--changed`.
-new `src/git-diff-mode.ts`.
+### 26. Git diff mode (test only changed routes) — DONE (passed-p3-26-v1)
+`src/git-diff-mode.ts` + test. `--changed` CLI flag.
 
-### 27. Fast mode (sub-30s) — MISSING
-`--fast` = skip slow audits, parallelize, <30s target. Default in watch mode.
-`src/cli.ts`, `src/index.ts`.
+### 27. Fast mode (sub-30s) — DONE (passed-p3-27-v1)
+`src/fast-mode.ts` + test. `--fast` CLI flag, watch-mode default.
 
-### 28. Pre-push hook — MISSING
-Full audit variant of pre-commit.
-extend `src/precommit.ts`.
+### 28. Pre-push hook — DONE (passed-p3-28-v1)
+`src/precommit.ts` handles `pre-commit` + `pre-push` HookType. `uxinspect install-hook pre-push` CLI.
 
-### 29. Browser-extension recorder (Chrome MV3) — MISSING
-Record flows, export code to clipboard/file.
-new `apps/recorder-extension/`.
+### 29. Browser-extension recorder (Chrome MV3) — DONE (passed-p3-29-v1)
+`apps/recorder-extension/` MV3 manifest + background + content + popup.
 
-### 30. AI-narrated step names — MISSING
-Use Ollama to name steps from DOM context during recording.
+### 30. AI-narrated step names — DONE (passed-p3-30-v1)
+`src/ai.ts` `generateStepName()` export. Uses Ollama for DOM-context step names during recording.
 
-### 31. VS Code extension — MISSING
-Show broken interactions inline, jump to flow definition.
-new `apps/vscode-extension/`.
+### 31. VS Code extension — DONE (passed-p3-31-v1)
+`apps/vscode-extension/` TypeScript extension package.
 
 ---
 
