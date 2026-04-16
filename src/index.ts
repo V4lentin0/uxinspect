@@ -96,6 +96,7 @@ import { auditStuckSpinners } from './stuck-spinner-audit.js';
 import { auditErrorStateAppearance } from './error-state-audit.js';
 import { walkAuthGatedRoutes } from './auth-walker.js';
 import { attachFrustrationSignals } from './frustration-signals.js';
+import { runI18nAudit } from './i18n-audit.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -178,6 +179,7 @@ import type { ErrorPageAuditResult } from './error-page-audit.js';
 import type { StuckSpinnerResult } from './stuck-spinner-audit.js';
 import type { ErrorStateResult } from './error-state-audit.js';
 import type { FrustrationSignalResult } from './frustration-signals.js';
+import type { I18nResult } from './i18n-audit.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -332,6 +334,11 @@ export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfa
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
 export { auditWebWorkers } from './web-worker-audit.js';
+export {
+  runI18nAudit,
+  DEFAULT_I18N_LOCALES,
+  DEFAULT_I18N_OVERFLOW_SELECTORS,
+} from './i18n-audit.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
@@ -419,6 +426,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const errorPagesResults: ErrorPageAuditResult[] = [];
   const stuckSpinnerResults: StuckSpinnerResult[] = [];
   const frustrationSignalResults: FrustrationSignalResult[] = [];
+  const i18nResults: I18nResult[] = [];
   const selfHealEvents: InspectResult['selfHealEvents'] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
@@ -526,6 +534,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         csrf?: CsrfAuditResult;
         errorPages?: ErrorPageAuditResult;
         frustrationSignals?: FrustrationSignalResult;
+        i18n?: I18nResult;
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
@@ -666,6 +675,11 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const storageR = checks.storage ? await auditStorage(page).catch(() => undefined) : undefined;
         const csrfR = checks.csrf ? await auditCsrf(page, page.context()).catch(() => undefined) : undefined;
         const errorPagesR = checks.errorPages ? await auditErrorPages(page.context(), config.url).catch(() => undefined) : undefined;
+        // i18n audit navigates the page across several locale-qualified URLs,
+        // so run it after all other audits that depend on the current DOM.
+        const i18nR = checks.i18n
+          ? await runI18nAudit(page, typeof checks.i18n === 'object' ? checks.i18n : {}).catch(() => undefined)
+          : undefined;
         const consoleR = console ? console.result() : undefined;
         if (console) console.detach();
         network.stopCapture();
@@ -702,6 +716,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           zIndex: zIndexR, hydration: hydrationR, storage: storageR,
           csrf: csrfR, errorPages: errorPagesR,
           frustrationSignals: frustrationR,
+          i18n: i18nR,
         };
       };
 
@@ -782,6 +797,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.csrf) csrfResults.push(r.csrf);
         if (r.errorPages) errorPagesResults.push(r.errorPages);
         if (r.frustrationSignals) frustrationSignalResults.push(r.frustrationSignals);
+        if (r.i18n) i18nResults.push(r.i18n);
       }
 
       if (checks.perf) {
@@ -974,7 +990,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     canonicalResults.every((r) => (r as any).passed !== false) &&
     (compressionResult === undefined || (compressionResult as any).passed !== false) &&
     (robotsAuditResult === undefined || (robotsAuditResult as any).passed !== false) &&
-    stuckSpinnerResults.every((r) => (r as any).passed !== false);
+    stuckSpinnerResults.every((r) => (r as any).passed !== false) &&
+    i18nResults.every((r) => (r as any).passed !== false);
 
   const result: InspectResult = {
     url: config.url,
@@ -1068,6 +1085,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     errorState: checks.errorState ? errorStateResult : undefined,
     authWalk: authWalkResult,
     frustrationSignals: checks.frustrationSignals ? frustrationSignalResults : undefined,
+    i18n: checks.i18n ? i18nResults : undefined,
     selfHealEvents: selfHealEvents && selfHealEvents.length ? selfHealEvents : undefined,
     passed: baselinePassed,
   };
