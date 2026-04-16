@@ -232,6 +232,7 @@ export interface ChecksConfig {
   clsCulprit?: boolean | { durationMs?: number };
   hreflang?: boolean;
   cookieFlags?: boolean;
+  gdpr?: boolean | import('./gdpr-audit.js').GdprConfig;
   focusTrap?: boolean;
   favicon?: boolean;
   clickjacking?: boolean;
@@ -352,6 +353,7 @@ export interface InspectResult {
   clsCulprit?: import('./cls-culprit.js').ClsCulpritResult[];
   hreflang?: import('./hreflang-audit.js').HreflangAuditResult[];
   cookieFlags?: import('./cookie-flags-audit.js').CookieFlagsResult[];
+  gdpr?: import('./gdpr-audit.js').GdprResult[];
   focusTrap?: import('./focus-trap-audit.js').FocusTrapResult[];
   favicon?: import('./favicon-audit.js').FaviconAuditResult[];
   clickjacking?: import('./clickjacking-audit.js').ClickjackingResult[];
