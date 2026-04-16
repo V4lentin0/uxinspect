@@ -18,9 +18,9 @@ Extend `Step` with `assert: { console?, network?, dom?, visual?, timing?, form? 
 Record DOM events during every flow + explore. Save `.uxinspect/replays/<flow>-<ts>.json`.
 `src/replay.ts` + `src/replay.test.ts`. Fixed IIFE bug that hid `window.rrweb`.
 
-### 3. Static HTML replay viewer — MISSING
+### 3. Static HTML replay viewer — DONE (passed-p0-3-v1)
 Single-file HTML with `rrweb-player` bundled inline. CLI: `uxinspect replay <path>`.
-new `src/replay-viewer.ts`.
+`src/replay-viewer.ts` + `src/replay-viewer.test.ts`.
 
 ### 4. Replay link in HTML report — MISSING
 On flow failure, embed link in report HTML pointing to replay viewer at failure timestamp.
