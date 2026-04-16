@@ -79,6 +79,7 @@ import { auditLcpElement } from './lcp-element.js';
 import { auditClsCulprit } from './cls-culprit.js';
 import { auditHreflang } from './hreflang-audit.js';
 import { auditCookieFlags } from './cookie-flags-audit.js';
+import { runGdprAudit } from './gdpr-audit.js';
 import { auditFocusTrap } from './focus-trap-audit.js';
 import { auditFavicons } from './favicon-audit.js';
 import { auditClickjacking } from './clickjacking-audit.js';
@@ -163,6 +164,7 @@ import type { LcpElementResult } from './lcp-element.js';
 import type { ClsCulpritResult } from './cls-culprit.js';
 import type { HreflangAuditResult } from './hreflang-audit.js';
 import type { CookieFlagsResult } from './cookie-flags-audit.js';
+import type { GdprResult, GdprConfig } from './gdpr-audit.js';
 import type { FocusTrapResult } from './focus-trap-audit.js';
 import type { FaviconAuditResult } from './favicon-audit.js';
 import type { ClickjackingResult } from './clickjacking-audit.js';
@@ -312,6 +314,17 @@ export { auditLcpElement } from './lcp-element.js';
 export { auditClsCulprit } from './cls-culprit.js';
 export { auditHreflang } from './hreflang-audit.js';
 export { auditCookieFlags } from './cookie-flags-audit.js';
+export { runGdprAudit } from './gdpr-audit.js';
+export type {
+  GdprConfig,
+  GdprResult,
+  CookieViolation,
+  ConsentDeclaration,
+  CookieSnapshot,
+  CookiePurpose,
+  PathResult as GdprPathResult,
+  ViolationKind as GdprViolationKind,
+} from './gdpr-audit.js';
 export { auditFocusTrap } from './focus-trap-audit.js';
 export { auditFavicons } from './favicon-audit.js';
 export { auditClickjacking } from './clickjacking-audit.js';
@@ -418,6 +431,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const csrfResults: CsrfAuditResult[] = [];
   const errorPagesResults: ErrorPageAuditResult[] = [];
   const stuckSpinnerResults: StuckSpinnerResult[] = [];
+  const gdprResults: GdprResult[] = [];
   const frustrationSignalResults: FrustrationSignalResult[] = [];
   const selfHealEvents: InspectResult['selfHealEvents'] = [];
   let securityResult: InspectResult['security'];
@@ -835,6 +849,20 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         }
       }
 
+      if (checks.gdpr) {
+        const gdprCfg: GdprConfig =
+          typeof checks.gdpr === 'object' ? checks.gdpr : { declaredCookies: [] };
+        const gPage = await driver.newPage();
+        try {
+          await gPage.goto(config.url);
+          gdprResults.push(await runGdprAudit(gPage, gdprCfg));
+        } catch {
+          // best effort — GDPR audit requires a reachable URL and real browser
+        } finally {
+          await gPage.close();
+        }
+      }
+
       if (checks.errorState && !errorStateResult) {
         const esOpts = typeof checks.errorState === 'object' ? checks.errorState : {};
         const esPage = await driver.newPage();
@@ -974,7 +1002,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     canonicalResults.every((r) => (r as any).passed !== false) &&
     (compressionResult === undefined || (compressionResult as any).passed !== false) &&
     (robotsAuditResult === undefined || (robotsAuditResult as any).passed !== false) &&
-    stuckSpinnerResults.every((r) => (r as any).passed !== false);
+    stuckSpinnerResults.every((r) => (r as any).passed !== false) &&
+    gdprResults.every((r) => (r as any).passed !== false);
 
   const result: InspectResult = {
     url: config.url,
@@ -1065,6 +1094,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     csrf: checks.csrf ? csrfResults : undefined,
     errorPages: checks.errorPages ? errorPagesResults : undefined,
     stuckSpinners: checks.stuckSpinners ? stuckSpinnerResults : undefined,
+    gdpr: checks.gdpr ? gdprResults : undefined,
     errorState: checks.errorState ? errorStateResult : undefined,
     authWalk: authWalkResult,
     frustrationSignals: checks.frustrationSignals ? frustrationSignalResults : undefined,
