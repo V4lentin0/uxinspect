@@ -17,7 +17,7 @@ compatibility_date = "2025-04-01"
 #   wrangler kv namespace create UXINSPECT_GHB_TOKENS
 [[kv_namespaces]]
 binding = "TOKENS"
-id = "REPLACE_WITH_KV_ID"
+id = "7193243eb9a94435828716df99f406d2"
 
 [vars]
 # Marker kept at the top of the bot's own comment body. Used to find the
@@ -32,6 +32,5 @@ ARTIFACT_NAME = "uxinspect-result"
 ARTIFACT_FILE = "result.json"
 
 [[routes]]
-pattern = "pr.uxinspect.com/webhooks/*"
-custom_domain = false
-zone_name = "uxinspect.com"
+pattern = "pr.uxinspect.com"
+custom_domain = true

@@ -3,17 +3,17 @@ main = "src/index.ts"
 compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Route: api.uxinspect.com/*
+# Route: api.uxinspect.com
 [[routes]]
-pattern = "api.uxinspect.com/*"
-zone_name = "uxinspect.com"
+pattern = "api.uxinspect.com"
+custom_domain = true
 
 # D1: primary datastore for teams, runs, flows, replays index, audits, api_keys.
 # Create with: wrangler d1 create uxinspect-db
 [[d1_databases]]
 binding = "UXINSPECT_DB"
 database_name = "uxinspect-db"
-database_id = "REPLACE_WITH_D1_ID"
+database_id = "4a37242b-792a-45e3-bf98-de43331d9f59"
 migrations_dir = "migrations"
 
 # R2: replay blob storage (rrweb JSON bundles, screenshots, artifacts).
@@ -26,7 +26,7 @@ bucket_name = "uxinspect-replays"
 # Create with: wrangler kv namespace create UXINSPECT_CACHE
 [[kv_namespaces]]
 binding = "UXINSPECT_CACHE"
-id = "REPLACE_WITH_KV_ID"
+id = "dd87d1ae653d4255b770830607c8d486"
 
 [vars]
 ALLOWED_ORIGIN = "https://app.uxinspect.com"

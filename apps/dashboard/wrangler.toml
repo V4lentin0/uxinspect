@@ -12,7 +12,4 @@ VITE_KEYS_BASE = "https://keys.uxinspect.com"
 
 # SPA fallback: all non-asset routes serve index.html (react-router handles routing).
 # Pages auto-serves a _redirects file from dist; see public/_redirects.
-
-[[routes]]
-pattern = "app.uxinspect.com"
-custom_domain = true
+# Custom domain app.uxinspect.com attached via CF API / dashboard (not wrangler.toml).

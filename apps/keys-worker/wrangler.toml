@@ -6,7 +6,7 @@ compatibility_date = "2025-04-01"
 # Create with: wrangler kv namespace create UXINSPECT_KEYS
 [[kv_namespaces]]
 binding = "KEYS"
-id = "REPLACE_WITH_KV_ID"
+id = "3ab7785588e44bf49c2abe475510184b"
 
 # Public + private Ed25519 keypair are stored as Worker secrets.
 # Set via:

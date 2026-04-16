@@ -1,6 +1,6 @@
 /**
  * P5 #50 — Synthetic monitor scheduler.
- * Runs on CF Cron Trigger (*/15 * * * *), queries D1 for enabled monitors,
+ * Runs on CF Cron Trigger (every 15 min), queries D1 for enabled monitors,
  * fetches each target URL, compares vs baseline, alerts on regression.
  */
 
