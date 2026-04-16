@@ -99,14 +99,33 @@ export interface ApiFlowResult {
 }
 
 export interface AssertConfig {
-  /** No new console errors recorded between step start and end. */
-  console?: 'clean';
-  /** No new HTTP 4xx/5xx responses observed during the step. */
-  network?: 'no-4xx';
-  /** No new `[role="alert"]`, `.error`, or `.alert-danger` elements appeared. */
-  dom?: 'no-error';
-  /** Screenshot matches stored baseline; if no baseline exists, current is saved as baseline. */
-  visual?: 'matches';
+  /** Console-error assertion.
+   *  - `'clean'` — no new console errors during the step.
+   *  - `{ allow }` — allow console errors whose message contains any of the
+   *    listed substrings; any other new error fails the step. */
+  console?: 'clean' | { allow?: string[] };
+  /** Network assertion.
+   *  - `'no-4xx'` — no new 4xx responses.
+   *  - `'no-5xx'` — no new 5xx responses.
+   *  - `'no-errors'` — no new 4xx or 5xx responses.
+   *  - `{ allow }` — allow explicit status codes (e.g. `[404, 429]`); any
+   *    other 4xx/5xx fails the step. */
+  network?: 'no-4xx' | 'no-5xx' | 'no-errors' | { allow?: number[] };
+  /** DOM assertion.
+   *  - `'no-error'` — no new `[role="alert"]`, `.error`, or `.alert-danger`
+   *    elements appeared since step start.
+   *  - `{ selector, mustExist }` — selector must be present after the step.
+   *  - `{ selector, mustNotExist }` — selector must NOT be present. */
+  dom?:
+    | 'no-error'
+    | { selector: string; mustExist?: boolean; mustNotExist?: boolean };
+  /** Visual assertion.
+   *  - `'matches'` — screenshot matches stored baseline (auto-saves on first run).
+   *  - `{ name, threshold }` — named baseline with custom drift threshold
+   *    (ratio, e.g. `0.01` = 1% of pixels). */
+  visual?: 'matches' | { name: string; threshold?: number };
+  /** Timing budget — step must complete within `maxMs`. */
+  timing?: { maxMs: number };
   /** Exercise the form validation cycle on the page — empty submit → expect
    *  error; invalid submit → expect error; valid submit → expect error clears.
    *  Optionally scope to a specific form selector via an object form. */
@@ -114,7 +133,7 @@ export interface AssertConfig {
 }
 
 export interface AssertionFailure {
-  kind: 'console' | 'network' | 'dom' | 'visual' | 'form';
+  kind: 'console' | 'network' | 'dom' | 'visual' | 'timing' | 'form';
   message: string;
   details?: unknown;
 }

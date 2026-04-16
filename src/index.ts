@@ -1338,6 +1338,7 @@ async function runFlow(
           flowName: name,
           stepIndex: index,
           captureOptions: step.captureOptions,
+          durationMs: Date.now() - start,
         });
       }
       const stepPassed = !assertions || assertions.length === 0;
@@ -1381,14 +1382,14 @@ async function runFlow(
   return { name, passed, steps: stepResults, screenshots, error };
 }
 
-interface StepAssertionTracker {
+export interface StepAssertionTracker {
   consoleErrors: { type: string; message: string }[];
   badResponses: { url: string; status: number }[];
   domBaseline: Promise<number>;
   detach: () => void;
 }
 
-function attachStepAssertionTracker(page: Page, cfg: AssertConfig): StepAssertionTracker {
+export function attachStepAssertionTracker(page: Page, cfg: AssertConfig): StepAssertionTracker {
   const consoleErrors: { type: string; message: string }[] = [];
   const badResponses: { url: string; status: number }[] = [];
 
@@ -1403,11 +1404,14 @@ function attachStepAssertionTracker(page: Page, cfg: AssertConfig): StepAssertio
     if (s >= 400 && s < 600) badResponses.push({ url: res.url(), status: s });
   };
 
-  if (cfg.console === 'clean') {
+  // Any console variant (string literal or allowlist object) requires
+  // subscribing to console + pageerror events.
+  if (cfg.console !== undefined) {
     page.on('console', onConsole);
     page.on('pageerror', onPageError);
   }
-  if (cfg.network === 'no-4xx') {
+  // Any network variant requires subscribing to responses.
+  if (cfg.network !== undefined) {
     page.on('response', onResponse);
   }
 
@@ -1423,18 +1427,18 @@ function attachStepAssertionTracker(page: Page, cfg: AssertConfig): StepAssertio
     badResponses,
     domBaseline,
     detach: (): void => {
-      if (cfg.console === 'clean') {
+      if (cfg.console !== undefined) {
         page.off('console', onConsole);
         page.off('pageerror', onPageError);
       }
-      if (cfg.network === 'no-4xx') {
+      if (cfg.network !== undefined) {
         page.off('response', onResponse);
       }
     },
   };
 }
 
-async function evaluateStepAssertions(
+export async function evaluateStepAssertions(
   page: Page,
   cfg: AssertConfig,
   tracker: StepAssertionTracker,
@@ -1443,24 +1447,45 @@ async function evaluateStepAssertions(
     flowName: string;
     stepIndex: number;
     captureOptions?: import('./visual-capture.js').CaptureOptions;
+    durationMs?: number;
   },
 ): Promise<AssertionFailure[]> {
   const failures: AssertionFailure[] = [];
 
-  if (cfg.console === 'clean' && tracker.consoleErrors.length > 0) {
-    failures.push({
-      kind: 'console',
-      message: `${tracker.consoleErrors.length} new console error(s) since step start`,
-      details: tracker.consoleErrors.slice(0, 10),
-    });
+  if (cfg.console !== undefined) {
+    const allow =
+      typeof cfg.console === 'object' && cfg.console !== null ? cfg.console.allow ?? [] : [];
+    const offenders = tracker.consoleErrors.filter(
+      (e) => !allow.some((s) => e.message.includes(s)),
+    );
+    if (offenders.length > 0) {
+      failures.push({
+        kind: 'console',
+        message: `${offenders.length} new console error(s) since step start`,
+        details: offenders.slice(0, 10),
+      });
+    }
   }
 
-  if (cfg.network === 'no-4xx' && tracker.badResponses.length > 0) {
-    failures.push({
-      kind: 'network',
-      message: `${tracker.badResponses.length} new 4xx/5xx response(s) during step`,
-      details: tracker.badResponses.slice(0, 10),
-    });
+  if (cfg.network !== undefined) {
+    let offenders = tracker.badResponses;
+    if (cfg.network === 'no-4xx') {
+      offenders = offenders.filter((r) => r.status >= 400 && r.status < 500);
+    } else if (cfg.network === 'no-5xx') {
+      offenders = offenders.filter((r) => r.status >= 500 && r.status < 600);
+    } else if (cfg.network === 'no-errors') {
+      // all 4xx + 5xx (tracker already filters this range)
+    } else if (typeof cfg.network === 'object' && cfg.network !== null) {
+      const allow = cfg.network.allow ?? [];
+      offenders = offenders.filter((r) => !allow.includes(r.status));
+    }
+    if (offenders.length > 0) {
+      failures.push({
+        kind: 'network',
+        message: `${offenders.length} new ${cfg.network === 'no-5xx' ? '5xx' : '4xx/5xx'} response(s) during step`,
+        details: offenders.slice(0, 10),
+      });
+    }
   }
 
   if (cfg.dom === 'no-error') {
@@ -1475,16 +1500,51 @@ async function evaluateStepAssertions(
         details: { before: baseline, after },
       });
     }
+  } else if (typeof cfg.dom === 'object' && cfg.dom !== null) {
+    const { selector, mustExist, mustNotExist } = cfg.dom;
+    const count = await page
+      .evaluate((sel: string) => document.querySelectorAll(sel).length, selector)
+      .catch(() => 0);
+    if (mustExist && count === 0) {
+      failures.push({
+        kind: 'dom',
+        message: `selector '${selector}' expected to exist but no matches found`,
+        details: { selector, count },
+      });
+    }
+    if (mustNotExist && count > 0) {
+      failures.push({
+        kind: 'dom',
+        message: `selector '${selector}' expected absent but ${count} match(es) found`,
+        details: { selector, count },
+      });
+    }
   }
 
-  if (cfg.visual === 'matches') {
+  if (cfg.visual !== undefined) {
+    const visualName =
+      typeof cfg.visual === 'object' && cfg.visual !== null ? cfg.visual.name : undefined;
+    const threshold =
+      typeof cfg.visual === 'object' && cfg.visual !== null ? cfg.visual.threshold : undefined;
     const visualFailure = await assertVisualMatches(page, {
       baselineDir: opts.baselineDir,
       flowName: opts.flowName,
       stepIndex: opts.stepIndex,
       captureOptions: opts.captureOptions,
+      name: visualName,
+      threshold,
     });
     if (visualFailure) failures.push(visualFailure);
+  }
+
+  if (cfg.timing && typeof opts.durationMs === 'number') {
+    if (opts.durationMs > cfg.timing.maxMs) {
+      failures.push({
+        kind: 'timing',
+        message: `step took ${opts.durationMs}ms, exceeds budget ${cfg.timing.maxMs}ms`,
+        details: { durationMs: opts.durationMs, maxMs: cfg.timing.maxMs },
+      });
+    }
   }
 
   if (cfg.form) {
@@ -1537,10 +1597,17 @@ async function assertVisualMatches(
     flowName: string;
     stepIndex: number;
     captureOptions?: import('./visual-capture.js').CaptureOptions;
+    name?: string;
+    threshold?: number;
   },
 ): Promise<AssertionFailure | null> {
   const safeFlow = opts.flowName.replace(/[^a-zA-Z0-9._-]+/g, '_');
-  const baselinePath = path.join(opts.baselineDir, 'steps', `${safeFlow}-step${opts.stepIndex}.png`);
+  const safeName = opts.name ? opts.name.replace(/[^a-zA-Z0-9._-]+/g, '_') : undefined;
+  const baselinePath = path.join(
+    opts.baselineDir,
+    'steps',
+    safeName ? `${safeFlow}-${safeName}.png` : `${safeFlow}-step${opts.stepIndex}.png`,
+  );
   await fs.mkdir(path.dirname(baselinePath), { recursive: true });
   const { prepareCapture, stitchFullPage, resolveCaptureOptions } = await import('./visual-capture.js');
   const resolved = resolveCaptureOptions(opts.captureOptions);
@@ -1583,11 +1650,12 @@ async function assertVisualMatches(
     threshold: 0.1,
   });
   const ratio = diffPixels / (width * height);
-  if (ratio >= 0.001) {
+  const threshold = opts.threshold ?? 0.001;
+  if (ratio >= threshold) {
     return {
       kind: 'visual',
-      message: `screenshot drift ${(ratio * 100).toFixed(3)}% above baseline`,
-      details: { diffPixels, ratio },
+      message: `screenshot drift ${(ratio * 100).toFixed(3)}% above baseline (threshold ${(threshold * 100).toFixed(3)}%)`,
+      details: { diffPixels, ratio, threshold },
     };
   }
   return null;
