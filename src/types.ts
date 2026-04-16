@@ -312,6 +312,8 @@ export interface ChecksConfig {
   offline?: boolean | OfflineConfig;
   /** Email rendering audit (P4 #42) — requires `emailAuditConfig` on the root InspectConfig. */
   emailAudit?: boolean;
+  /** P6 #48 — XSS payload filler. Walks form fields, types known payloads, reports unsafe reflections / executions. */
+  xss?: boolean | import('./xss-audit.js').XssAuditOptions;
 }
 
 /** P4 #38 — Interaction states measured by {@link runContrastStatesAudit}. */
@@ -534,6 +536,8 @@ export interface InspectResult {
   offline?: import('./offline-audit.js').OfflineResult[];
   /** Email rendering audit (P4 #42). */
   emailAudit?: EmailResult;
+  /** P6 #48 — XSS payload filler results (one per page probed). */
+  xss?: import('./xss-audit.js').XssAuditResult[];
   /** Self-heal events emitted by the AI helper when a locator drifts (P2 #26). */
   selfHealEvents?: import('./ai.js').SelfHealEvent[];
   /**
