@@ -15,3 +15,4 @@ coverage/
 uxinspect-report/
 uxinspect-smoke-report/
 uxinspect-baselines/
+.claude/

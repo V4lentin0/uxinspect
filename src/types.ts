@@ -1,3 +1,12 @@
+export type {
+  I18nConfig,
+  I18nResult,
+  I18nIssue,
+  I18nIssueKind,
+  I18nIssueSeverity,
+  I18nLocaleSummary,
+} from './i18n-audit.js';
+
 export interface InspectConfig {
   url: string;
   flows?: Flow[];
@@ -246,6 +255,8 @@ export interface ChecksConfig {
     thrashedCursorWindowMs?: number;
     thrashedCursorThreshold?: number;
   };
+  /** P4 #36 — Per-locale i18n / RTL / text-overflow audit. */
+  i18n?: boolean | import('./i18n-audit.js').I18nConfig;
 }
 
 export interface OutputConfig {
@@ -357,6 +368,8 @@ export interface InspectResult {
   errorState?: import('./error-state-audit.js').ErrorStateResult;
   authWalk?: import('./auth-walker.js').AuthWalkResult;
   frustrationSignals?: import('./frustration-signals.js').FrustrationSignalResult[];
+  /** Per-locale i18n / RTL / overflow audit results (P4 #36). */
+  i18n?: import('./i18n-audit.js').I18nResult[];
   /** Self-heal events emitted by the AI helper when a locator drifts (P2 #26). */
   selfHealEvents?: import('./ai.js').SelfHealEvent[];
   /**

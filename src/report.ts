@@ -482,6 +482,7 @@ function renderHTML(r: InspectResult): string {
   ${(r as any).webfonts?.length ? `<h2>Webfonts</h2>${(r as any).webfonts.map(renderWebfonts).join('')}` : ''}
   ${(r as any).motionPrefs?.length ? `<h2>Motion preferences</h2>${(r as any).motionPrefs.map(renderMotionPrefs).join('')}` : ''}
   ${r.explore ? `<h2>Exploration</h2>${renderExplore(r.explore)}` : ''}
+  ${(r as any).i18n?.length ? `<h2>i18n / RTL / locale overflow</h2>${(r as any).i18n.map(renderI18n).join('')}` : ''}
   ${r.selfHealEvents?.length ? `<h2>Self-heal events</h2>${renderSelfHealEvents(r.selfHealEvents)}` : ''}
   ${renderUnknownSections(r)}
 </body>
@@ -496,7 +497,7 @@ const KNOWN_RESULT_KEYS = new Set([
   'exposedPaths', 'tls', 'crawl', 'contentQuality', 'resourceHints', 'mixedContent',
   'compression', 'cacheHeaders', 'cookieBanner', 'thirdParty', 'bundleSize',
   'openGraph', 'robotsAudit', 'imageAudit', 'webfonts', 'motionPrefs', 'explore',
-  'apiFlows', 'selfHealEvents', 'passed',
+  'apiFlows', 'selfHealEvents', 'i18n', 'passed',
 ]);
 
 interface SelfHealEventLike {
@@ -539,6 +540,62 @@ function renderSelfHealEvents(events: SelfHealEventLike[]): string {
       <tbody>${rows}</tbody>
     </table>
   </div>`;
+}
+
+function renderI18n(r: any): string {
+  const summaries = Array.isArray(r.summaries) ? r.summaries : [];
+  const issues = Array.isArray(r.issues) ? r.issues : [];
+  const locales = Array.isArray(r.locales) ? r.locales : [];
+  const meta = `${plural(locales.length, 'locale')} · ${plural(issues.length, 'issue')}`;
+  const summaryRows = summaries.length
+    ? `<table>
+        <thead><tr>
+          <th>Locale</th><th>Visited</th><th>dir</th><th>html[lang]</th>
+          <th>Keys</th><th>Placeholders</th><th>Overflows</th><th>Tofu</th>
+        </tr></thead>
+        <tbody>${summaries.map((s: any) => {
+          const dir = s.direction ?? '—';
+          const dirBad = s.expectedRtl && s.direction !== 'rtl';
+          return `<tr>
+            <td><code>${escape(s.locale)}</code>${s.expectedRtl ? ' <span class="pill pill-info">RTL</span>' : ''}</td>
+            <td>${s.visited ? '<span class="pass">yes</span>' : '<span class="fail">no</span>'}</td>
+            <td class="${dirBad ? 'fail' : ''}">${escape(dir)}</td>
+            <td><code>${escape(s.htmlLang ?? '—')}</code></td>
+            <td class="${s.keysDetected ? 'fail' : ''}">${s.keysDetected}</td>
+            <td class="${s.placeholdersDetected ? 'fail' : ''}">${s.placeholdersDetected}</td>
+            <td class="${s.overflowsDetected ? 'fail' : ''}">${s.overflowsDetected}</td>
+            <td class="${s.tofuDetected ? 'fail' : ''}">${s.tofuDetected}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`
+    : '<div class="empty">No locales scanned.</div>';
+  const issueRows = issues.length
+    ? `<table>
+        <thead><tr>
+          <th>Severity</th><th>Kind</th><th>Locale</th><th>Target</th><th>Detail</th>
+        </tr></thead>
+        <tbody>${issues.map((i: any) => {
+          const pill = i.severity === 'error'
+            ? 'pill-error'
+            : i.severity === 'warn'
+              ? 'pill-warn'
+              : 'pill-info';
+          return `<tr>
+            <td><span class="pill ${pill}">${escape(i.severity)}</span></td>
+            <td><code>${escape(i.kind)}</code></td>
+            <td><code>${escape(i.locale)}</code></td>
+            <td class="mono trunc">${escape(i.target ?? '—')}</td>
+            <td>${escape(i.detail)}${i.snippet ? `<div class="mono trunc">${escape(i.snippet)}</div>` : ''}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`
+    : '<div class="empty">No issues.</div>';
+  return `<details${r.passed ? '' : ' open'}>${summaryRow(r.page, !!r.passed, meta)}
+    <div style="margin-top: 12px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em;">Per-locale summary</div>
+    ${summaryRows}
+    <div style="margin-top: 16px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em;">Issues</div>
+    ${issueRows}
+  </details>`;
 }
 
 function renderUnknownSections(r: any): string {
