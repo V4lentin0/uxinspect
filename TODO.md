@@ -69,33 +69,26 @@ Extended `src/forms-audit.ts`, `src/forms-behavior.test.ts` covers empty/invalid
 
 # P2 — regression + visual
 
-### 16. Diff-against-baseline CLI — PARTIAL
-`uxinspect diff <baseline.json> [current.json]`. Auto-save last run to `.uxinspect/last.json`.
-`src/cli.ts`.
+### 16. Diff-against-baseline CLI — DONE (passed-p2-16-v1)
+`src/diff-run.ts` + test. `uxinspect diff` CLI. Auto-saves `.uxinspect/last.json`.
 
-### 17. Anomaly detector (z-score) — MISSING
-z-score over SQLite history, flag outliers in trend graph.
-extend `src/history-timeline.ts`.
+### 17. Anomaly detector (z-score) — DONE (passed-p2-17-v1)
+`src/history-timeline.ts` + `src/history-anomaly.test.ts`. Z-score flag on trend graph.
 
-### 18. Cross-browser matrix in report — PARTIAL
-Render side-by-side chromium/firefox/webkit screenshots with diff overlay toggle.
-`src/report.ts`, `src/cross-browser.ts`.
+### 18. Cross-browser matrix in report — DONE (passed-p2-18-v1)
+`src/cross-browser.ts` with `runCrossBrowser`, `writeCrossBrowserHtmlReport`, `renderCrossBrowserHtml`.
 
-### 19. Heatmap SVG from auto-explore — MISSING
-Log click coords during BFS, render SVG: clicked (green) vs untested (red).
-new `src/heatmap.ts`.
+### 19. Heatmap SVG from auto-explore — DONE (passed-p2-19-v1)
+`src/heatmap.ts` + test. Clicked (green) vs untested (red) SVG.
 
-### 20. SSIM perceptual visual diff — MISSING
-Add SSIM alongside pixelmatch. Anti-alias tolerance, ignore-region DSL.
-extend visual diff modules.
+### 20. SSIM perceptual visual diff — DONE (passed-p2-20-v1)
+`src/visual-ssim.ts` + `src/visual-diff.test.ts`. SSIM alongside pixelmatch, ignore-region mask.
 
-### 21. Animation/font freeze — MISSING
-Auto-disable CSS animations, wait `document.fonts.ready`, scroll-and-stitch full-page.
-extend visual capture modules.
+### 21. Animation/font freeze — DONE (passed-p2-21-v1)
+`src/visual-capture.ts` + test. Freeze animations, waitFonts, lazy-scroll, stitch full-page.
 
-### 22. Self-healing locators — MISSING
-On locator fail, retry with neighboring strategies, update cache.
-extend `src/ai.ts`.
+### 22. Self-healing locators — DONE (passed-p2-22-v1)
+`src/ai.ts` `selfHealEnabled()`, self-heal events + `src/locator-cache.ts` cache bumping.
 
 ---
 
