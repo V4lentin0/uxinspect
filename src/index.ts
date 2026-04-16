@@ -96,6 +96,7 @@ import { auditStuckSpinners } from './stuck-spinner-audit.js';
 import { auditErrorStateAppearance } from './error-state-audit.js';
 import { walkAuthGatedRoutes } from './auth-walker.js';
 import { attachFrustrationSignals } from './frustration-signals.js';
+import { runOfflineAudit } from './offline-audit.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -178,6 +179,7 @@ import type { ErrorPageAuditResult } from './error-page-audit.js';
 import type { StuckSpinnerResult } from './stuck-spinner-audit.js';
 import type { ErrorStateResult } from './error-state-audit.js';
 import type { FrustrationSignalResult } from './frustration-signals.js';
+import type { OfflineResult, OfflineConfig } from './offline-audit.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -328,6 +330,15 @@ export { auditStuckSpinners, DEFAULT_STUCK_SPINNER_SELECTORS } from './stuck-spi
 export { auditErrorStateAppearance, snapshotErrorState, diffErrorStateAppearance, DEFAULT_ERROR_STATE_SELECTORS } from './error-state-audit.js';
 export { walkAuthGatedRoutes, resolveRoutes } from './auth-walker.js';
 export { attachFrustrationSignals } from './frustration-signals.js';
+export { runOfflineAudit } from './offline-audit.js';
+export type {
+  OfflineConfig,
+  OfflineResult,
+  OfflineIssue,
+  OfflineIssueType,
+  OfflineScenarioId,
+  OfflineScenarioResult,
+} from './offline-audit.js';
 export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfall.js';
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
@@ -418,6 +429,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const csrfResults: CsrfAuditResult[] = [];
   const errorPagesResults: ErrorPageAuditResult[] = [];
   const stuckSpinnerResults: StuckSpinnerResult[] = [];
+  const offlineResults: OfflineResult[] = [];
   const frustrationSignalResults: FrustrationSignalResult[] = [];
   const selfHealEvents: InspectResult['selfHealEvents'] = [];
   let securityResult: InspectResult['security'];
@@ -835,6 +847,19 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         }
       }
 
+      if (checks.offline) {
+        const offlineOpts: OfflineConfig = typeof checks.offline === 'object' ? checks.offline : {};
+        const oPage = await driver.newPage();
+        try {
+          await oPage.goto(config.url).catch(() => {});
+          offlineResults.push(await runOfflineAudit(oPage, offlineOpts));
+        } catch {
+          // best effort — never fail the run because of the offline audit
+        } finally {
+          await oPage.close().catch(() => {});
+        }
+      }
+
       if (checks.errorState && !errorStateResult) {
         const esOpts = typeof checks.errorState === 'object' ? checks.errorState : {};
         const esPage = await driver.newPage();
@@ -974,7 +999,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     canonicalResults.every((r) => (r as any).passed !== false) &&
     (compressionResult === undefined || (compressionResult as any).passed !== false) &&
     (robotsAuditResult === undefined || (robotsAuditResult as any).passed !== false) &&
-    stuckSpinnerResults.every((r) => (r as any).passed !== false);
+    stuckSpinnerResults.every((r) => (r as any).passed !== false) &&
+    offlineResults.every((r) => (r as any).passed !== false);
 
   const result: InspectResult = {
     url: config.url,
@@ -1065,6 +1091,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     csrf: checks.csrf ? csrfResults : undefined,
     errorPages: checks.errorPages ? errorPagesResults : undefined,
     stuckSpinners: checks.stuckSpinners ? stuckSpinnerResults : undefined,
+    offline: checks.offline ? offlineResults : undefined,
     errorState: checks.errorState ? errorStateResult : undefined,
     authWalk: authWalkResult,
     frustrationSignals: checks.frustrationSignals ? frustrationSignalResults : undefined,

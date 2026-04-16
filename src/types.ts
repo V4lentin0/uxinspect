@@ -228,7 +228,21 @@ export interface ChecksConfig {
     thrashedCursorWindowMs?: number;
     thrashedCursorThreshold?: number;
   };
+  /** P4 #40 — Offline / flaky-network audit. Boolean turns it on with defaults; object passes through to `runOfflineAudit`. */
+  offline?: boolean | OfflineConfig;
 }
+
+/**
+ * P4 #40 — Offline / flaky-network audit result. See `src/offline-audit.ts`
+ * for details. Re-exported from the module's public surface so consumers can
+ * import the types without reaching into `offline-audit.js`.
+ */
+export type OfflineScenarioId = import('./offline-audit.js').OfflineScenarioId;
+export type OfflineConfig = import('./offline-audit.js').OfflineConfig;
+export type OfflineIssueType = import('./offline-audit.js').OfflineIssueType;
+export type OfflineIssue = import('./offline-audit.js').OfflineIssue;
+export type OfflineScenarioResult = import('./offline-audit.js').OfflineScenarioResult;
+export type OfflineResult = import('./offline-audit.js').OfflineResult;
 
 export interface OutputConfig {
   dir?: string;
@@ -339,6 +353,8 @@ export interface InspectResult {
   errorState?: import('./error-state-audit.js').ErrorStateResult;
   authWalk?: import('./auth-walker.js').AuthWalkResult;
   frustrationSignals?: import('./frustration-signals.js').FrustrationSignalResult[];
+  /** P4 #40 — Offline / flaky-network audit results, one per page that was tested. */
+  offline?: import('./offline-audit.js').OfflineResult[];
   /** Self-heal events emitted by the AI helper when a locator drifts (P2 #26). */
   selfHealEvents?: import('./ai.js').SelfHealEvent[];
   passed: boolean;
