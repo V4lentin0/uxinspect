@@ -778,6 +778,9 @@ export interface EmailResult {
   scanned: number;
   emails: EmailRecord[];
   issues: EmailIssue[];
+  passed: boolean;
+}
+
 export interface PdfPage {
   pageNumber: number;
   widthPt: number;
