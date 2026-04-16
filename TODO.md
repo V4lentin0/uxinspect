@@ -183,17 +183,14 @@ User ask: "all relevant frontend tests in 1 plugin so I won't need to use so man
 ### 46. `--playbook` consolidation flag — DONE (passed-p5-46-v1)
 `src/playbook.ts` + `src/playbook.test.ts`. `uxinspect run --playbook <url>` enables 72 FE gates in one pass. `--playbook-list` prints the coverage map. Respects explicit `--no-<check>` opt-outs.
 
-### 47. Clock-freeze / time-race audit — MISSING
-Playbook gap: Playwright `page.clock.install()` + fake-time walk to surface UI bugs that depend on wall-clock.
-new `src/clock-race-audit.ts`.
+### 47. Clock-freeze / time-race audit — DONE (passed-p6-47-v1)
+`src/clock-race-audit.ts` + `src/clock-race-audit.test.ts`. `page.clock.install` + `fastForward` + `runFor`, flags `relative-time-stuck` / `relative-time-regressed`. Wired into ChecksConfig.clockRace + InspectResult + playbook.
 
-### 48. XSS payload filler — MISSING
-Playbook gap: fill every text input with a known XSS payload matrix, verify the page neither executes nor reflects it unescaped.
-new `src/xss-audit.ts`.
+### 48. XSS payload filler — DONE (passed-p6-48-v1)
+`src/xss-audit.ts` + tests. Walks text inputs / textarea / contenteditable, types known payloads, flags executed / reflected-unescaped / page-error. Wired into ChecksConfig.xss + InspectResult + playbook.
 
-### 49. Jitter / human-misclick simulation — MISSING
-Playbook gap: stochastic ±N-px click offset from target center to catch UI that breaks on imprecise clicks.
-extend `src/chaos.ts` + new `src/jitter-audit.ts`.
+### 49. Jitter / human-misclick simulation — DONE (passed-p6-49-v1)
+`src/jitter-audit.ts` + tests. ±N-px click offsets + MutationObserver, flags silent-click / inconsistent-response / off-target-trigger. Wired into ChecksConfig.jitter + InspectResult + playbook.
 
 ### 50. Virtual screen-reader announcements — MISSING
 Playbook gap: `@guidepup/virtual-screen-reader` style announcements for component-level SR output.
