@@ -67,6 +67,14 @@
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   },
+  "peerDependencies": {
+    "pdfjs-dist": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "pdfjs-dist": {
+      "optional": true
+    }
+  },
   "engines": {
     "node": ">=20"
   }
