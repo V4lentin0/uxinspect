@@ -202,6 +202,8 @@ export type { OllamaFallbackOptions } from './ai.js';
 export { extractFromPage } from './extract.js';
 export { exportToPdf } from './pdf-export.js';
 export type { PdfExportOptions } from './pdf-export.js';
+export { renderSlackAlert, renderDiscordAlert, renderTeamsAlert, sendAlert } from './alerts.js';
+export type { AlertContext, DiffSummary, AlertPlatform } from './alerts.js';
 export {
   LocatorCache,
   hashKey as locatorCacheKey,
