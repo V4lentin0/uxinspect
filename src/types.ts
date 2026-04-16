@@ -421,6 +421,20 @@ export interface VisualResult {
 }
 
 /**
+ * P4 #41 — Concurrency audit re-exports. The concrete types live in
+ * `src/concurrency-audit.ts`; re-exporting from the types barrel lets
+ * consumers `import type { ConcurrencyConfig, ConcurrencyResult, RaceIssue }`
+ * alongside the other audit types.
+ */
+export type {
+  ConcurrencyConfig,
+  ConcurrencyResult,
+  ConcurrencyScenario,
+  RaceIssue,
+  ScenarioResult,
+} from './concurrency-audit.js';
+
+/**
  * Ignore-region DSL (P2 #23). Either an absolute rectangle or a selector to resolve at runtime.
  * Both baseline and current images are masked with the same regions before diffing.
  */

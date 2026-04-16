@@ -332,6 +332,9 @@ export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfa
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
 export { auditWebWorkers } from './web-worker-audit.js';
+// P4 #41 — Concurrency audit (2-tab race detection).
+// Types are re-exported via `export * from './types.js'` above.
+export { runConcurrencyAudit } from './concurrency-audit.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
