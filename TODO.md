@@ -125,41 +125,32 @@ Extended `src/forms-audit.ts`, `src/forms-behavior.test.ts` covers empty/invalid
 
 # P4 — local audits
 
-### 32. i18n / RTL / locale overflow — MISSING
-Missing translation keys, RTL breaks, text overflow per locale.
-new `src/i18n-audit.ts`.
+### 32. i18n / RTL / locale overflow — DONE (passed-p4-32-v1)
+`src/i18n-audit.ts` + `src/i18n-audit.test.ts`. Missing translation keys, RTL breaks, locale overflow.
 
-### 33. GDPR consent flow simulator — MISSING
-Simulate accept/reject, verify cookies match consent declaration.
-new `src/gdpr-audit.ts`.
+### 33. GDPR consent flow simulator — DONE (passed-p4-33-v1)
+`src/gdpr-audit.ts` + test. Accept/reject simulation, cookie-vs-declaration diff.
 
-### 34. Color contrast at every state (hover/focus/disabled) — MISSING
-Walk interactives, measure contrast per state, flag fails.
-new `src/contrast-states-audit.ts`.
+### 34. Color contrast at every state (hover/focus/disabled) — DONE (passed-p4-34-v1)
+`src/contrast-states-audit.ts` + test. Per-state contrast walk + WCAG flag.
 
-### 35. Auth-edge audit (expired/refresh/CSRF rotation) — MISSING
-Simulate token expiry, refresh, logout, session-fixation, CSRF.
-new `src/auth-edge-audit.ts`.
+### 35. Auth-edge audit (expired/refresh/CSRF rotation) — DONE (passed-p4-35-v1)
+`src/auth-edge-audit.ts` + test. Token expiry/refresh/logout/session-fixation/CSRF.
 
-### 36. Offline / flaky-network — MISSING
-Service-worker behavior under throttle/offline.
-new `src/offline-audit.ts`.
+### 36. Offline / flaky-network — DONE (passed-p4-36-v1)
+`src/offline-audit.ts` + test. Service-worker behavior under throttle/offline.
 
-### 37. Concurrency (2-tab race detection) — MISSING
-Open 2 tabs same user, conflicting actions, detect races.
-new `src/concurrency-audit.ts`.
+### 37. Concurrency (2-tab race detection) — DONE (passed-p4-37-v1)
+`src/concurrency-audit.ts` + test. 2-tab same-user race detection.
 
-### 38. Email rendering — MISSING
-Mailpit/MailHog bridge (or local SMTP sink), screenshot transactional emails.
-new `src/email-audit.ts`.
+### 38. Email rendering — DONE (passed-p4-38-v1)
+`src/email-audit.ts` + test. Local SMTP sink bridge + transactional email screenshot.
 
-### 39. PDF/print — MISSING
-Print-CSS validation, page-break correctness, header/footer bleed.
-new `src/pdf-audit.ts`.
+### 39. PDF/print — DONE (passed-p4-39-v1)
+`src/pdf-audit.ts` + test. Print-CSS, page-break, header/footer bleed.
 
-### 40. MCP server (Claude Code / Cursor / Copilot) — MISSING
-Expose uxinspect as MCP server. HUGE personal win — call from Claude Code directly.
-new `apps/mcp-server/`.
+### 40. MCP server (Claude Code / Cursor / Copilot) — DONE (passed-p4-40-v1)
+`apps/mcp-server/` — MCP server exposing uxinspect tools+resources. Callable from Claude Code directly.
 
 ---
 
