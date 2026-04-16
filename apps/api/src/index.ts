@@ -75,6 +75,15 @@ export default {
         if (req.method === 'GET' && teamMatch) {
           return handleGetTeam(teamMatch[1], env, auth, baseHeaders);
         }
+
+        // P5 #48 — multi-repo endpoints
+        if (req.method === 'GET' && path === '/v1/repos') {
+          return handleListRepos(env, auth, baseHeaders);
+        }
+        const repoMatch = /^\/v1\/repos\/([A-Za-z0-9_.-]+)$/.exec(path);
+        if (req.method === 'GET' && repoMatch) {
+          return handleGetRepo(repoMatch[1], env, auth, baseHeaders);
+        }
       }
 
       return jsonResp({ ok: false, error: 'not_found' }, 404, corsHeaders(req, env));
@@ -452,4 +461,69 @@ function jsonResp(body: unknown, status: number, extra: Record<string, string> =
     status,
     headers: { 'content-type': 'application/json; charset=utf-8', ...extra },
   });
+}
+
+// ---------------------------------------------------------------------------
+// P5 #48 — Multi-repo endpoints
+// ---------------------------------------------------------------------------
+
+async function handleListRepos(
+  env: Env,
+  auth: AuthContext,
+  headers: Record<string, string>,
+): Promise<Response> {
+  const rows = await env.DB.prepare(
+    `SELECT target_url AS url,
+            COUNT(*) AS total_runs,
+            SUM(CASE WHEN status = 'pass' THEN 1 ELSE 0 END) AS pass_count,
+            MAX(created_at) AS last_run_at,
+            AVG(score) AS avg_score
+     FROM runs
+     WHERE team_id = ?1 AND deleted = 0
+     GROUP BY target_url
+     ORDER BY last_run_at DESC
+     LIMIT 100`,
+  ).bind(auth.teamId).all();
+
+  const repos = (rows.results ?? []).map((r: any) => ({
+    url: r.url,
+    name: repoName(r.url as string),
+    totalRuns: r.total_runs,
+    passRate: r.total_runs > 0 ? Math.round(((r.pass_count ?? 0) / r.total_runs) * 100) : 0,
+    lastRunAt: r.last_run_at,
+    avgScore: r.avg_score != null ? Math.round(r.avg_score * 100) / 100 : null,
+  }));
+
+  return jsonResp({ ok: true, repos }, 200, headers);
+}
+
+async function handleGetRepo(
+  repoId: string,
+  env: Env,
+  auth: AuthContext,
+  headers: Record<string, string>,
+): Promise<Response> {
+  const decodedUrl = decodeURIComponent(repoId);
+  const rows = await env.DB.prepare(
+    `SELECT id, status, score, duration_ms, created_at, flow_slug, viewport_w, viewport_h
+     FROM runs
+     WHERE team_id = ?1 AND target_url = ?2 AND deleted = 0
+     ORDER BY created_at DESC
+     LIMIT 50`,
+  ).bind(auth.teamId, decodedUrl).all();
+
+  return jsonResp({
+    ok: true,
+    url: decodedUrl,
+    name: repoName(decodedUrl),
+    runs: rows.results ?? [],
+  }, 200, headers);
+}
+
+function repoName(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
 }
