@@ -176,6 +176,35 @@ CLI: `uxinspect self-test` boots HTTP server, runs inspect, asserts known outcom
 
 ---
 
+# P6 — 1-plugin frontend playbook (pivot 2026-04-17)
+
+User ask: "all relevant frontend tests in 1 plugin so I won't need to use so many".
+
+### 46. `--playbook` consolidation flag — DONE (passed-p5-46-v1)
+`src/playbook.ts` + `src/playbook.test.ts`. `uxinspect run --playbook <url>` enables 72 FE gates in one pass. `--playbook-list` prints the coverage map. Respects explicit `--no-<check>` opt-outs.
+
+### 47. Clock-freeze / time-race audit — MISSING
+Playbook gap: Playwright `page.clock.install()` + fake-time walk to surface UI bugs that depend on wall-clock.
+new `src/clock-race-audit.ts`.
+
+### 48. XSS payload filler — MISSING
+Playbook gap: fill every text input with a known XSS payload matrix, verify the page neither executes nor reflects it unescaped.
+new `src/xss-audit.ts`.
+
+### 49. Jitter / human-misclick simulation — MISSING
+Playbook gap: stochastic ±N-px click offset from target center to catch UI that breaks on imprecise clicks.
+extend `src/chaos.ts` + new `src/jitter-audit.ts`.
+
+### 50. Virtual screen-reader announcements — MISSING
+Playbook gap: `@guidepup/virtual-screen-reader` style announcements for component-level SR output.
+new `src/sr-announcements-audit.ts`.
+
+### 51. Pseudo-locale long-string audit — MISSING
+Playbook gap: force `i18next-pseudo`-style stretched text locale to surface truncation/overflow.
+extend `src/i18n-audit.ts`.
+
+---
+
 # Already deployed (keep running, no further invest unless personal need)
 
 - keys.uxinspect.com — Ed25519 license signer (unused; keep idle)
