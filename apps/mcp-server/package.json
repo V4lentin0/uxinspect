@@ -1,0 +1,35 @@
+{
+  "name": "uxinspect-mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Model Context Protocol server for uxinspect. Lets IDE agents (Claude Code, Cursor, Copilot, etc.) invoke uxinspect runs, explores, diffs, replays, and history queries.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "uxinspect-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "uxinspect": "workspace:*",
+    "zod": "^3.23.0",
+    "zod-to-json-schema": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}
