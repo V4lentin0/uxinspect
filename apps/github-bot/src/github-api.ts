@@ -278,3 +278,186 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
 }
+
+// ---- P6 #54 — GitHub Checks API ------------------------------------------------
+
+export interface CheckRunOpts {
+  owner: string;
+  repo: string;
+  headSha: string;
+  status: 'queued' | 'in_progress' | 'completed';
+  conclusion?: 'success' | 'failure' | 'neutral' | 'cancelled' | 'skipped' | 'action_required';
+  name?: string;
+  output?: {
+    title: string;
+    summary: string;
+    text?: string;
+    annotations?: Array<{
+      path: string;
+      start_line: number;
+      end_line: number;
+      annotation_level: 'notice' | 'warning' | 'failure';
+      message: string;
+      title?: string;
+    }>;
+  };
+}
+
+export async function createCheckRun(
+  token: string,
+  env: GitHubEnv,
+  opts: CheckRunOpts,
+): Promise<{ id: number }> {
+  const base = env.GITHUB_API_BASE || 'https://api.github.com';
+  const res = await fetch(`${base}/repos/${opts.owner}/${opts.repo}/check-runs`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: opts.name || 'uxinspect',
+      head_sha: opts.headSha,
+      status: opts.status,
+      conclusion: opts.conclusion,
+      output: opts.output,
+    }),
+  });
+  if (!res.ok) throw new Error(`check-run create failed: ${res.status}`);
+  const data = (await res.json()) as { id: number };
+  return { id: data.id };
+}
+
+export async function updateCheckRun(
+  token: string,
+  env: GitHubEnv,
+  owner: string,
+  repo: string,
+  checkRunId: number,
+  update: Partial<CheckRunOpts>,
+): Promise<void> {
+  const base = env.GITHUB_API_BASE || 'https://api.github.com';
+  const res = await fetch(`${base}/repos/${owner}/${repo}/check-runs/${checkRunId}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      status: update.status,
+      conclusion: update.conclusion,
+      output: update.output,
+    }),
+  });
+  if (!res.ok) throw new Error(`check-run update failed: ${res.status}`);
+}
+
+// ---- P6 #55 — GitLab / Bitbucket / Azure DevOps comment posting -----------------
+
+const BOT_MARKER = '<!-- uxinspect:bot -->';
+
+export async function postGitLabComment(opts: {
+  baseUrl: string;
+  projectId: string | number;
+  mrIid: string | number;
+  token: string;
+  body: string;
+}): Promise<void> {
+  const markedBody = `${BOT_MARKER}\n${opts.body}`;
+  const listUrl = `${opts.baseUrl}/api/v4/projects/${opts.projectId}/merge_requests/${opts.mrIid}/notes`;
+  const headers = { 'PRIVATE-TOKEN': opts.token, 'Content-Type': 'application/json' };
+
+  // Find existing bot comment
+  const res = await fetch(`${listUrl}?per_page=100`, { headers });
+  if (res.ok) {
+    const notes = (await res.json()) as Array<{ id: number; body: string }>;
+    const existing = notes.find((n) => n.body.includes(BOT_MARKER));
+    if (existing) {
+      await fetch(`${listUrl}/${existing.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ body: markedBody }),
+      });
+      return;
+    }
+  }
+
+  await fetch(listUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ body: markedBody }),
+  });
+}
+
+export async function postBitbucketComment(opts: {
+  workspace: string;
+  repoSlug: string;
+  prId: string | number;
+  auth: string; // "Basic <base64>" or "Bearer <token>"
+  body: string;
+}): Promise<void> {
+  const markedBody = `${BOT_MARKER}\n${opts.body}`;
+  const base = `https://api.bitbucket.org/2.0/repositories/${opts.workspace}/${opts.repoSlug}/pullrequests/${opts.prId}/comments`;
+  const headers: Record<string, string> = { Authorization: opts.auth, 'Content-Type': 'application/json' };
+
+  const res = await fetch(`${base}?pagelen=100`, { headers });
+  if (res.ok) {
+    const data = (await res.json()) as { values: Array<{ id: number; content: { raw: string } }> };
+    const existing = data.values?.find((c) => c.content.raw.includes(BOT_MARKER));
+    if (existing) {
+      await fetch(`${base}/${existing.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ content: { raw: markedBody } }),
+      });
+      return;
+    }
+  }
+
+  await fetch(base, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ content: { raw: markedBody } }),
+  });
+}
+
+export async function postAzureDevOpsComment(opts: {
+  orgUrl: string;
+  project: string;
+  repoId: string;
+  prId: string | number;
+  pat: string;
+  body: string;
+}): Promise<void> {
+  const markedBody = `${BOT_MARKER}\n${opts.body}`;
+  const base = `${opts.orgUrl}/${opts.project}/_apis/git/repositories/${opts.repoId}/pullRequests/${opts.prId}/threads`;
+  const auth = `Basic ${btoa(`:${opts.pat}`)}`;
+  const headers: Record<string, string> = { Authorization: auth, 'Content-Type': 'application/json' };
+
+  const res = await fetch(`${base}?api-version=7.0`, { headers });
+  if (res.ok) {
+    const data = (await res.json()) as { value: Array<{ id: number; comments: Array<{ content: string }> }> };
+    const existing = data.value?.find((t) => t.comments?.some((c) => c.content.includes(BOT_MARKER)));
+    if (existing) {
+      await fetch(`${base}/${existing.id}/comments/1?api-version=7.0`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ content: markedBody }),
+      });
+      return;
+    }
+  }
+
+  await fetch(`${base}?api-version=7.0`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      comments: [{ parentCommentId: 0, content: markedBody, commentType: 1 }],
+      status: 1,
+    }),
+  });
+}
