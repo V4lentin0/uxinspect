@@ -1,17 +1,29 @@
 # uxinspect
 
-> The robot user that clicks every button on your site and hands you a failure replay.
+> The robot user that clicks every button on your site and hands you the failure replay.
 
 [![npm](https://img.shields.io/npm/v/uxinspect.svg?color=10B981)](https://npmjs.com/package/uxinspect)
 [![license](https://img.shields.io/npm/l/uxinspect.svg?color=10B981)](LICENSE)
 [![checks](https://img.shields.io/badge/checks-65%2B-10B981)](#checks)
 
-uxinspect drives a real browser through your app the way a person would — clicking every button, filling every form, walking every gated route. When something breaks, you get a click-by-click replay you can scrub, plus the console error and failed network call attributed to the exact step that triggered them.
+uxinspect drives a real browser through your app the way a person would — clicking every button, filling every form, walking every gated route. When something breaks, you get a **click-by-click DOM replay you can scrub**, plus the **console error and failed network call pinned to the exact step that triggered them**.
+
+No data leaves your machine. No cloud account. No SaaS login. The free MIT CLI runs 65+ audits; Pro adds the replay + attribution layer that turns "it broke" into "click at 00:04.2 fired GET /api/checkout → 500."
+
+## Demo
 
 ```
-demo gif here: replay capture --> viewer --> failure-link --> click reproduction
-(record once: ./uxinspect-report/report.html, click "Replay this failure")
+┌──────────────────────────────────────────────────────────────┐
+│  uxinspect-report/report.html                                │
+│  ──────────────────────────────────────────────────────────  │
+│  Flow: signup          ✗ FAILED at step 7 (click #submit)    │
+│  Console: TypeError: cart is undefined (checkout.js:142)     │
+│  Network: POST /api/order → 500                              │
+│  ▶ Replay this failure  (scrub to 00:04.2, see the click)    │
+└──────────────────────────────────────────────────────────────┘
 ```
+
+Record once, get a single-file HTML replay viewer. Scrub the timeline, see every DOM mutation, the failing click highlighted, the exact network call that 500'd next to it. Drop the file in any chat tool and it plays offline.
 
 ## Install
 
@@ -43,13 +55,13 @@ The free MIT CLI runs every audit. Pro adds the parts that turn a green report i
 | Pro capability | What you get |
 |---|---|
 | **Replay capture (rrweb local)** | Every flow + every explore run is recorded to `.uxinspect/replays/<flow>-<ts>.json`. No cloud. No SaaS. |
-| **Static HTML replay viewer** | `uxinspect replay <path>` opens a single-file HTML player. Bundled rrweb-player, no CDN. Send the file in Slack and it just works. |
+| **Static HTML replay viewer** | `uxinspect replay <path>` opens a single-file HTML player. Bundled player, no CDN. Drop the file in any chat tool and it plays offline. |
 | **"Replay this failure" link** | Failed flows in `report.html` link straight to the replay viewer at the failure timestamp. Click → see the broken click. |
 | **Per-step assertion DSL** | `assert: { console: 'clean', network: 'no-4xx', dom: 'no-error', visual: 'matches' }` per step. 27 step types finally have assertions. |
 | **Per-click console + network attribution** | Capture resets before every step. The error/4xx/5xx is pinned to the exact click. No more "where did this come from". |
-| **Stuck-spinner / aria-busy timeout** | Click → if `[aria-busy="true"]` or `.spinner` persists past 5s, flagged broken. |
-| **Disabled-button verifier** | Walks every `[disabled]` and `[aria-disabled="true"]`, attempts click, asserts no state change. |
-| **DOM error-state appearance** | Scans for new `[role="alert"]`, `.error`, error toasts after every click. |
+| **Stuck-spinner / aria-busy timeout** | After every click, if `[aria-busy="true"]` or `.spinner` / `.loading` / `[role=progressbar]` persists past `stuckSpinners.timeoutMs` (default 5000), flagged broken. |
+| **Disabled-button verifier** | Walks every `[disabled]` and `[aria-disabled="true"]`, attempts the click, asserts no URL / DOM / console / network change. |
+| **DOM error-state appearance** | Snapshots `[role="alert"]`, `.error`, `.alert-danger`, `.toast-error`, `[aria-invalid="true"]` before each click and diffs after. New ones are flagged. |
 | **Auth-gated route walker** | `storageState` + auto-discovered gated routes via sitemap or config glob. Per-click verifier on every protected page. |
 | **Click coverage % per route** | Interactive-element count vs clicked count, per route. `--coverage-min 80` budget flag. |
 | **Frustration-signal heuristics** | Detects rage-click (3+ <500ms), u-turn (back <5s), dead-click, error-click in synthetic runs. |
@@ -76,7 +88,7 @@ The free MIT CLI runs every audit. Pro adds the parts that turn a green report i
 | Cross-browser matrix + heatmap + SSIM diff | — | yes | yes | yes |
 | Hosted multi-repo dashboard | — | — | yes | yes |
 | PR comment bot (GitHub / GitLab / Bitbucket) | — | — | yes | yes |
-| Synthetic monitor scheduler + Slack/Discord/Teams alerts | — | — | yes | yes |
+| Synthetic monitor scheduler + chat/webhook alerts | — | — | yes | yes |
 | Branded HTML/PDF reports + public status page | — | — | yes | yes |
 | 24-hour email support SLA | — | — | yes | yes |
 | SSO / SAML / SCIM / RBAC | — | — | — | yes |
@@ -89,7 +101,7 @@ The free MIT CLI runs every audit. Pro adds the parts that turn a green report i
 **Add-ons**
 
 - **Cloud Replay 🌐 — $49/mo** — drop-in `<5KB` JS collector + production rrweb session replay + real-user heatmaps + funnel analytics. Bolts onto any tier.
-- **Framework Packs 📦 — $49 one-time** — Stripe checkout, Next.js App Router, Shopify checkout, Remix, Webflow, WordPress, SvelteKit, Astro, Nuxt. Preset flows + assertions.
+- **Framework Packs 📦 — $49 one-time** — preset flows + assertions for the 9 most common commerce, CMS and app-router stacks. Buy only the packs you use.
 - **Sponsor ⭐ — $9/mo** — 60-day early access to new audits, supporter role, monthly office hours.
 
 Full pricing: <https://uxinspect.com/pricing>
