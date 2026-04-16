@@ -12,6 +12,7 @@ import { writeReplayViewer } from './replay-viewer.js';
 import { diffResults, formatDiff, loadResult, saveLastRun, LAST_RUN_FILE } from './diff-run.js';
 import { getChangedFiles, matchFilesToRoutes } from './git-diff-mode.js';
 import { installHook, uninstallHook, type HookType } from './precommit.js';
+import { runSelfTest, formatSelfTest } from './self-test.js';
 import type { InspectConfig } from './types.js';
 
 const STARTER_CONFIG = `import type { InspectConfig } from 'uxinspect';
@@ -241,6 +242,7 @@ const argv = await yargs(hideBin(process.argv))
   .command('uninstall-hook <type>', 'Remove a uxinspect-managed git hook and restore the most recent backup', (y) =>
     y.positional('type', { type: 'string', demandOption: true, choices: ['pre-commit', 'pre-push'], describe: 'Hook type to uninstall' }),
   )
+  .command('self-test', 'Run uxinspect against a bundled fixture site and assert known outcomes (P5 #44)', (y) => y)
   .demandCommand(1)
   .strict()
   .help()
@@ -259,6 +261,7 @@ if (cmd === 'diff') await diffCmd();
 if (cmd === 'cache') await cacheCmd();
 if (cmd === 'install-hook') await installHookCmd();
 if (cmd === 'uninstall-hook') await uninstallHookCmd();
+if (cmd === 'self-test') await selfTestCmd();
 
 async function runCmd(): Promise<void> {
   const reporters = String((argv as any).reporters)
@@ -841,5 +844,11 @@ async function uninstallHookCmd(): Promise<void> {
   } else {
     console.log(`No uxinspect-managed ${hookType} hook to remove`);
   }
+}
+
+async function selfTestCmd(): Promise<void> {
+  const result = await runSelfTest();
+  console.log(formatSelfTest(result));
+  if (!result.passed) process.exit(1);
 }
 

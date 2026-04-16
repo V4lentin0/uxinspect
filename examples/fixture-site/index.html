@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>uxinspect self-test fixture</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; color: #1d1d1f; }
+      nav a { margin-right: 1rem; }
+      button { padding: 0.5rem 1rem; }
+      main { margin-top: 2rem; }
+      h1 { font-size: 1.5rem; }
+      #ok { color: #10b981; }
+    </style>
+  </head>
+  <body>
+    <h1>uxinspect self-test fixture</h1>
+    <nav>
+      <a href="/about.html">About</a>
+      <a href="/missing.html">Missing (expected 404)</a>
+    </nav>
+    <main>
+      <p id="intro">Bundled fixture used by <code>uxinspect self-test</code>.</p>
+      <button id="safe">Safe button</button>
+      <p id="ok">fixture-loaded</p>
+    </main>
+  </body>
+</html>
