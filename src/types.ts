@@ -261,6 +261,8 @@ export interface ChecksConfig {
   i18n?: boolean | import('./i18n-audit.js').I18nConfig;
   /** P4 #38 — Per-state colour contrast audit (default/hover/focus/active/disabled). */
   contrastStates?: boolean | ContrastConfig;
+  /** P4 #40 — Offline / flaky-network audit. Boolean turns it on with defaults; object passes through to `runOfflineAudit`. */
+  offline?: boolean | OfflineConfig;
 }
 
 /** P4 #38 — Interaction states measured by {@link runContrastStatesAudit}. */
@@ -305,6 +307,18 @@ export interface ContrastResult {
   stateCounts: Record<ContrastState, number>;
   passed: boolean;
 }
+
+/**
+ * P4 #40 — Offline / flaky-network audit result. See `src/offline-audit.ts`
+ * for details. Re-exported from the module's public surface so consumers can
+ * import the types without reaching into `offline-audit.js`.
+ */
+export type OfflineScenarioId = import('./offline-audit.js').OfflineScenarioId;
+export type OfflineConfig = import('./offline-audit.js').OfflineConfig;
+export type OfflineIssueType = import('./offline-audit.js').OfflineIssueType;
+export type OfflineIssue = import('./offline-audit.js').OfflineIssue;
+export type OfflineScenarioResult = import('./offline-audit.js').OfflineScenarioResult;
+export type OfflineResult = import('./offline-audit.js').OfflineResult;
 
 export interface OutputConfig {
   dir?: string;
@@ -421,6 +435,8 @@ export interface InspectResult {
   i18n?: import('./i18n-audit.js').I18nResult[];
   /** Per-state colour contrast findings (P4 #38). */
   contrastStates?: ContrastResult[];
+  /** P4 #40 — Offline / flaky-network audit results, one per page that was tested. */
+  offline?: import('./offline-audit.js').OfflineResult[];
   /** Self-heal events emitted by the AI helper when a locator drifts (P2 #26). */
   selfHealEvents?: import('./ai.js').SelfHealEvent[];
   /**

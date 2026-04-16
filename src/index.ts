@@ -103,6 +103,7 @@ import { applyFastMode, fastModeWarning, FAST_MODE_TARGET_MS } from './fast-mode
 import { runI18nAudit } from './i18n-audit.js';
 import { runContrastStatesAudit } from './contrast-states-audit.js';
 import type { ContrastResult } from './types.js';
+import { runOfflineAudit } from './offline-audit.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -188,6 +189,7 @@ import type { StuckSpinnerResult } from './stuck-spinner-audit.js';
 import type { ErrorStateResult } from './error-state-audit.js';
 import type { FrustrationSignalResult } from './frustration-signals.js';
 import type { I18nResult } from './i18n-audit.js';
+import type { OfflineResult, OfflineConfig } from './offline-audit.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
@@ -362,6 +364,15 @@ export { auditErrorStateAppearance, snapshotErrorState, diffErrorStateAppearance
 export { walkAuthGatedRoutes, resolveRoutes } from './auth-walker.js';
 export { attachFrustrationSignals } from './frustration-signals.js';
 export { runContrastStatesAudit } from './contrast-states-audit.js';
+export { runOfflineAudit } from './offline-audit.js';
+export type {
+  OfflineConfig,
+  OfflineResult,
+  OfflineIssue,
+  OfflineIssueType,
+  OfflineScenarioId,
+  OfflineScenarioResult,
+} from './offline-audit.js';
 export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfall.js';
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
@@ -480,6 +491,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const errorPagesResults: ErrorPageAuditResult[] = [];
   const stuckSpinnerResults: StuckSpinnerResult[] = [];
   const gdprResults: GdprResult[] = [];
+  const offlineResults: OfflineResult[] = [];
   const frustrationSignalResults: FrustrationSignalResult[] = [];
   const i18nResults: I18nResult[] = [];
   const contrastStatesResults: ContrastResult[] = [];
@@ -936,6 +948,19 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         }
       }
 
+      if (checks.offline) {
+        const offlineOpts: OfflineConfig = typeof checks.offline === 'object' ? checks.offline : {};
+        const oPage = await driver.newPage();
+        try {
+          await oPage.goto(config.url).catch(() => {});
+          offlineResults.push(await runOfflineAudit(oPage, offlineOpts));
+        } catch {
+          // best effort — never fail the run because of the offline audit
+        } finally {
+          await oPage.close().catch(() => {});
+        }
+      }
+
       if (checks.errorState && !errorStateResult) {
         const esOpts = typeof checks.errorState === 'object' ? checks.errorState : {};
         const esPage = await driver.newPage();
@@ -1079,7 +1104,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     i18nResults.every((r) => (r as any).passed !== false) &&
     gdprResults.every((r) => (r as any).passed !== false) &&
     contrastStatesResults.every((r) => (r as any).passed !== false) &&
-    authEdgeResults.every((r) => (r as any).passed !== false);
+    authEdgeResults.every((r) => (r as any).passed !== false) &&
+    offlineResults.every((r) => (r as any).passed !== false);
 
   const result: InspectResult = {
     url: config.url,
@@ -1172,6 +1198,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     errorPages: checks.errorPages ? errorPagesResults : undefined,
     stuckSpinners: checks.stuckSpinners ? stuckSpinnerResults : undefined,
     gdpr: checks.gdpr ? gdprResults : undefined,
+    offline: checks.offline ? offlineResults : undefined,
     errorState: checks.errorState ? errorStateResult : undefined,
     authWalk: authWalkResult,
     frustrationSignals: checks.frustrationSignals ? frustrationSignalResults : undefined,
