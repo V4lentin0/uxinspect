@@ -38,41 +38,32 @@ Same pattern as #5 for 4xx/5xx per click.
 
 # P1 — per-click verifiers (catch real bugs in my apps)
 
-### 7. Stuck-spinner / aria-busy timeout — MISSING
-After each click, flag if `[aria-busy="true"]` / `.spinner` / `.loading` persists >5s.
-new `src/stuck-spinner-audit.ts`.
+### 7. Stuck-spinner / aria-busy timeout — DONE (passed-p1-7-v1)
+`src/stuck-spinner-audit.ts` + test. Wired in `src/index.ts` + `--stuck-spinners` CLI.
 
-### 8. Disabled-button click verifier — MISSING
-Walk `[disabled]` + `[aria-disabled="true"]`, attempt click, assert no state change.
-new `src/disabled-buttons-audit.ts`.
+### 8. Disabled-button click verifier — DONE (passed-p1-8-v1)
+`src/disabled-buttons-audit.ts` + test. Wired in `src/index.ts` + `--disabled-buttons` CLI.
 
-### 9. DOM error-state appearance — MISSING
-After each click, scan for new `[role="alert"]`, `.error`, `.alert-danger`, error toast.
-new `src/error-state-audit.ts`.
+### 9. DOM error-state appearance — DONE (passed-p1-9-v1)
+`src/error-state-audit.ts` + test. Exports: `snapshotErrorState`, `diffErrorStateAppearance`.
 
-### 10. Form validation behavior — PARTIAL
-Submit empty → error. Invalid → error. Valid → error clears.
-extend `src/forms-audit.ts`.
+### 10. Form validation behavior — DONE (passed-p1-10-v1)
+Extended `src/forms-audit.ts`, `src/forms-behavior.test.ts` covers empty/invalid/valid submit cycle.
 
-### 11. Modal backdrop-close — PARTIAL
-Currently Esc only. Add: click outside modal, verify closes.
-extend `src/focus-trap-audit.ts`.
+### 11. Modal backdrop-close — DONE (passed-p1-11-v1)
+`src/focus-trap-audit.ts` handles Esc + backdrop-click. `src/modal-backdrop.test.ts` covers both.
 
-### 12. Auth-gated route walker — PARTIAL
-storageState loads already. Add auto-discover gated routes via sitemap/config, run per-click on each.
-extend `src/driver.ts`, new `src/auth-walker.ts`.
+### 12. Auth-gated route walker — DONE (passed-p1-12-v1)
+`src/auth-walker.ts` + test. Exports `walkAuthGatedRoutes`, `resolveRoutes`.
 
-### 13. Click coverage % per route — MISSING
-Count interactive vs clicked, render %. `--coverage-min 80` budget.
-extend `src/explore.ts`, new `src/coverage.ts`.
+### 13. Click coverage % per route — DONE (passed-p1-13-v1)
+`src/coverage.ts` + test. `--coverage-min` CLI budget check in `src/cli.ts`.
 
-### 14. Frustration signals (synthetic) — MISSING
-Rage-click (3+ <500ms), u-turn (back <5s), dead-click, error-click during synthetic runs.
-new `src/frustration-signals.ts`.
+### 14. Frustration signals (synthetic) — DONE (passed-p1-14-v1)
+`src/frustration-signals.ts` + test. Rage-click + u-turn + dead-click + error-click.
 
-### 15. SQLite history `.uxinspect/history.db` — PARTIAL
-Migrate JSON → SQLite (better-sqlite3). Schema: runs, flows, audits, metrics.
-rewrite `src/history-timeline.ts`.
+### 15. SQLite history `.uxinspect/history.db` — DONE (passed-p1-15-v1)
+`src/history-timeline.ts` lazy-loads `better-sqlite3`. `src/history-sqlite.test.ts` covers schema.
 
 ---
 
