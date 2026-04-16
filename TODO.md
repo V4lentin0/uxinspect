@@ -168,9 +168,9 @@ CF Cron runs flows on schedule against my prod URLs. Alert on regression.
 Slack/Discord/Telegram on my prod URL regressions. Keep templates simple (my own use).
 extend `apps/api/`.
 
-### 44. CLI self-test against fixture — MISSING
-`uxinspect self-test` runs against bundled fixture site, asserts known outcomes.
-new `src/cli.e2e.test.ts` + `examples/fixture-site/`.
+### 44. CLI self-test against fixture — DONE (passed-p5-44-v1)
+`src/self-test.ts` + `src/self-test.test.ts` + `examples/fixture-site/`.
+CLI: `uxinspect self-test` boots HTTP server, runs inspect, asserts known outcomes.
 
 ### 45. Test coverage ramp — MISSING
 130 untested modules. Target 50%+. Prioritize: explore, console-errors, ai locator, history-timeline, budget-diff, cross-browser.
