@@ -985,3 +985,102 @@ async function candidateLocators(page: Page, rawTarget: string): Promise<Locator
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+// ─────────────────────────────────────────────────────────────────
+// P3 #27 — Ollama bridge (opt-in local language model fallback)
+// ─────────────────────────────────────────────────────────────────
+
+export interface OllamaFallbackOptions {
+  /** Model name. Default 'llama3.2'. */
+  model?: string;
+  /** Endpoint URL. Default 'http://localhost:11434/api/generate'. */
+  endpoint?: string;
+  /** Timeout in ms. Default 10000. */
+  timeout?: number;
+}
+
+const OLLAMA_DEFAULT_ENDPOINT = 'http://localhost:11434/api/generate';
+const OLLAMA_DEFAULT_MODEL = 'llama3.2';
+const OLLAMA_DEFAULT_TIMEOUT = 10_000;
+
+const OLLAMA_SYSTEM_PROMPT = `You are an expert at finding HTML elements. Given a DOM snippet and an instruction describing a UI element, respond with ONLY a valid CSS selector that uniquely identifies the element. No explanation, no markdown, no backticks. Just the raw CSS selector.`;
+
+/**
+ * POST to a local language model endpoint to resolve a CSS selector
+ * from a natural-language instruction + DOM context.
+ *
+ * Returns the selector string on success, null on any failure (unreachable,
+ * timeout, invalid response). Never throws.
+ */
+export async function ollamaFallback(
+  instruction: string,
+  domSnippet: string,
+  opts: OllamaFallbackOptions = {},
+): Promise<string | null> {
+  const endpoint = opts.endpoint ?? OLLAMA_DEFAULT_ENDPOINT;
+  const model = opts.model ?? OLLAMA_DEFAULT_MODEL;
+  const timeout = opts.timeout ?? OLLAMA_DEFAULT_TIMEOUT;
+
+  const userPrompt = `Instruction: "${instruction}"\n\nDOM snippet:\n${domSnippet.slice(0, 3000)}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        system: OLLAMA_SYSTEM_PROMPT,
+        prompt: userPrompt,
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { response?: string };
+    if (!json.response) return null;
+    return cleanOllamaResponse(json.response);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Strip markdown fences, backticks, and reject responses that look like
+ * prose rather than a CSS selector.
+ */
+function cleanOllamaResponse(raw: string): string | null {
+  let sel = raw.trim();
+  // Strip markdown code fences
+  sel = sel.replace(/^```[\w]*\n?/gm, '').replace(/\n?```$/gm, '');
+  // Strip inline backticks
+  sel = sel.replace(/^`+|`+$/g, '');
+  sel = sel.trim();
+  // Reject if it looks like prose (contains spaces + starts with uppercase letter word)
+  if (/^[A-Z][a-z]+ /.test(sel) && sel.length > 60) return null;
+  // Reject empty
+  if (!sel) return null;
+  return sel;
+}
+
+/**
+ * Factory: create an `llmHealHook` from OllamaFallbackConfig that can be
+ * passed into AIHelperOptions. Returns null (no-op) if config is absent or
+ * disabled.
+ */
+export function createOllamaHealHook(
+  cfg?: import('./types.js').OllamaFallbackConfig,
+): ((ctx: LlmHealContext) => Promise<string | null>) | undefined {
+  if (!cfg?.enabled) return undefined;
+  return async (ctx: LlmHealContext): Promise<string | null> => {
+    return ollamaFallback(ctx.instruction, ctx.domSnippet, {
+      model: cfg.model,
+      endpoint: cfg.endpoint,
+      timeout: cfg.timeout,
+    });
+  };
+}

@@ -336,9 +336,24 @@ export interface OutputConfig {
   captureOptions?: import('./visual-capture.js').CaptureOptions;
 }
 
+export interface OllamaFallbackConfig {
+  /** Enable local LLM fallback for locator resolution. Default false. */
+  enabled?: boolean;
+  /** Model name. Default 'llama3.2'. */
+  model?: string;
+  /** Endpoint URL. Default 'http://localhost:11434/api/generate'. */
+  endpoint?: string;
+  /** Request timeout in ms. Default 10000. */
+  timeout?: number;
+}
+
 export interface AIConfig {
   enabled?: boolean;
   model?: string;
+  /** Opt-in local language model fallback for locator resolution. */
+  fallback?: {
+    ollama?: OllamaFallbackConfig;
+  };
 }
 
 export interface InspectResult {

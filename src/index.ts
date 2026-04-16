@@ -13,7 +13,7 @@ import { checkPwa } from './pwa.js';
 import { checkSecurityHeaders } from './security.js';
 import { checkBudget } from './budget.js';
 import { notify } from './notify.js';
-import { AIHelper } from './ai.js';
+import { AIHelper, createOllamaHealHook } from './ai.js';
 import { writeReport } from './report.js';
 import { r2StoreFromEnv } from './store.js';
 import { runApiFlows } from './api.js';
@@ -196,7 +196,8 @@ import type { OfflineResult, OfflineConfig } from './offline-audit.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
-export { AIHelper } from './ai.js';
+export { AIHelper, ollamaFallback, createOllamaHealHook } from './ai.js';
+export type { OllamaFallbackOptions } from './ai.js';
 export {
   LocatorCache,
   hashKey as locatorCacheKey,
@@ -534,6 +535,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         // repeat runs skip the heuristic resolver (Stagehand-style speedup).
         locatorCacheDbPath: path.join('.uxinspect', 'history.db'),
         keyContext: { viewport: vp.name },
+        // P3 #27 — opt-in local language model fallback for locator resolution.
+        llmHealHook: createOllamaHealHook(config.ai?.fallback?.ollama),
       });
 
       const runOne = async (flow: { name: string; steps: Step[] }): Promise<{
