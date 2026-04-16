@@ -244,6 +244,7 @@ export interface ChecksConfig {
   hydration?: boolean;
   storage?: boolean;
   csrf?: boolean;
+  authEdge?: boolean | import('./auth-edge-audit.js').AuthEdgeConfig;
   errorPages?: boolean;
   stuckSpinners?: boolean | { timeoutMs?: number; selectors?: string[]; pollIntervalMs?: number; captureScreenshot?: boolean; screenshotDir?: string };
   errorState?: boolean | { selectors?: string[]; allowExisting?: boolean };
@@ -410,6 +411,7 @@ export interface InspectResult {
   hydration?: import('./hydration-audit.js').HydrationAuditResult[];
   storage?: import('./storage-audit.js').StorageAuditResult[];
   csrf?: import('./csrf-audit.js').CsrfAuditResult[];
+  authEdge?: import('./auth-edge-audit.js').AuthEdgeResult[];
   errorPages?: import('./error-page-audit.js').ErrorPageAuditResult[];
   stuckSpinners?: import('./stuck-spinner-audit.js').StuckSpinnerResult[];
   errorState?: import('./error-state-audit.js').ErrorStateResult;
@@ -436,6 +438,15 @@ export interface InspectResult {
   };
   passed: boolean;
 }
+
+export type {
+  AuthEdgeConfig,
+  AuthEdgeResult,
+  AuthEdgeIssue,
+  AuthEdgeIssueKind,
+  AuthEdgeScenario,
+  AuthEdgeScenarioResult,
+} from './auth-edge-audit.js';
 
 export interface FlowResult {
   name: string;

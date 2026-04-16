@@ -91,6 +91,7 @@ import { auditZIndex } from './zindex-audit.js';
 import { auditHydration } from './hydration-audit.js';
 import { auditStorage } from './storage-audit.js';
 import { auditCsrf } from './csrf-audit.js';
+import { runAuthEdgeAudit } from './auth-edge-audit.js';
 import { auditErrorPages } from './error-page-audit.js';
 import { startReplay, stopReplay } from './replay.js';
 import { auditStuckSpinners } from './stuck-spinner-audit.js';
@@ -181,6 +182,7 @@ import type { ZIndexAuditResult } from './zindex-audit.js';
 import type { HydrationAuditResult } from './hydration-audit.js';
 import type { StorageAuditResult } from './storage-audit.js';
 import type { CsrfAuditResult } from './csrf-audit.js';
+import type { AuthEdgeResult, AuthEdgeConfig } from './auth-edge-audit.js';
 import type { ErrorPageAuditResult } from './error-page-audit.js';
 import type { StuckSpinnerResult } from './stuck-spinner-audit.js';
 import type { ErrorStateResult } from './error-state-audit.js';
@@ -353,6 +355,7 @@ export { auditZIndex } from './zindex-audit.js';
 export { auditHydration } from './hydration-audit.js';
 export { auditStorage } from './storage-audit.js';
 export { auditCsrf } from './csrf-audit.js';
+export { runAuthEdgeAudit } from './auth-edge-audit.js';
 export { auditErrorPages } from './error-page-audit.js';
 export { auditStuckSpinners, DEFAULT_STUCK_SPINNER_SELECTORS } from './stuck-spinner-audit.js';
 export { auditErrorStateAppearance, snapshotErrorState, diffErrorStateAppearance, DEFAULT_ERROR_STATE_SELECTORS } from './error-state-audit.js';
@@ -473,6 +476,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const hydrationResults: HydrationAuditResult[] = [];
   const storageResults: StorageAuditResult[] = [];
   const csrfResults: CsrfAuditResult[] = [];
+  const authEdgeResults: AuthEdgeResult[] = [];
   const errorPagesResults: ErrorPageAuditResult[] = [];
   const stuckSpinnerResults: StuckSpinnerResult[] = [];
   const gdprResults: GdprResult[] = [];
@@ -584,6 +588,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         hydration?: HydrationAuditResult;
         storage?: StorageAuditResult;
         csrf?: CsrfAuditResult;
+        authEdge?: AuthEdgeResult;
         errorPages?: ErrorPageAuditResult;
         frustrationSignals?: FrustrationSignalResult;
         i18n?: I18nResult;
@@ -727,6 +732,10 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const hydrationR = checks.hydration ? await auditHydration(page).catch(() => undefined) : undefined;
         const storageR = checks.storage ? await auditStorage(page).catch(() => undefined) : undefined;
         const csrfR = checks.csrf ? await auditCsrf(page, page.context()).catch(() => undefined) : undefined;
+        const authEdgeR =
+          checks.authEdge && typeof checks.authEdge === 'object'
+            ? await runAuthEdgeAudit(page, checks.authEdge as AuthEdgeConfig).catch(() => undefined)
+            : undefined;
         const errorPagesR = checks.errorPages ? await auditErrorPages(page.context(), config.url).catch(() => undefined) : undefined;
         // i18n audit navigates the page across several locale-qualified URLs,
         // so run it after all other audits that depend on the current DOM.
@@ -773,7 +782,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           favicon: faviconR, clickjacking: clickjackingR, criticalCss: criticalCssR,
           sourcemapScan: sourcemapScanR, secretScan: secretScanR, trackerSniff: trackerSniffR,
           zIndex: zIndexR, hydration: hydrationR, storage: storageR,
-          csrf: csrfR, errorPages: errorPagesR,
+          csrf: csrfR, authEdge: authEdgeR, errorPages: errorPagesR,
           frustrationSignals: frustrationR,
           i18n: i18nR,
           contrastStates: contrastStatesR,
@@ -855,6 +864,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.hydration) hydrationResults.push(r.hydration);
         if (r.storage) storageResults.push(r.storage);
         if (r.csrf) csrfResults.push(r.csrf);
+        if (r.authEdge) authEdgeResults.push(r.authEdge);
         if (r.errorPages) errorPagesResults.push(r.errorPages);
         if (r.frustrationSignals) frustrationSignalResults.push(r.frustrationSignals);
         if (r.i18n) i18nResults.push(r.i18n);
@@ -1068,7 +1078,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     stuckSpinnerResults.every((r) => (r as any).passed !== false) &&
     i18nResults.every((r) => (r as any).passed !== false) &&
     gdprResults.every((r) => (r as any).passed !== false) &&
-    contrastStatesResults.every((r) => (r as any).passed !== false);
+    contrastStatesResults.every((r) => (r as any).passed !== false) &&
+    authEdgeResults.every((r) => (r as any).passed !== false);
 
   const result: InspectResult = {
     url: config.url,
@@ -1157,6 +1168,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     hydration: checks.hydration ? hydrationResults : undefined,
     storage: checks.storage ? storageResults : undefined,
     csrf: checks.csrf ? csrfResults : undefined,
+    authEdge: checks.authEdge ? authEdgeResults : undefined,
     errorPages: checks.errorPages ? errorPagesResults : undefined,
     stuckSpinners: checks.stuckSpinners ? stuckSpinnerResults : undefined,
     gdpr: checks.gdpr ? gdprResults : undefined,
