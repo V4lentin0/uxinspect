@@ -228,6 +228,51 @@ export interface ChecksConfig {
     thrashedCursorWindowMs?: number;
     thrashedCursorThreshold?: number;
   };
+  /** P4 #38 — Per-state colour contrast audit (default/hover/focus/active/disabled). */
+  contrastStates?: boolean | ContrastConfig;
+}
+
+/** P4 #38 — Interaction states measured by {@link runContrastStatesAudit}. */
+export type ContrastState = 'default' | 'hover' | 'focus' | 'active' | 'disabled';
+
+/** P4 #38 — Configuration for the per-state contrast audit. */
+export interface ContrastConfig {
+  /** WCAG level to enforce for text contrast. Defaults to `'AA'`. */
+  targetLevel?: 'AA' | 'AAA';
+  /** CSS selectors whose matching elements should be ignored entirely. */
+  skip?: string[];
+  /** Interaction states to simulate. Defaults to every state. */
+  states?: ContrastState[];
+  /** Cap candidate count (defense against huge pages). Defaults to 200. */
+  maxElements?: number;
+}
+
+/** P4 #38 — Single contrast violation from a simulated interaction state. */
+export interface ContrastViolation {
+  selector: string;
+  state: ContrastState;
+  /** `'text'` for foreground-vs-background text contrast; `'focus-ring'` for outline/ring vs surface. */
+  kind: 'text' | 'focus-ring';
+  level: 'AA' | 'AAA';
+  ratio: number;
+  required: number;
+  foreground: string;
+  background: string;
+  isLarge: boolean;
+  fontSizePx?: number;
+  snippet?: string;
+  message: string;
+}
+
+/** P4 #38 — Aggregate result of {@link runContrastStatesAudit}. */
+export interface ContrastResult {
+  page: string;
+  scanned: number;
+  states: ContrastState[];
+  targetLevel: 'AA' | 'AAA';
+  violations: ContrastViolation[];
+  stateCounts: Record<ContrastState, number>;
+  passed: boolean;
 }
 
 export interface OutputConfig {
@@ -339,6 +384,8 @@ export interface InspectResult {
   errorState?: import('./error-state-audit.js').ErrorStateResult;
   authWalk?: import('./auth-walker.js').AuthWalkResult;
   frustrationSignals?: import('./frustration-signals.js').FrustrationSignalResult[];
+  /** Per-state colour contrast findings (P4 #38). */
+  contrastStates?: ContrastResult[];
   /** Self-heal events emitted by the AI helper when a locator drifts (P2 #26). */
   selfHealEvents?: import('./ai.js').SelfHealEvent[];
   passed: boolean;

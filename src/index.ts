@@ -96,6 +96,8 @@ import { auditStuckSpinners } from './stuck-spinner-audit.js';
 import { auditErrorStateAppearance } from './error-state-audit.js';
 import { walkAuthGatedRoutes } from './auth-walker.js';
 import { attachFrustrationSignals } from './frustration-signals.js';
+import { runContrastStatesAudit } from './contrast-states-audit.js';
+import type { ContrastResult } from './types.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -328,6 +330,7 @@ export { auditStuckSpinners, DEFAULT_STUCK_SPINNER_SELECTORS } from './stuck-spi
 export { auditErrorStateAppearance, snapshotErrorState, diffErrorStateAppearance, DEFAULT_ERROR_STATE_SELECTORS } from './error-state-audit.js';
 export { walkAuthGatedRoutes, resolveRoutes } from './auth-walker.js';
 export { attachFrustrationSignals } from './frustration-signals.js';
+export { runContrastStatesAudit } from './contrast-states-audit.js';
 export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfall.js';
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
@@ -419,6 +422,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const errorPagesResults: ErrorPageAuditResult[] = [];
   const stuckSpinnerResults: StuckSpinnerResult[] = [];
   const frustrationSignalResults: FrustrationSignalResult[] = [];
+  const contrastStatesResults: ContrastResult[] = [];
   const selfHealEvents: InspectResult['selfHealEvents'] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
@@ -526,6 +530,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         csrf?: CsrfAuditResult;
         errorPages?: ErrorPageAuditResult;
         frustrationSignals?: FrustrationSignalResult;
+        contrastStates?: ContrastResult;
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
@@ -666,6 +671,12 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         const storageR = checks.storage ? await auditStorage(page).catch(() => undefined) : undefined;
         const csrfR = checks.csrf ? await auditCsrf(page, page.context()).catch(() => undefined) : undefined;
         const errorPagesR = checks.errorPages ? await auditErrorPages(page.context(), config.url).catch(() => undefined) : undefined;
+        const contrastStatesR = checks.contrastStates
+          ? await runContrastStatesAudit(
+              page,
+              typeof checks.contrastStates === 'object' ? checks.contrastStates : {},
+            ).catch(() => undefined)
+          : undefined;
         const consoleR = console ? console.result() : undefined;
         if (console) console.detach();
         network.stopCapture();
@@ -702,6 +713,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           zIndex: zIndexR, hydration: hydrationR, storage: storageR,
           csrf: csrfR, errorPages: errorPagesR,
           frustrationSignals: frustrationR,
+          contrastStates: contrastStatesR,
         };
       };
 
@@ -782,6 +794,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.csrf) csrfResults.push(r.csrf);
         if (r.errorPages) errorPagesResults.push(r.errorPages);
         if (r.frustrationSignals) frustrationSignalResults.push(r.frustrationSignals);
+        if (r.contrastStates) contrastStatesResults.push(r.contrastStates);
       }
 
       if (checks.perf) {
@@ -974,7 +987,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     canonicalResults.every((r) => (r as any).passed !== false) &&
     (compressionResult === undefined || (compressionResult as any).passed !== false) &&
     (robotsAuditResult === undefined || (robotsAuditResult as any).passed !== false) &&
-    stuckSpinnerResults.every((r) => (r as any).passed !== false);
+    stuckSpinnerResults.every((r) => (r as any).passed !== false) &&
+    contrastStatesResults.every((r) => (r as any).passed !== false);
 
   const result: InspectResult = {
     url: config.url,
@@ -1068,6 +1082,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     errorState: checks.errorState ? errorStateResult : undefined,
     authWalk: authWalkResult,
     frustrationSignals: checks.frustrationSignals ? frustrationSignalResults : undefined,
+    contrastStates: checks.contrastStates ? contrastStatesResults : undefined,
     selfHealEvents: selfHealEvents && selfHealEvents.length ? selfHealEvents : undefined,
     passed: baselinePassed,
   };
