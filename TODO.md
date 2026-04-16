@@ -26,9 +26,9 @@ Single-file HTML with `rrweb-player` bundled inline. CLI: `uxinspect replay <pat
 On flow failure, embed link in report HTML pointing to replay viewer at failure timestamp.
 `src/report.ts` `renderFlow()` + 3 new cases in `src/report.test.ts`.
 
-### 5. Per-click console error attribution — PARTIAL
+### 5. Per-click console error attribution — DONE (passed-p0-5-v1)
 Reset capture before each step, attribute errors to specific click.
-`src/console-errors.ts`, `src/index.ts`.
+`src/console-errors.ts` + `src/console-errors.test.ts` (7 tests: fingerprinting, per-step attribution, pageerror/unhandledrejection, normalize path+number, detach).
 
 ### 6. Per-click network failure attribution — PARTIAL
 Same pattern as #5 for 4xx/5xx per click.
