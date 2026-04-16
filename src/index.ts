@@ -382,6 +382,9 @@ export {
   DEFAULT_I18N_LOCALES,
   DEFAULT_I18N_OVERFLOW_SELECTORS,
 } from './i18n-audit.js';
+// P4 #41 — Concurrency audit (2-tab race detection).
+// Types are re-exported via `export * from './types.js'` above.
+export { runConcurrencyAudit } from './concurrency-audit.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
