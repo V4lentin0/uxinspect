@@ -92,26 +92,28 @@ export async function startReplay(
     return session;
   }
 
+  // rrweb's UMD bundle is `var rrweb = (function(ee){...})({});` — it relies on
+  // being declared at the top-level so `window.rrweb` gets the binding. An IIFE
+  // wrapper would make `rrweb` function-local and hide it from the page, so we
+  // emit a bare top-level `if`-block and let `var` hoist to script scope.
   const initScript = `
-    (function() {
+    if (!window.__uxinspectRrwebInstalled) {
+      window.__uxinspectRrwebInstalled = true;
+      window.__uxinspectRrwebEvents = window.__uxinspectRrwebEvents || [];
       try {
-        if (window.__uxinspectRrwebInstalled) return;
-        window.__uxinspectRrwebInstalled = true;
-        window.__uxinspectRrwebEvents = window.__uxinspectRrwebEvents || [];
         ${src}
         if (window.rrweb && typeof window.rrweb.record === 'function') {
-          var stop = window.rrweb.record({
+          window.__uxinspectRrwebStop = window.rrweb.record({
             emit: function(event) {
               try { window.__uxinspectRrwebEvents.push(event); } catch (e) {}
             },
             checkoutEveryNms: 30000,
           });
-          window.__uxinspectRrwebStop = stop;
         }
       } catch (e) {
         try { console.warn('[uxinspect/replay] inject failed:', e && e.message); } catch (_) {}
       }
-    })();
+    }
   `;
 
   try {

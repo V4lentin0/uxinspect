@@ -10,13 +10,13 @@
 
 # P0 — core engine (must-have for personal dev loop)
 
-### 1. Per-step assertion DSL — MISSING
-Extend `Step` with `assert: { console?: 'clean', network?: 'no-4xx', dom?: 'no-error', visual?: 'matches' }`.
-`src/types.ts`, `src/index.ts` step executor.
+### 1. Per-step assertion DSL — DONE (passed-p0-1-v1)
+Extend `Step` with `assert: { console?, network?, dom?, visual?, timing?, form? }`.
+`src/types.ts`, `src/index.ts` step executor + `src/step-assertions.test.ts`.
 
-### 2. Replay capture (rrweb local) — MISSING
+### 2. Replay capture (rrweb local) — DONE (passed-p0-2-v1)
 Record DOM events during every flow + explore. Save `.uxinspect/replays/<flow>-<ts>.json`.
-new `src/replay.ts`.
+`src/replay.ts` + `src/replay.test.ts`. Fixed IIFE bug that hid `window.rrweb`.
 
 ### 3. Static HTML replay viewer — MISSING
 Single-file HTML with `rrweb-player` bundled inline. CLI: `uxinspect replay <path>`.
