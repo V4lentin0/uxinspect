@@ -314,6 +314,10 @@ export interface ChecksConfig {
   emailAudit?: boolean;
   /** P6 #48 — XSS payload filler. Walks form fields, types known payloads, reports unsafe reflections / executions. */
   xss?: boolean | import('./xss-audit.js').XssAuditOptions;
+  /** P6 #47 — Clock-race audit. Hijacks page.clock, fast-forwards, flags stuck/regressed relative-time text. */
+  clockRace?: boolean | import('./clock-race-audit.js').ClockRaceAuditOptions;
+  /** P6 #49 — Jitter / human-misclick audit. Re-clicks buttons with ±N-px offsets, flags silent/inconsistent handlers. */
+  jitter?: boolean | import('./jitter-audit.js').JitterAuditOptions;
 }
 
 /** P4 #38 — Interaction states measured by {@link runContrastStatesAudit}. */
@@ -538,6 +542,10 @@ export interface InspectResult {
   emailAudit?: EmailResult;
   /** P6 #48 — XSS payload filler results (one per page probed). */
   xss?: import('./xss-audit.js').XssAuditResult[];
+  /** P6 #47 — Clock-race audit results (one per page probed). */
+  clockRace?: import('./clock-race-audit.js').ClockRaceResult[];
+  /** P6 #49 — Jitter audit results (one per page probed). */
+  jitter?: import('./jitter-audit.js').JitterResult[];
   /** Self-heal events emitted by the AI helper when a locator drifts (P2 #26). */
   selfHealEvents?: import('./ai.js').SelfHealEvent[];
   /**

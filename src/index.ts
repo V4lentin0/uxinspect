@@ -511,6 +511,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const frustrationSignalResults: FrustrationSignalResult[] = [];
   const i18nResults: I18nResult[] = [];
   const contrastStatesResults: ContrastResult[] = [];
+  const xssResults: import('./xss-audit.js').XssAuditResult[] = [];
+  const clockRaceResults: import('./clock-race-audit.js').ClockRaceResult[] = [];
+  const jitterResults: import('./jitter-audit.js').JitterResult[] = [];
   const selfHealEvents: InspectResult['selfHealEvents'] = [];
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
@@ -624,6 +627,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         frustrationSignals?: FrustrationSignalResult;
         i18n?: I18nResult;
         contrastStates?: ContrastResult;
+        xss?: import('./xss-audit.js').XssAuditResult;
+        clockRace?: import('./clock-race-audit.js').ClockRaceResult;
+        jitter?: import('./jitter-audit.js').JitterResult;
       }> => {
         const page = await driver.newPage();
         const console = checks.consoleErrors ? attachConsoleCapture(page) : null;
@@ -671,6 +677,15 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           ? await captureClsTimeline(page, typeof checks.clsTimeline === 'object' ? checks.clsTimeline.durationMs : undefined).catch(() => undefined)
           : undefined;
         const formsR = checks.forms ? await auditForms(page).catch(() => undefined) : undefined;
+        const xssR = checks.xss
+          ? await (await import('./xss-audit.js')).runXssAudit(page, typeof checks.xss === 'object' ? checks.xss : {}).catch(() => undefined)
+          : undefined;
+        const clockRaceR = checks.clockRace
+          ? await (await import('./clock-race-audit.js')).runClockRaceAudit(page, typeof checks.clockRace === 'object' ? checks.clockRace : {}).catch(() => undefined)
+          : undefined;
+        const jitterR = checks.jitter
+          ? await (await import('./jitter-audit.js')).runJitterAudit(page, typeof checks.jitter === 'object' ? checks.jitter : {}).catch(() => undefined)
+          : undefined;
         const formBehaviorR = checks.formBehavior
           ? await auditFormBehavior(
               page,
@@ -820,6 +835,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           frustrationSignals: frustrationR,
           i18n: i18nR,
           contrastStates: contrastStatesR,
+          xss: xssR, clockRace: clockRaceR, jitter: jitterR,
         };
       };
 
@@ -904,6 +920,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         if (r.frustrationSignals) frustrationSignalResults.push(r.frustrationSignals);
         if (r.i18n) i18nResults.push(r.i18n);
         if (r.contrastStates) contrastStatesResults.push(r.contrastStates);
+        if (r.xss) xssResults.push(r.xss);
+        if (r.clockRace) clockRaceResults.push(r.clockRace);
+        if (r.jitter) jitterResults.push(r.jitter);
       }
 
       if (checks.perf) {
@@ -1157,6 +1176,9 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     longTasks: checks.longTasks ? longTasksResults : undefined,
     clsTimeline: checks.clsTimeline ? clsTimelineResults : undefined,
     forms: checks.forms ? formsResults : undefined,
+    xss: checks.xss ? xssResults : undefined,
+    clockRace: checks.clockRace ? clockRaceResults : undefined,
+    jitter: checks.jitter ? jitterResults : undefined,
     formBehavior: checks.formBehavior ? formBehaviorResults : undefined,
     structuredData: checks.structuredData ? structuredDataResults : undefined,
     passiveSecurity: checks.passiveSecurity ? passiveSecurityResults : undefined,

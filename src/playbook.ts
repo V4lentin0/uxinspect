@@ -100,6 +100,8 @@ export const PLAYBOOK_ENTRIES: readonly PlaybookEntry[] = [
   { check: 'pdf', catches: 'page.pdf() render + page-break + bleed audits' },
   { check: 'protocols', catches: 'HTTP/3 + HTTP/2 protocol usage for main-thread assets' },
   { check: 'xss', catches: 'unsafe HTML-sink reflections / payload execution in form inputs' },
+  { check: 'clockRace', catches: 'stale relative-time text after clock fast-forward' },
+  { check: 'jitter', catches: 'buttons that silently fail on ±px click offsets' },
 ];
 
 /**
