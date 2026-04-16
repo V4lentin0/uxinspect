@@ -30,6 +30,7 @@ import { checkAndConsume, rateLimitHeaders } from './ratelimit.js';
 import type { Env } from './types.js';
 import { handlePolarWebhook } from './webhooks.js';
 import { handleScheduled } from './scheduled.js';
+import { generateOpenApiSpec } from './openapi.js';
 
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -84,6 +85,23 @@ export default {
         const repoMatch = /^\/v1\/repos\/([A-Za-z0-9_.-]+)$/.exec(path);
         if (req.method === 'GET' && repoMatch) {
           return handleGetRepo(repoMatch[1], env, auth, baseHeaders);
+        }
+
+        // P6 #58 — Extended REST API
+        if (req.method === 'GET' && path === '/v1/flows') {
+          return handleListFlows(env, auth, baseHeaders);
+        }
+        if (req.method === 'GET' && path === '/v1/anomalies') {
+          return handleListAnomalies(env, auth, baseHeaders);
+        }
+        if (req.method === 'GET' && path === '/v1/coverage') {
+          return handleCoverage(env, auth, baseHeaders);
+        }
+        if (req.method === 'GET' && path === '/v1/openapi.json') {
+          return jsonResp(generateOpenApiSpec(), 200, baseHeaders);
+        }
+        if (req.method === 'DELETE' && runMatch) {
+          return handleDeleteRun(runMatch[1], env, auth, baseHeaders);
         }
       }
 
@@ -532,4 +550,53 @@ function repoName(url: string): string {
   } catch {
     return url;
   }
+}
+
+// ---------------------------------------------------------------------------
+// P6 #58 — Extended REST API handlers
+// ---------------------------------------------------------------------------
+
+async function handleListFlows(
+  env: Env, auth: AuthContext, headers: Record<string, string>,
+): Promise<Response> {
+  const rows = await env.DB.prepare(
+    `SELECT flow_slug AS name, COUNT(*) AS run_count,
+            SUM(CASE WHEN status = 'pass' THEN 1 ELSE 0 END) AS pass_count,
+            MAX(created_at) AS last_run_at
+     FROM runs WHERE team_id = ?1 AND deleted = 0 AND flow_slug IS NOT NULL
+     GROUP BY flow_slug ORDER BY last_run_at DESC LIMIT 200`,
+  ).bind(auth.teamId).all();
+  return jsonResp({ ok: true, flows: rows.results ?? [] }, 200, headers);
+}
+
+async function handleListAnomalies(
+  env: Env, auth: AuthContext, headers: Record<string, string>,
+): Promise<Response> {
+  // Return recent runs with score anomalies (z-score computed client-side for now)
+  const rows = await env.DB.prepare(
+    `SELECT id, flow_slug, score, duration_ms, created_at
+     FROM runs WHERE team_id = ?1 AND deleted = 0
+     ORDER BY created_at DESC LIMIT 100`,
+  ).bind(auth.teamId).all();
+  return jsonResp({ ok: true, runs: rows.results ?? [] }, 200, headers);
+}
+
+async function handleCoverage(
+  env: Env, auth: AuthContext, headers: Record<string, string>,
+): Promise<Response> {
+  const rows = await env.DB.prepare(
+    `SELECT target_url AS route, COUNT(DISTINCT flow_slug) AS flows_tested
+     FROM runs WHERE team_id = ?1 AND deleted = 0
+     GROUP BY target_url ORDER BY flows_tested DESC LIMIT 200`,
+  ).bind(auth.teamId).all();
+  return jsonResp({ ok: true, coverage: rows.results ?? [] }, 200, headers);
+}
+
+async function handleDeleteRun(
+  runId: string, env: Env, auth: AuthContext, headers: Record<string, string>,
+): Promise<Response> {
+  await env.DB.prepare(
+    `UPDATE runs SET deleted = 1 WHERE id = ?1 AND team_id = ?2`,
+  ).bind(runId, auth.teamId).run();
+  return jsonResp({ ok: true, deleted: runId }, 200, headers);
 }
