@@ -356,6 +356,22 @@ export interface AIConfig {
   };
 }
 
+/** P3 #29 — Observable interactive element discovered by observe(). */
+export interface ObservableAction {
+  selector: string;
+  description: string;
+  elementType: string;
+  visibleText: string;
+  boundingBox: { x: number; y: number; width: number; height: number } | null;
+}
+
+export interface ObserveOptions {
+  /** Only return elements whose description matches this substring (case-insensitive). */
+  filter?: string;
+  /** Max results. Default 50. */
+  limit?: number;
+}
+
 export interface InspectResult {
   url: string;
   startedAt: string;

@@ -1084,3 +1084,123 @@ export function createOllamaHealHook(
     });
   };
 }
+
+// ─────────────────────────────────────────────────────────────────
+// P3 #29 — NL observe() — discover interactive elements
+// ─────────────────────────────────────────────────────────────────
+
+import type { ObservableAction, ObserveOptions } from './types.js';
+
+const INTERACTIVE_SELECTOR = [
+  'a', 'button', 'input', 'select', 'textarea',
+  '[role="button"]', '[role="link"]', '[role="tab"]',
+  '[role="menuitem"]', '[role="checkbox"]', '[role="radio"]',
+  '[onclick]', '[tabindex]',
+].join(', ');
+
+/**
+ * Discover all interactive elements on the current page with human-readable
+ * descriptions. Sorted by visual position (top-left first). Supports optional
+ * substring filter and limit.
+ */
+export async function observe(
+  page: Page,
+  opts: ObserveOptions = {},
+): Promise<ObservableAction[]> {
+  const limit = opts.limit ?? 50;
+
+  const raw: Array<{
+    selector: string;
+    tag: string;
+    role: string;
+    ariaLabel: string;
+    text: string;
+    href: string;
+    type: string;
+    name: string;
+    placeholder: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }> = await page.evaluate((sel: string) => {
+    const els = document.querySelectorAll(sel);
+    const out: any[] = [];
+    els.forEach((el) => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) return;
+      const tag = el.tagName.toLowerCase();
+      const id = el.id;
+      const testId = el.getAttribute('data-testid');
+      const ariaLabel = el.getAttribute('aria-label') || '';
+      const role = el.getAttribute('role') || '';
+      const text = (el.textContent || '').trim().slice(0, 80);
+      const href = (el as HTMLAnchorElement).href || '';
+      const type = (el as HTMLInputElement).type || '';
+      const name = (el as HTMLInputElement).name || '';
+      const placeholder = (el as HTMLInputElement).placeholder || '';
+
+      let selector: string;
+      if (testId) selector = `[data-testid="${testId}"]`;
+      else if (id && !/^[0-9]/.test(id) && id.length < 50) selector = `#${id}`;
+      else if (ariaLabel) selector = `[aria-label="${ariaLabel}"]`;
+      else selector = `${tag}:nth-of-type(${Array.from(el.parentElement?.children || []).filter(c => c.tagName === el.tagName).indexOf(el) + 1})`;
+
+      out.push({
+        selector, tag, role, ariaLabel, text, href, type, name, placeholder,
+        x: rect.x, y: rect.y, width: rect.width, height: rect.height,
+      });
+    });
+    return out;
+  }, INTERACTIVE_SELECTOR);
+
+  let actions: ObservableAction[] = raw
+    .sort((a, b) => a.y - b.y || a.x - b.x)
+    .map((el) => ({
+      selector: el.selector,
+      description: describeElement(el),
+      elementType: classifyElementType(el),
+      visibleText: el.text,
+      boundingBox: { x: el.x, y: el.y, width: el.width, height: el.height },
+    }));
+
+  if (opts.filter) {
+    const f = opts.filter.toLowerCase();
+    actions = actions.filter((a) => a.description.toLowerCase().includes(f));
+  }
+
+  return actions.slice(0, limit);
+}
+
+function classifyElementType(el: { tag: string; role: string; type: string }): string {
+  if (el.role) return el.role;
+  if (el.tag === 'a') return 'link';
+  if (el.tag === 'button') return 'button';
+  if (el.tag === 'input') return el.type || 'text';
+  if (el.tag === 'select') return 'select';
+  if (el.tag === 'textarea') return 'textarea';
+  return el.tag;
+}
+
+function describeElement(el: {
+  tag: string; role: string; ariaLabel: string; text: string;
+  href: string; type: string; name: string; placeholder: string;
+}): string {
+  const kind = el.role || el.tag;
+  const friendlyKind = kind.charAt(0).toUpperCase() + kind.slice(1);
+
+  if (el.ariaLabel) return `${friendlyKind} labeled "${el.ariaLabel}"`;
+  if (el.text && el.text.length <= 40) return `${friendlyKind} "${el.text}"`;
+  if (el.tag === 'a' && el.href) {
+    try {
+      const url = new URL(el.href);
+      return `Link to ${url.pathname}`;
+    } catch {
+      return `Link "${el.text.slice(0, 30)}"`;
+    }
+  }
+  if (el.placeholder) return `${friendlyKind} with placeholder "${el.placeholder}"`;
+  if (el.name) return `${friendlyKind} named "${el.name}"`;
+  if (el.text) return `${friendlyKind} "${el.text.slice(0, 40)}..."`;
+  return friendlyKind;
+}

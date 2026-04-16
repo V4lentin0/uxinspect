@@ -196,7 +196,7 @@ import type { OfflineResult, OfflineConfig } from './offline-audit.js';
 
 export * from './types.js';
 export { Driver, networkPresets } from './driver.js';
-export { AIHelper, ollamaFallback, createOllamaHealHook } from './ai.js';
+export { AIHelper, ollamaFallback, createOllamaHealHook, observe } from './ai.js';
 export type { OllamaFallbackOptions } from './ai.js';
 export { extractFromPage } from './extract.js';
 export {
