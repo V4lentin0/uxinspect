@@ -1,0 +1,48 @@
+{
+  "name": "@uxinspect/collector",
+  "version": "0.1.0",
+  "description": "Drop-in browser collector: page-views, clicks, Web Vitals, console errors, network failures. <5KB gzipped, zero runtime dependencies.",
+  "type": "module",
+  "main": "dist/collector.esm.js",
+  "module": "dist/collector.esm.js",
+  "browser": "dist/collector.min.js",
+  "types": "dist/collector.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/collector.d.ts",
+      "browser": "./dist/collector.min.js",
+      "import": "./dist/collector.esm.js",
+      "default": "./dist/collector.esm.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "size": "npm run build && node -e \"import('zlib').then(z=>import('fs').then(f=>{const b=f.readFileSync('dist/collector.min.js');const g=z.gzipSync(b);console.log('min:',b.length,'B gz:',g.length,'B');if(g.length>=5120){process.exit(1)}}))\""
+  },
+  "keywords": [
+    "rum",
+    "web-vitals",
+    "session-replay",
+    "analytics",
+    "collector",
+    "browser"
+  ],
+  "license": "MIT",
+  "author": "uxinspect",
+  "homepage": "https://uxinspect.com",
+  "repository": "github:uxinspect/uxinspect",
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
