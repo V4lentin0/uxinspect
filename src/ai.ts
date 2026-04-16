@@ -1062,10 +1062,18 @@ function cleanOllamaResponse(raw: string): string | null {
   // Strip inline backticks
   sel = sel.replace(/^`+|`+$/g, '');
   sel = sel.trim();
-  // Reject if it looks like prose (contains spaces + starts with uppercase letter word)
-  if (/^[A-Z][a-z]+ /.test(sel) && sel.length > 60) return null;
   // Reject empty
   if (!sel) return null;
+  // Reject prose: >5 whitespace-separated tokens OR prose-specific punctuation
+  //   (sentence commas, question/exclaim marks) that never appear in CSS selectors.
+  const tokens = sel.split(/\s+/).filter(Boolean);
+  if (tokens.length > 5) return null;
+  if (/[?!]/.test(sel)) return null;
+  // Comma in CSS is a selector-list separator (`a, b`), so only reject a comma
+  //   immediately followed by a letter-space (i.e. "Sorry, I ...").
+  if (/,\s[A-Za-z]+\s/.test(sel)) return null;
+  // Reject runs of >=60 chars with no selector-meaningful punctuation (# . [ : etc.).
+  if (sel.length > 60 && !/[#.\[\]:>+~*=]/.test(sel)) return null;
   return sel;
 }
 

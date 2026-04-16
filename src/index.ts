@@ -1657,7 +1657,7 @@ async function runStep(
     await page.goto(step.goto, { waitUntil: 'domcontentloaded' });
   } else if ('click' in step) {
     await page.click(step.click);
-  } else if ('type' in step) {
+  } else if ('type' in step && typeof step.type !== 'string') {
     await page.type(step.type.selector, step.type.text);
   } else if ('fill' in step) {
     await page.fill(step.fill.selector, step.fill.text);
@@ -1768,7 +1768,7 @@ async function runStep(
 async function runIframeStep(frame: import('playwright').FrameLocator, step: Step): Promise<void> {
   if ('click' in step) await frame.locator(step.click).click();
   else if ('fill' in step) await frame.locator(step.fill.selector).fill(step.fill.text);
-  else if ('type' in step) await frame.locator(step.type.selector).type(step.type.text);
+  else if ('type' in step && typeof step.type !== 'string') await frame.locator(step.type.selector).type(step.type.text);
   else if ('waitFor' in step) await frame.locator(step.waitFor).waitFor();
   else if ('hover' in step) await frame.locator(step.hover).hover();
   else if ('check' in step) await frame.locator(step.check).check();

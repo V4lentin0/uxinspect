@@ -210,8 +210,9 @@ test('createOllamaHealHook wires model/endpoint/timeoutMs from config', async ()
     });
     assert.equal(sel, '#ok');
     assert.ok(seen);
-    assert.equal(seen!.url, 'http://127.0.0.1:12345/api/generate');
-    assert.equal(seen!.body.model, 'custom-model');
+    const captured = seen as { url: string; body: any };
+    assert.equal(captured.url, 'http://127.0.0.1:12345/api/generate');
+    assert.equal(captured.body.model, 'custom-model');
   } finally {
     restore();
   }

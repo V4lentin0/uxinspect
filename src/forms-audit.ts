@@ -566,20 +566,12 @@ async function hasError(
         // 1. aria-invalid on the probed input.
         if (input?.getAttribute('aria-invalid') === 'true') return true;
 
-        // 2. :invalid pseudo-state (native validation) when the element supports it.
-        try {
-          if (
-            input instanceof HTMLInputElement ||
-            input instanceof HTMLTextAreaElement ||
-            input instanceof HTMLSelectElement
-          ) {
-            if (!input.validity.valid) return true;
-          }
-        } catch {
-          // ignore — jsdom/older engines may not support .validity
-        }
+        // (Native `:invalid` / `input.validity.valid` is NOT counted here —
+        //  we suppressed the native popup, so that state carries no
+        //  user-visible signal. Broken forms that rely solely on native
+        //  constraint validation must still be flagged as missing behavior.)
 
-        // 3. error selector inside the form.
+        // 2. error selector inside the form.
         for (const sel of errSelectors) {
           const matches = Array.from(form.querySelectorAll(sel));
           for (const m of matches) {

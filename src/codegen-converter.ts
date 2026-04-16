@@ -349,7 +349,7 @@ function stepToPlaywright(step: Step): string {
   if ('goto' in step) return `  await page.goto('${esc(step.goto)}');`;
   if ('click' in step) return `  await page.click('${esc(step.click)}');`;
   if ('fill' in step) return `  await page.fill('${esc(step.fill.selector)}', '${esc(step.fill.text)}');`;
-  if ('type' in step) return `  await page.type('${esc(step.type.selector)}', '${esc(step.type.text)}');`;
+  if ('type' in step && typeof step.type !== 'string') return `  await page.type('${esc(step.type.selector)}', '${esc(step.type.text)}');`;
   if ('hover' in step) return `  await page.hover('${esc(step.hover)}');`;
   if ('check' in step) return `  await page.check('${esc(step.check)}');`;
   if ('uncheck' in step) return `  await page.uncheck('${esc(step.uncheck)}');`;
