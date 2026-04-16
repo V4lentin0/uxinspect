@@ -200,6 +200,8 @@ export { AIHelper, ollamaFallback, createOllamaHealHook, observe, generateStepNa
 export type { DomContext } from './ai.js';
 export type { OllamaFallbackOptions } from './ai.js';
 export { extractFromPage } from './extract.js';
+export { exportToPdf } from './pdf-export.js';
+export type { PdfExportOptions } from './pdf-export.js';
 export {
   LocatorCache,
   hashKey as locatorCacheKey,

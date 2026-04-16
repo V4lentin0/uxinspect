@@ -65,6 +65,8 @@ export interface InspectConfig {
    * `fast: false` to opt back into a full run.
    */
   fast?: boolean;
+  /** P5 #49 — Custom branding for HTML reports. Pro+ license required. */
+  branding?: BrandingConfig;
   /** Email rendering audit (P4 #42). Requires `checks.emailAudit === true`. */
   emailAuditConfig?: EmailConfig;
 }
@@ -372,6 +374,18 @@ export interface ObserveOptions {
   filter?: string;
   /** Max results. Default 50. */
   limit?: number;
+}
+
+/** P5 #49 — Custom branding for HTML reports + PDF export. Pro+ only. */
+export interface BrandingConfig {
+  /** Company logo URL or base64 data URI. Max-height 40px in report header. */
+  logo?: string;
+  /** Primary accent color (overrides --green CSS var). */
+  primaryColor?: string;
+  /** Company name (replaces "uxinspect" in report header). */
+  companyName?: string;
+  /** Custom footer text row. */
+  footerText?: string;
 }
 
 export interface InspectResult {
