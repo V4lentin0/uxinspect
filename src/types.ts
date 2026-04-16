@@ -38,6 +38,8 @@ export interface InspectConfig {
   };
   /** Visual diff algorithm + ignore-region DSL (P2 #23). */
   visualDiff?: VisualDiffConfig;
+  /** Email rendering audit (P4 #42). Requires `checks.emailAudit === true`. */
+  emailAuditConfig?: EmailConfig;
 }
 
 export interface RouteMock {
@@ -228,6 +230,8 @@ export interface ChecksConfig {
     thrashedCursorWindowMs?: number;
     thrashedCursorThreshold?: number;
   };
+  /** Email rendering audit (P4 #42) — requires `emailAuditConfig` on the root InspectConfig. */
+  emailAudit?: boolean;
 }
 
 export interface OutputConfig {
@@ -339,6 +343,8 @@ export interface InspectResult {
   errorState?: import('./error-state-audit.js').ErrorStateResult;
   authWalk?: import('./auth-walker.js').AuthWalkResult;
   frustrationSignals?: import('./frustration-signals.js').FrustrationSignalResult[];
+  /** Email rendering audit (P4 #42). */
+  emailAudit?: EmailResult;
   /** Self-heal events emitted by the AI helper when a locator drifts (P2 #26). */
   selfHealEvents?: import('./ai.js').SelfHealEvent[];
   passed: boolean;
@@ -490,4 +496,93 @@ export interface ExploreResult {
     hoverOnly?: import('./heatmap.js').HoverOnlyRecord[];
     screenshotUrl?: string;
   };
+}
+
+/* ─────────────────────────────────────────────────────────────────
+ * P4 #42 — Email rendering audit.
+ * ───────────────────────────────────────────────────────────────── */
+
+export interface EmailViewport {
+  name: string;
+  width: number;
+  height: number;
+}
+
+/**
+ * Cross-client rendering profiles. Each profile transforms the captured HTML
+ * in a way that approximates a common webmail quirk so the reviewer can see
+ * how the email degrades without hitting a real mail client.
+ *  - `as-sent`: the HTML as received
+ *  - `style-stripped`: strips `<style>` blocks and inline `style=""` attrs
+ *  - `plain-text-fallback`: renders the text alternative as monospace
+ */
+export type EmailRenderProfile = 'as-sent' | 'style-stripped' | 'plain-text-fallback';
+
+export type EmailIssueType =
+  | 'missing-plain-text-alternative'
+  | 'subject-too-long'
+  | 'subject-too-long-mobile'
+  | 'remote-image-missing-alt'
+  | 'no-dark-mode-styles'
+  | 'missing-dkim'
+  | 'missing-spf'
+  | 'capture-unreachable'
+  | 'render-failed';
+
+export interface EmailIssue {
+  type: EmailIssueType;
+  messageId: string;
+  message: string;
+}
+
+export interface EmailScreenshot {
+  viewport: string;
+  profile: EmailRenderProfile;
+  path: string;
+}
+
+export interface EmailRecord {
+  id: string;
+  subject: string;
+  from: string;
+  to: string[];
+  receivedAt: string;
+  hasPlainTextAlternative: boolean;
+  subjectLength: number;
+  hasDarkModeStyles: boolean;
+  hasDkim: boolean;
+  hasSpf: boolean;
+  hasAuthResults: boolean;
+  screenshots: EmailScreenshot[];
+  issues: EmailIssue[];
+}
+
+/**
+ * Audit configuration. The capture bridge is user-provided and unbranded:
+ * any HTTP list-/fetch-style endpoint works (dev SMTP capture with HTTP API,
+ * Cloudflare email worker, hosted capture service).
+ */
+export interface EmailConfig {
+  /** URL of the dev SMTP capture's list endpoint. Item URLs are derived as `${url}/${id}`. */
+  emailCaptureUrl: string;
+  /** Optional bearer token sent as `Authorization: Bearer <token>`. */
+  authToken?: string;
+  /** Only audit messages received at or after this epoch-ms timestamp. */
+  sinceTs?: number;
+  /** Viewports to render each message in. Defaults: desktop 600x800 and mobile 375x600. */
+  viewports?: EmailViewport[];
+  /** Render profiles to approximate cross-client rendering. Defaults: all three. */
+  renderProfiles?: EmailRenderProfile[];
+  /** Screenshot output directory. Default: `.uxinspect/emails`. */
+  outDir?: string;
+}
+
+export interface EmailResult {
+  startedAt: string;
+  finishedAt: string;
+  captureUrl: string;
+  scanned: number;
+  emails: EmailRecord[];
+  issues: EmailIssue[];
+  passed: boolean;
 }

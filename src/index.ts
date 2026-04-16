@@ -96,6 +96,7 @@ import { auditStuckSpinners } from './stuck-spinner-audit.js';
 import { auditErrorStateAppearance } from './error-state-audit.js';
 import { walkAuthGatedRoutes } from './auth-walker.js';
 import { attachFrustrationSignals } from './frustration-signals.js';
+import { runEmailAudit } from './email-audit.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -328,6 +329,7 @@ export { auditStuckSpinners, DEFAULT_STUCK_SPINNER_SELECTORS } from './stuck-spi
 export { auditErrorStateAppearance, snapshotErrorState, diffErrorStateAppearance, DEFAULT_ERROR_STATE_SELECTORS } from './error-state-audit.js';
 export { walkAuthGatedRoutes, resolveRoutes } from './auth-walker.js';
 export { attachFrustrationSignals } from './frustration-signals.js';
+export { runEmailAudit, applyRenderProfile as applyEmailRenderProfile, findRemoteImagesWithoutAlt as findEmailRemoteImagesWithoutAlt } from './email-audit.js';
 export { parseHar, renderWaterfallHtml, writeWaterfallHtml } from './har-waterfall.js';
 export { detectOrphanAssets } from './orphan-assets.js';
 export { auditSri } from './sri-audit.js';
@@ -898,6 +900,11 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     robotsAuditResult = await auditRobots(config.url).catch(() => undefined);
   }
 
+  let emailAuditResult: InspectResult['emailAudit'];
+  if (checks.emailAudit && config.emailAuditConfig) {
+    emailAuditResult = await runEmailAudit(config.emailAuditConfig).catch(() => undefined);
+  }
+
   let authWalkResult: InspectResult['authWalk'];
   if (config.storageState && config.gatedRoutes !== undefined) {
     authWalkResult = await walkAuthGatedRoutes({
@@ -1068,11 +1075,16 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     errorState: checks.errorState ? errorStateResult : undefined,
     authWalk: authWalkResult,
     frustrationSignals: checks.frustrationSignals ? frustrationSignalResults : undefined,
+    emailAudit: emailAuditResult,
     selfHealEvents: selfHealEvents && selfHealEvents.length ? selfHealEvents : undefined,
     passed: baselinePassed,
   };
 
   if (authWalkResult && authWalkResult.failed.length > 0) {
+    result.passed = false;
+  }
+
+  if (emailAuditResult && !emailAuditResult.passed) {
     result.passed = false;
   }
 
