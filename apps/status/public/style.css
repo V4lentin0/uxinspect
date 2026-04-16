@@ -1,0 +1,5 @@
+/* P5 #51 — Status page GCP light theme */
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Inter, -apple-system, system-ui, sans-serif; background: #FAFAFA; color: #1D1D1F; }
+a { color: #10B981; text-decoration: none; }
+a:hover { text-decoration: underline; }
