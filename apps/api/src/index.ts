@@ -29,6 +29,7 @@ import { getReplayBlob, putReplayBlob } from './r2.js';
 import { checkAndConsume, rateLimitHeaders } from './ratelimit.js';
 import type { Env } from './types.js';
 import { handlePolarWebhook } from './webhooks.js';
+import { handleScheduled } from './scheduled.js';
 
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -96,6 +97,11 @@ export default {
       console.error('api_error', message);
       return jsonResp({ ok: false, error: 'internal_error' }, 500, corsHeaders(req, env));
     }
+  },
+
+  // P5 #50 — Synthetic monitor cron
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(handleScheduled(event, env));
   },
 };
 
