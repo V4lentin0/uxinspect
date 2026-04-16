@@ -107,10 +107,14 @@ export interface AssertConfig {
   dom?: 'no-error';
   /** Screenshot matches stored baseline; if no baseline exists, current is saved as baseline. */
   visual?: 'matches';
+  /** Exercise the form validation cycle on the page — empty submit → expect
+   *  error; invalid submit → expect error; valid submit → expect error clears.
+   *  Optionally scope to a specific form selector via an object form. */
+  form?: 'validates' | { validates: true; formSelector?: string };
 }
 
 export interface AssertionFailure {
-  kind: 'console' | 'network' | 'dom' | 'visual';
+  kind: 'console' | 'network' | 'dom' | 'visual' | 'form';
   message: string;
   details?: unknown;
 }
@@ -126,6 +130,21 @@ export type Step = StepAction & {
   captureOptions?: import('./visual-capture.js').CaptureOptions;
 };
 
+/**
+ * P3 #28 — NL extract step. Runs `prompt` against the page (DOM text snapshot),
+ * parses the returned JSON via the given Zod schema, and stores the result in
+ * the flow context under `into`. Later steps in the same flow may reference
+ * the stored value.
+ */
+export interface ExtractStep {
+  type: 'extract';
+  prompt: string;
+  /** Zod-compatible schema with `.parse(data)` (and optional `.shape`). */
+  schema: { parse: (data: unknown) => unknown; shape?: Record<string, unknown> };
+  /** Flow-context key under which to store the parsed output. */
+  into: string;
+}
+
 export type StepAction =
   | { goto: string }
   | { click: string }
@@ -134,6 +153,7 @@ export type StepAction =
   | { waitFor: string }
   | { screenshot: string }
   | { ai: string }
+  | ExtractStep
   | { drag: { from: string; to: string } }
   | { upload: { selector: string; files: string | string[] } }
   | { dialog: 'accept' | 'dismiss' | { accept?: boolean; text?: string } }
@@ -347,7 +367,9 @@ export interface OllamaFallbackConfig {
   model?: string;
   /** Endpoint URL. Default 'http://localhost:11434/api/generate'. */
   endpoint?: string;
-  /** Request timeout in ms. Default 10000. */
+  /** Request timeout in ms. Default 5000 (canonical per P3 #27 spec). */
+  timeoutMs?: number;
+  /** Legacy alias for `timeoutMs`. */
   timeout?: number;
 }
 

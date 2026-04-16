@@ -132,4 +132,38 @@ describe('auditFormBehavior', () => {
       await page.close();
     }
   });
+
+  test('missingBehavior drives the assert.form: "validates" failure signal', async () => {
+    // Contract test: the step executor's assertFormValidates() relies on
+    // FormBehaviorInfo.missingBehavior being a non-empty array when the
+    // form's validation cycle is broken. Guard that contract here so a
+    // refactor in forms-audit cannot silently break step-level assertions.
+    const page = await setup(`
+      <html><body>
+        <form id="silent">
+          <input name="q" required />
+          <button type="submit">Go</button>
+        </form>
+        <script>
+          // Swallow submits without any visible validation surfacing.
+          document.getElementById('silent').addEventListener('submit', (ev) => {
+            ev.preventDefault();
+          });
+        </script>
+      </body></html>
+    `);
+    try {
+      const result = await auditFormBehavior(page);
+      assert.equal(result.forms.length, 1);
+      const f = result.forms[0]!;
+      assert.ok(Array.isArray(f.missingBehavior));
+      assert.ok(
+        f.missingBehavior.length > 0,
+        'broken form must populate missingBehavior so assert.form can flag it',
+      );
+      assert.equal(result.passed, false);
+    } finally {
+      await page.close();
+    }
+  });
 });

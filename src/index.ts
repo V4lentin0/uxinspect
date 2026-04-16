@@ -636,7 +636,7 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
           : null;
         if (config.ai?.enabled) await ai.init(page);
         const replaySession = await startReplay(page, `${flow.name}-${vp.name}`).catch(() => null);
-        const flowResult = await runFlow(page, flow.name, flow.steps, ai, { baselineDir, console, network });
+        const flowResult = await runFlow(page, flow.name, flow.steps, ai, { baselineDir, console, network, aiConfig: config.ai });
         const replayPath = await stopReplay(replaySession).catch(() => null);
         if (replayPath) flowResult.replayPath = replayPath;
         const a11y = checks.a11y ? await checkA11y(page).catch((e) => emptyA11y(page.url(), e)) : undefined;
@@ -1290,12 +1290,15 @@ async function runFlow(
     baselineDir?: string;
     console?: ReturnType<typeof attachConsoleCapture> | null;
     network?: ReturnType<typeof startNetworkAttribution> | null;
+    aiConfig?: import('./types.js').AIConfig;
   } = {},
 ): Promise<FlowResult> {
   const stepResults: StepResult[] = [];
   const screenshots: string[] = [];
   let passed = true;
   let error: string | undefined;
+  // P3 #28 — per-flow context for extract() step outputs.
+  const flowContext: Record<string, unknown> = {};
 
   // Drain anything captured before any step begins into a "setup" pseudo-step
   // so pre-step errors aren't lost when per-step attribution is enabled.
@@ -1325,7 +1328,7 @@ async function runFlow(
     if (opts.network) opts.network.beginStep(stepLabel);
     const assertTracker = step.assert ? attachStepAssertionTracker(page, step.assert) : null;
     try {
-      await runStep(page, step, ai);
+      await runStep(page, step, ai, { flowContext, aiConfig: opts.aiConfig });
       const consoleErrors = opts.console ? opts.console.endStep() : undefined;
       const networkFailures = opts.network ? await opts.network.endStep() : undefined;
       let assertions: AssertionFailure[] | undefined;
@@ -1484,7 +1487,47 @@ async function evaluateStepAssertions(
     if (visualFailure) failures.push(visualFailure);
   }
 
+  if (cfg.form) {
+    const formSelector =
+      typeof cfg.form === 'object' && cfg.form !== null ? cfg.form.formSelector : undefined;
+    const formFailure = await assertFormValidates(page, formSelector);
+    if (formFailure) failures.push(formFailure);
+  }
+
   return failures;
+}
+
+async function assertFormValidates(
+  page: Page,
+  formSelector?: string,
+): Promise<AssertionFailure | null> {
+  try {
+    const result = await auditFormBehavior(page, formSelector);
+    if (result.forms.length === 0) {
+      return {
+        kind: 'form',
+        message: formSelector
+          ? `no form matched selector '${formSelector}' for validation probe`
+          : 'no form found on page for validation probe',
+      };
+    }
+    const broken = result.forms.filter((f) => f.missingBehavior.length > 0 || f.error);
+    if (broken.length === 0) return null;
+    return {
+      kind: 'form',
+      message: `${broken.length} form(s) failed validation cycle (empty/invalid/valid submit)`,
+      details: broken.map((f) => ({
+        selector: f.selector,
+        missingBehavior: f.missingBehavior,
+        error: f.error,
+      })),
+    };
+  } catch (e) {
+    return {
+      kind: 'form',
+      message: `form validation probe threw: ${(e as Error)?.message ?? String(e)}`,
+    };
+  }
 }
 
 async function assertVisualMatches(
@@ -1562,7 +1605,54 @@ function describeStep(step: Step): string {
   return key;
 }
 
-async function runStep(page: Page, step: Step, ai: AIHelper): Promise<void> {
+async function runStep(
+  page: Page,
+  step: Step,
+  ai: AIHelper,
+  ctx: {
+    flowContext?: Record<string, unknown>;
+    aiConfig?: import('./types.js').AIConfig;
+  } = {},
+): Promise<void> {
+  // P3 #28 — NL extract step with Zod schema. Discriminated via `type === 'extract'`
+  // to coexist with the existing `type: { selector, text }` step shape.
+  if ((step as any).type === 'extract' && 'prompt' in step && 'schema' in step && 'into' in step) {
+    const es = step as unknown as import('./types.js').ExtractStep;
+    if (!ctx.flowContext) {
+      throw new Error('extract step has no flow context to write into (internal invariant)');
+    }
+    const aiEnabled = ctx.aiConfig?.enabled === true
+      || ctx.aiConfig?.fallback?.ollama?.enabled === true
+      || Boolean((ctx.aiConfig as any)?.llmHook);
+    if (!aiEnabled) {
+      throw new Error(
+        `extract step "${es.into}" requires AI to be configured. ` +
+          `Set ai.enabled=true or ai.fallback.ollama.enabled=true on your InspectConfig.`,
+      );
+    }
+    const { extractFromPage } = await import('./extract.js');
+    const { createOllamaHealHook } = await import('./ai.js');
+    const ollamaHook = createOllamaHealHook(ctx.aiConfig?.fallback?.ollama);
+    const llmHook = ollamaHook
+      ? async (text: string, instruction: string): Promise<Record<string, unknown>> => {
+          const sel = await ollamaHook({
+            instruction,
+            target: instruction,
+            verb: 'click',
+            failedSelector: '',
+            domSnippet: text.slice(0, 3000),
+          });
+          // Hook returns a selector, not structured JSON. The non-LLM path in
+          // extractFromPage already handles the common heuristic cases; for
+          // anything else we surface an empty record so missing fields stay
+          // undefined and Zod validation decides success/failure.
+          return sel ? {} : {};
+        }
+      : undefined;
+    const result = await extractFromPage(page, es.prompt, es.schema, { llmHook });
+    ctx.flowContext[es.into] = result.data;
+    return;
+  }
   if ('goto' in step) {
     await page.goto(step.goto, { waitUntil: 'domcontentloaded' });
   } else if ('click' in step) {

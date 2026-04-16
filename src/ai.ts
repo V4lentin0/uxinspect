@@ -995,13 +995,15 @@ export interface OllamaFallbackOptions {
   model?: string;
   /** Endpoint URL. Default 'http://localhost:11434/api/generate'. */
   endpoint?: string;
-  /** Timeout in ms. Default 10000. */
+  /** Timeout in ms. Default 5000. Canonical name (per P3 #27 spec). */
+  timeoutMs?: number;
+  /** Legacy alias for `timeoutMs`. */
   timeout?: number;
 }
 
 const OLLAMA_DEFAULT_ENDPOINT = 'http://localhost:11434/api/generate';
 const OLLAMA_DEFAULT_MODEL = 'llama3.2';
-const OLLAMA_DEFAULT_TIMEOUT = 10_000;
+const OLLAMA_DEFAULT_TIMEOUT = 5_000;
 
 const OLLAMA_SYSTEM_PROMPT = `You are an expert at finding HTML elements. Given a DOM snippet and an instruction describing a UI element, respond with ONLY a valid CSS selector that uniquely identifies the element. No explanation, no markdown, no backticks. Just the raw CSS selector.`;
 
@@ -1019,7 +1021,7 @@ export async function ollamaFallback(
 ): Promise<string | null> {
   const endpoint = opts.endpoint ?? OLLAMA_DEFAULT_ENDPOINT;
   const model = opts.model ?? OLLAMA_DEFAULT_MODEL;
-  const timeout = opts.timeout ?? OLLAMA_DEFAULT_TIMEOUT;
+  const timeout = opts.timeoutMs ?? opts.timeout ?? OLLAMA_DEFAULT_TIMEOUT;
 
   const userPrompt = `Instruction: "${instruction}"\n\nDOM snippet:\n${domSnippet.slice(0, 3000)}`;
 
@@ -1080,7 +1082,7 @@ export function createOllamaHealHook(
     return ollamaFallback(ctx.instruction, ctx.domSnippet, {
       model: cfg.model,
       endpoint: cfg.endpoint,
-      timeout: cfg.timeout,
+      timeoutMs: cfg.timeoutMs ?? cfg.timeout,
     });
   };
 }

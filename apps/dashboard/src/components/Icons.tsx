@@ -75,6 +75,14 @@ export const ExternalIcon = (p: P) => (
     <path d="M7 7h10v10" />
   </svg>
 );
+export const ReposIcon = (p: P) => (
+  <svg {...base} {...p}>
+    <rect x="3" y="4" width="7" height="7" rx="1" />
+    <rect x="14" y="4" width="7" height="7" rx="1" />
+    <rect x="3" y="15" width="7" height="6" rx="1" />
+    <rect x="14" y="15" width="7" height="6" rx="1" />
+  </svg>
+);
 export const LogoMark = (p: P) => (
   <svg {...base} {...p} viewBox="0 0 24 24" strokeWidth={2.5}>
     <path d="M6 12l4 4 8-9" />

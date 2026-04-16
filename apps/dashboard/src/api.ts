@@ -300,6 +300,61 @@ export const replays = {
     request<ReplayListItem>(`/teams/${teamId}/replays/${replayId}`),
 };
 
+// ─── Repos (P5 #48 — multi-repo aggregation) ─────────────────────────────
+
+/**
+ * Summary row returned by `GET /v1/repos`. Each entry aggregates every run
+ * uploaded for a single target (`target_url`) across the workspace.
+ */
+export interface RepoSummary {
+  /** Target URL (used as the repo identity). */
+  url: string;
+  /** Human-friendly hostname / slug extracted from the URL. */
+  name: string;
+  /** Total run count for this target. */
+  totalRuns: number;
+  /** Pass rate across all runs, 0..100 (integer percent). */
+  passRate: number;
+  /** Latest `created_at` (epoch-seconds) observed for this target. */
+  lastRunAt: number | null;
+  /** Rolling average composite score. May be null when no score captured. */
+  avgScore: number | null;
+  /** Latest run status — populated when the backend includes it. */
+  lastStatus?: 'pass' | 'fail' | 'partial' | 'error';
+  /** Latest coverage percent (click-coverage from explore), 0..100. */
+  coverage?: number | null;
+  /** Optional deploy marker (branch @ short SHA). */
+  lastDeploy?: string | null;
+}
+
+export interface RepoDetailRun {
+  id: string;
+  status: 'pass' | 'fail' | 'partial' | 'error' | string;
+  score: number | null;
+  duration_ms: number;
+  created_at: number;
+  flow_slug?: string | null;
+  viewport_w?: number | null;
+  viewport_h?: number | null;
+}
+
+export interface RepoDetail {
+  url: string;
+  name: string;
+  runs: RepoDetailRun[];
+}
+
+export const repos = {
+  /** GET /v1/repos — all repos aggregated across the workspace. */
+  list: () =>
+    request<{ ok: true; repos: RepoSummary[] }>('/v1/repos').then((r) => r.repos),
+  /** GET /v1/repos/:url — recent runs for one target URL. */
+  get: (targetUrl: string) =>
+    request<{ ok: true } & RepoDetail>(`/v1/repos/${encodeURIComponent(targetUrl)}`).then(
+      ({ url, name, runs }) => ({ url, name, runs }),
+    ),
+};
+
 // ─── Billing (Polar.sh) ───────────────────────────────────────────────────
 
 export interface Subscription {
