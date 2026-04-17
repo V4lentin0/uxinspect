@@ -176,7 +176,7 @@ CLI: `uxinspect self-test` boots HTTP server, runs inspect, asserts known outcom
 
 ---
 
-# P6 — 1-plugin frontend playbook (pivot 2026-04-17)
+# P6 — 1-plugin playbook track (pivot 2026-04-17)
 
 User ask: "all relevant frontend tests in 1 plugin so I won't need to use so many".
 
@@ -198,7 +198,20 @@ User ask: "all relevant frontend tests in 1 plugin so I won't need to use so man
 ### 51. Pseudo-locale long-string audit — DONE (passed-p6-51-v1)
 `src/pseudo-locale-audit.ts` + tests. `toPseudoLocale` transform (accented + stretched + bracketed), walks text nodes via TreeWalker, flags truncated-text / clipped-button / overflowing-container / hidden-by-overflow. Non-destructive (restores originals). Wired into ChecksConfig.pseudoLocale + InspectResult + playbook.
 
-**Frontend playbook: 77/77 gates complete.**
+**Frontend playbook: 78/78 gates complete.**
+
+### 52. `--playbook-backend` consolidation flag — DONE (passed-p6-52-v1)
+`src/playbook-backend.ts` + `src/playbook-backend.test.ts`. `uxinspect run --playbook-backend <url>` enables 23 BE/infra gates in one pass: securityHeaders, tls, sitemap, robotsAudit, redirects, exposedPaths, mixedContent, compression, cacheHeaders, crawl, links, errorPages, protocols, sourcemapScan, sri, clickjacking, csrf, cookieFlags, email, authEdge, concurrency, offline, prerenderAudit. `--playbook-backend-list` prints the map. Respects explicit `--no-<check>` opt-outs.
+
+### 53. `--playbook-all` combined flag — DONE (passed-p6-53-v1)
+`src/playbook-all.ts` + `src/playbook-all.test.ts`. `uxinspect run --playbook-all <url>` enables every FE + BE gate (FE wins on key collision). `--playbook-all-list` prints the unified map. Cascading precedence in CLI: `--playbook-all` > `--playbook-backend` > `--playbook`.
+
+**Backend playbook: 23/23 gates complete. Combined playbook: 101/101 gates (78 FE + 23 BE, no collisions).**
+
+### 54. `humanPass` — real-user journey gate (final FE playbook step) — DONE (passed-p6-54-v1)
+`src/human-pass-audit.ts` + `src/human-pass-audit.test.ts` + `src/human-pass-screenshot.ts` (screenshot recorder). Runs as the LAST step in the frontend playbook per user request 2026-04-17: opens page, takes baseline screenshots at desktop/tablet/mobile, audits layout + responsive + text clipping + alignment + proportions, clicks every button (screenshot before + after each click), fills every input/textarea/select with realistic + edge-case data, scrolls top/middle/bottom/back-to-top with screenshots, hovers every interactive element (screenshot after), drags every `[draggable="true"]` element. Findings flagged: layout-overflow / text-clipped / misaligned / proportions-broken / console-error-during-click / hover-no-affordance / input-refused / scroll-broken / drag-no-response / navigation-failed. All screenshots saved to `<outputDir>/human-pass/NN-<tag>.png` with ordered filenames. Wired into `ChecksConfig.humanPass` + `InspectResult.humanPass` + FE `PLAYBOOK_ENTRIES` (final entry).
+
+**Frontend playbook: 78/78 gates complete. Combined playbook: 101/101 gates (78 FE + 23 BE, no collisions).**
 
 ---
 

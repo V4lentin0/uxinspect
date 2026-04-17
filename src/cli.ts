@@ -14,7 +14,9 @@ import { getChangedFiles, matchFilesToRoutes } from './git-diff-mode.js';
 import { installHook, uninstallHook, type HookType } from './precommit.js';
 import { runSelfTest, formatSelfTest } from './self-test.js';
 import { applyPlaybookChecks, formatPlaybook } from './playbook.js';
-import type { InspectConfig } from './types.js';
+import { applyBackendPlaybookChecks, formatBackendPlaybook } from './playbook-backend.js';
+import { applyAllPlaybookChecks, formatAllPlaybook } from './playbook-all.js';
+import type { ChecksConfig, InspectConfig } from './types.js';
 
 const STARTER_CONFIG = `import type { InspectConfig } from 'uxinspect';
 
@@ -85,6 +87,10 @@ const argv = await yargs(hideBin(process.argv))
       .option('all', { type: 'boolean', describe: 'Enable every check' })
       .option('playbook', { type: 'boolean', describe: 'Enable the full frontend testing playbook (consolidated FE gates in one pass)' })
       .option('playbook-list', { type: 'boolean', describe: 'Print the playbook coverage map and exit' })
+      .option('playbook-backend', { type: 'boolean', describe: 'Enable the full backend testing playbook (consolidated BE/infra gates in one pass)' })
+      .option('playbook-backend-list', { type: 'boolean', describe: 'Print the backend playbook coverage map and exit' })
+      .option('playbook-all', { type: 'boolean', describe: 'Enable the full frontend + backend playbook (every relevant gate in one pass)' })
+      .option('playbook-all-list', { type: 'boolean', describe: 'Print the combined playbook coverage map and exit' })
       .option('a11y', { type: 'boolean', describe: 'Run accessibility checks' })
       .option('perf', { type: 'boolean', describe: 'Run performance audit' })
       .option('visual', { type: 'boolean', describe: 'Run visual diff' })
@@ -281,6 +287,14 @@ async function runCmd(): Promise<void> {
     console.log(formatPlaybook());
     return;
   }
+  if (a['playbook-backend-list'] === true) {
+    console.log(formatBackendPlaybook());
+    return;
+  }
+  if (a['playbook-all-list'] === true) {
+    console.log(formatAllPlaybook());
+    return;
+  }
   const all: boolean | undefined = a.all === true ? true : undefined;
   const pick = (v: unknown): boolean | undefined =>
     v === undefined ? all : Boolean(v);
@@ -348,9 +362,12 @@ async function runCmd(): Promise<void> {
     frustrationSignals: pick(a.frustration),
     i18n: pick(a.i18n),
   };
-  // --playbook fills in every frontend gate the user did not explicitly set
-  // (including --no-<check>) so one flag covers the consolidated FE playbook.
-  const finalChecks = a.playbook === true ? applyPlaybookChecks(checks) : checks;
+  // Playbook cascade: --playbook-all (FE+BE) > --playbook-backend (BE) > --playbook (FE).
+  // The most-inclusive flag, if set, wins and fills every gate the user did not explicitly set.
+  let finalChecks: ChecksConfig = checks;
+  if (a['playbook-all'] === true) finalChecks = applyAllPlaybookChecks(finalChecks);
+  else if (a['playbook-backend'] === true) finalChecks = applyBackendPlaybookChecks(finalChecks);
+  else if (a.playbook === true) finalChecks = applyPlaybookChecks(finalChecks);
   const cliConfig: InspectConfig = {
     url: a.url,
     checks: finalChecks as InspectConfig['checks'],

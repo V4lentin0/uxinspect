@@ -322,6 +322,21 @@ export interface ChecksConfig {
   srAnnouncements?: boolean | import('./sr-announcements-audit.js').SrAuditOptions;
   /** P6 #51 — Pseudo-locale long-string audit (truncation / clipping / overflow). */
   pseudoLocale?: boolean | import('./pseudo-locale-audit.js').PseudoAuditOptions;
+  /**
+   * P6 #54 — human pass: final journey-style gate that opens the page,
+   * audits layout + responsive + alignment, clicks every button,
+   * fills every input, scrolls, hovers, and records a screenshot at
+   * every step. Runs last in the frontend playbook.
+   */
+  humanPass?: boolean | import('./human-pass-audit.js').HumanPassConfig;
+  /**
+   * P6 #55 — human-pass backend: debugger-persona probe of every reachable
+   * endpoint with payload variants (empty / valid / invalid / oversize /
+   * malformed-JSON / unicode / auth-strip / cors-probe). Full request +
+   * response dumps captured before + after every action. Runs last in the
+   * backend playbook (mirror of FE humanPass).
+   */
+  humanPassBackend?: boolean | import('./human-pass-backend.js').HumanPassBackendConfig;
 }
 
 /** P4 #38 — Interaction states measured by {@link runContrastStatesAudit}. */
@@ -554,6 +569,8 @@ export interface InspectResult {
   srAnnouncements?: import('./sr-announcements-audit.js').SrAuditResult[];
   /** P6 #51 — Pseudo-locale audit results (one per page probed). */
   pseudoLocale?: import('./pseudo-locale-audit.js').PseudoAuditResult[];
+  humanPass?: import('./human-pass-audit.js').HumanPassResult;
+  humanPassBackend?: import('./human-pass-backend.js').HumanPassBackendResult;
   /** Self-heal events emitted by the AI helper when a locator drifts (P2 #26). */
   selfHealEvents?: import('./ai.js').SelfHealEvent[];
   /**

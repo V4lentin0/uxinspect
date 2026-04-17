@@ -11,6 +11,12 @@
  * paths, service-worker server-side, crawl) are deliberately excluded —
  * they're covered by the backend track of the wider stack and would add
  * wall-clock cost without catching frontend regressions.
+ *
+ * NOTE (per user instruction 2026-04-17): the `humanPass` gate at the END of
+ * `PLAYBOOK_ENTRIES` runs LAST — it is the final step that only fires after
+ * every other gate above has passed, walking the feature as a real user
+ * would (open, verify layout/responsive/alignment, click every button, fill
+ * every input, scroll + hover + drag, screenshots at every step).
  */
 import type { ChecksConfig } from './types.js';
 
@@ -104,6 +110,7 @@ export const PLAYBOOK_ENTRIES: readonly PlaybookEntry[] = [
   { check: 'jitter', catches: 'buttons that silently fail on ±px click offsets' },
   { check: 'srAnnouncements', catches: 'missing accessible names / empty live regions / unlabeled landmarks' },
   { check: 'pseudoLocale', catches: 'text truncation + clipped buttons under stretched pseudo-locale' },
+  { check: 'humanPass', catches: 'real-user journey: open, verify layout/responsive/alignment, click every button, fill every input, scroll + hover + drag, screenshots at every step' },
 ];
 
 /**

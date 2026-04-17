@@ -106,6 +106,8 @@ import { runContrastStatesAudit } from './contrast-states-audit.js';
 import type { ContrastResult } from './types.js';
 import { runOfflineAudit } from './offline-audit.js';
 import { runEmailAudit } from './email-audit.js';
+import { runHumanPass } from './human-pass-audit.js';
+import { runHumanPassBackend } from './human-pass-backend.js';
 import type {
   InspectConfig,
   InspectResult,
@@ -397,6 +399,8 @@ export {
 // P4 #41 — Concurrency audit (2-tab race detection).
 // Types are re-exported via `export * from './types.js'` above.
 export { runConcurrencyAudit } from './concurrency-audit.js';
+export { runHumanPass } from './human-pass-audit.js';
+export { runHumanPassBackend } from './human-pass-backend.js';
 
 export async function inspect(config: InspectConfig): Promise<InspectResult> {
   const startedAt = new Date();
@@ -520,6 +524,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
   let securityResult: InspectResult['security'];
   let exploreResult: InspectResult['explore'];
   let errorStateResult: ErrorStateResult | undefined;
+  let humanPassResult: import('./human-pass-audit.js').HumanPassResult | undefined;
+  let humanPassBackendResult: import('./human-pass-backend.js').HumanPassBackendResult | undefined;
 
   try {
     for (const vp of viewports) {
@@ -1031,6 +1037,41 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
         securityResult = await checkSecurityHeaders(config.url).catch(() => undefined);
       }
 
+      // P6 #54 — human pass: must be the VERY last browser action so it can
+      // snapshot the final state after every other audit has touched the page.
+      if (checks.humanPass) {
+        const cfg = typeof checks.humanPass === 'object' ? checks.humanPass : {};
+        // Default screenshot dir: inside the run's output dir.
+        const defaultDir = path.join(config.output?.dir ?? '.uxinspect', 'human-pass');
+        const hPage = await driver.newPage();
+        try {
+          await hPage.goto(config.url).catch(() => {});
+          humanPassResult = await runHumanPass(hPage, {
+            ...cfg,
+            screenshotDir: cfg.screenshotDir ?? defaultDir,
+          }).catch(() => undefined);
+        } finally {
+          await hPage.close().catch(() => {});
+        }
+      }
+
+      // P6 #55 — human pass (backend): debugger-persona gate that hammers every
+      // endpoint with payload variants. No page required — runs standalone via
+      // fetch using the configured baseUrl.
+      if (checks.humanPassBackend) {
+        const backendOpts =
+          typeof checks.humanPassBackend === 'object' ? checks.humanPassBackend : {};
+        try {
+          humanPassBackendResult = await runHumanPassBackend(undefined, {
+            baseUrl: config.url,
+            dumpDir: path.join(config.output?.dir ?? '.uxinspect', 'human-pass-backend'),
+            ...backendOpts,
+          });
+        } catch {
+          // runner is documented as never-throwing; swallow defensively
+        }
+      }
+
       // Drain self-heal events emitted during this viewport's runs (P2 #26).
       try {
         selfHealEvents!.push(...ai.getHealEvents());
@@ -1194,6 +1235,8 @@ export async function inspect(config: InspectConfig): Promise<InspectResult> {
     jitter: checks.jitter ? jitterResults : undefined,
     srAnnouncements: checks.srAnnouncements ? srAnnouncementsResults : undefined,
     pseudoLocale: checks.pseudoLocale ? pseudoLocaleResults : undefined,
+    humanPass: humanPassResult,
+    humanPassBackend: humanPassBackendResult,
     formBehavior: checks.formBehavior ? formBehaviorResults : undefined,
     structuredData: checks.structuredData ? structuredDataResults : undefined,
     passiveSecurity: checks.passiveSecurity ? passiveSecurityResults : undefined,
